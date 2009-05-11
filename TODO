@@ -1,0 +1,4 @@
+- Test and enhance the API for DVB-C, H, and ATSC support
+- Win32 support
+- Improve build system (autostuff)
+- Parse the IOD to get a more precise idea of useful PIDs

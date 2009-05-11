@@ -1,0 +1,12 @@
+Welcome to DVBlast !
+
+DVBlast is a simple and powerful streaming application based on the
+linux-dvb API. It opens a DVB device, tunes it, places PID filters,
+configures a CAM module, and demultiplexes the packets to several RTP
+outputs. The configuration file for RTP outputs can be reloaded without
+losing a single packet. All of this with a minimal memory and CPU
+footprint. It has very few dependancies (libdvbpsi and libc). It also
+supports the new S2API of linux-dvb.
+
+-- 
+Meuuh 2009-05-05

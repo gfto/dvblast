@@ -1,0 +1,106 @@
+Installing DVBlast
+==================
+
+No autotools yet... You have to tweak the Makefile by hand, especially
+if your kernel is S2API-enabled but not your distribution (indicate the
+path of your kernel where appropriate). Compile the program with `make`.
+
+
+Tuning DVBlast
+==============
+
+You usually want to supply DVBlast with the parameters of a transponder,
+for instance for DVB-S :
+
+dvblast -f 11570000 -s 27500000 -v 18
+
+This tunes to frequency 11570 MHz, symbol rate 27500, horizontal (-v 18). For
+DVB-S2, you must indicate a modulation with -m qpsk or -m psk_8. For DVB-T,
+a bandwidth (usually -b 8 for 8 MHz multiplexes).
+
+
+Configuring outputs
+===================
+
+DVBlast reads a configuration file containing one or several lines in the
+format :
+<IP>[:<port>]	<always on>	<SID>	[<PID>,]*
+
+For instance :
+239.255.0.1:1234	1	10750	1234,1235,1236
+
+The configuration file can be reloaded by sending "HUP" to the program, or
+via the dvblastctl program.
+
+The "always on" flag tells DVBlast whether the channel is expected to
+be on at all times or if it may break. If set to "1", then DVBlast will
+regularly reset the CAM module if it fails to descramble the service,
+assuming the module is dead. Every time it is reset a few TS packets
+will be lost, that is why this feature is optional.
+
+There are three ways of configuring the PIDs to stream :
+
+1. SID-based
+
+239.255.0.1:1234	1	10750	
+
+DVBlast will stream all known PIDs from service 10750 (video, audio, and
+subtitles). The resulting stream is fully MPEG-compliant, with PAT and PMT.
+
+2. SID and PIDs
+
+239.255.0.1:1234	1	10750	1234,1235
+
+DVBlast will stream SID 10750, but only PID 1234 and 1235 will be output.
+Other known PIDs will be discarded and removed from the PMT. The list of
+PIDs in the config file does not include the PAT and PMT, but it must
+include the PCR PID if it is different from the video or audio PID, otherwise
+the stream won't be compliant.
+
+3. PIDs only
+
+239.255.0.1:1234	1	0	0,128,1234,1235
+
+DVBlast will only stream the PIDs passed. No PAT and PMT will be generated,
+so if they are not included the stream won't be compliant. Also the
+included PAT and PMT may contain ghost programs or ESes.
+
+Note that the CAM will not be programmed in that case (unless it has
+been programmed by another line of the config file). The file is read
+from the command-line :
+
+dvblast -c /tmp/dvblast.conf
+
+
+Monitoring
+==========
+
+If dvblast is run with the -r option, the dvblastctl program can be used
+to retrieve information from DVBlast about the front-end or CAM module.
+
+dvblastctl -r /tmp/dvblast.sock fe_status
+dvblastctl -r /tmp/dvblast.sock mmi_status
+dvblastctl -r /tmp/dvblast.sock shutdown
+
+
+CAM menu
+========
+
+For easier access to the CAM menus, the dvblast_mmi.sh shell script is
+provided :
+
+dvblast_mmi.sh -r /tmp/dvblast.sock
+
+
+Advanced features
+=================
+
+DVBlast may handle several DVB adapters in the same machine with the -a switch.
+
+For better latency, run DVBlast in real-time priority (-i 1).
+
+DVBlast can also stream the entire transponder to an address :
+dvblast -u -d 172.16.42.42:1235 -f 11570000 -s 27500000 -v 18
+
+The -u switch disables the PID filters, so that all PIDs, even the
+unused ones, can be output.
