@@ -3,10 +3,16 @@ Welcome to DVBlast !
 DVBlast is a simple and powerful streaming application based on the
 linux-dvb API. It opens a DVB device, tunes it, places PID filters,
 configures a CAM module, and demultiplexes the packets to several RTP
-outputs. The configuration file for RTP outputs can be reloaded without
-losing a single packet. All of this with a minimal memory and CPU
-footprint. It has very few dependancies (libdvbpsi and libc). It also
-supports the new S2API of linux-dvb.
+outputs. It supports the new S2API of linux-dvb (compile option).
+
+The configuration file for RTP outputs can be reloaded without losing
+a single packet. MMI operation and monitoring are provided with an
+external control program using a UINIX socket.
+
+DVBlast is very lightweight and designed to operate in tight
+environment. Its memory and CPU uses are kept to a minimal, and it
+features only one thread of execution. It has very few dependancies
+(libdvbpsi and libc). I intend to keep it that way.
 
 -- 
-Meuuh 2009-05-05
+Meuuh 2009-05-11
