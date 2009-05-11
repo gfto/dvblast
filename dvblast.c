@@ -2,7 +2,7 @@
  * dvblast.c
  *****************************************************************************
  * Copyright (C) 2004, 2008-2009 the VideoLAN team
- * $Id: dvblast.c 11 2007-08-09 18:54:37Z cmassiot $
+ * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

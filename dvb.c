@@ -2,7 +2,7 @@
  * dvb.c
  *****************************************************************************
  * Copyright (C) 2008-2009 the VideoLAN team
- * $Id: demux.c 7 2006-01-25 16:26:44Z cmassiot $
+ * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

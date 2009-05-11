@@ -2,7 +2,7 @@
  * comm.h
  *****************************************************************************
  * Copyright (C) 2008 the VideoLAN team
- * $Id: dvblast.h 3 2005-10-05 12:15:55Z cmassiot $
+ * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

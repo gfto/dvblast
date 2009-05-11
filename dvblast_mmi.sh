@@ -3,7 +3,7 @@
 # dvblast_mmi.sh
 ###############################################################################
 # Copyright (C) 1998-2008 the VideoLAN team
-# $Id: ead45da90b964b384dd20bfad15b7233e7243c66 $
+# $Id$
 #
 # Authors: Christophe Massiot <massiot@via.ecp.fr>
 #

@@ -2,7 +2,7 @@
  * output.c
  *****************************************************************************
  * Copyright (C) 2004, 2008-2009 the VideoLAN team
- * $Id: output.c 2 2005-09-23 19:06:05Z cmassiot $
+ * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

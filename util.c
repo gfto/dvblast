@@ -2,7 +2,7 @@
  * util.c
  *****************************************************************************
  * Copyright (C) 2004 the VideoLAN team
- * $Id: util.c 9 2007-03-15 16:58:05Z cmassiot $
+ * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

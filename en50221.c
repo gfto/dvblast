@@ -3,6 +3,7 @@
  * layers of EN 50 221
  *****************************************************************************
  * Copyright (C) 2004-2005 the VideoLAN team
+ * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  * Based on code from libdvbci Copyright (C) 2000 Klaus Schmidinger
