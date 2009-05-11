@@ -415,10 +415,11 @@ static struct dtv_property dvbs_cmdargs[] = {
 	{ .cmd = DTV_VOLTAGE,         .u.data = SEC_VOLTAGE_OFF },
 	{ .cmd = DTV_TONE,            .u.data = SEC_TONE_OFF },
 	{ .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
+	{ .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS },
 	{ .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbs_cmdseq = {
-	.num = 8,
+	.num = sizeof(dvbs_cmdargs)/sizeof(struct dtv_property),
 	.props = dvbs_cmdargs
 };
 
@@ -436,7 +437,7 @@ static struct dtv_property dvbs2_cmdargs[] = {
 	{ .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbs2_cmdseq = {
-	.num = 11,
+	.num = sizeof(dvbs2_cmdargs)/sizeof(struct dtv_property),
 	.props = dvbs2_cmdargs
 };
 
@@ -445,10 +446,11 @@ static struct dtv_property dvbc_cmdargs[] = {
 	{ .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
 	{ .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
 	{ .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
+	{ .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBC_ANNEX_AC },
 	{ .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbc_cmdseq = {
-	.num = 5,
+	.num = sizeof(dvbc_cmdargs)/sizeof(struct dtv_property),
 	.props = dvbc_cmdargs
 };
 
@@ -457,10 +459,16 @@ static struct dtv_property dvbt_cmdargs[] = {
 	{ .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
 	{ .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
 	{ .cmd = DTV_BANDWIDTH_HZ,    .u.data = 8000000 },
+	{ .cmd = DTV_CODE_RATE_HP,    .u.data = FEC_AUTO },
+	{ .cmd = DTV_CODE_RATE_LP,    .u.data = FEC_AUTO },
+	{ .cmd = DTV_GUARD_INTERVAL,  .u.data = GUARD_INTERVAL_AUTO },
+	{ .cmd = DTV_TRANSMISSION_MODE,.u.data = TRANSMISSION_MODE_AUTO },
+	{ .cmd = DTV_HIERARCHY,       .u.data = HIERARCHY_AUTO },
+	{ .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBT },
 	{ .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbt_cmdseq = {
-	.num = 5,
+	.num = sizeof(dvbt_cmdargs)/sizeof(struct dtv_property),
 	.props = dvbt_cmdargs
 };
 
