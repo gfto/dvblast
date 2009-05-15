@@ -83,7 +83,7 @@ void dvb_Open( void )
 {
     char psz_tmp[128];
 
-    sprintf( psz_tmp, "/dev/dvb/adapter%d/frontend0", i_adapter );
+    sprintf( psz_tmp, "/dev/dvb/adapter%d/frontend%d", i_adapter, i_fenum );
     if( (i_frontend = open(psz_tmp, O_RDWR | O_NONBLOCK)) < 0 )
     {
         msg_Err( NULL, "opening device %s failed (%s)", psz_tmp,
@@ -93,7 +93,7 @@ void dvb_Open( void )
 
     FrontendSet();
 
-    sprintf( psz_tmp, "/dev/dvb/adapter%d/dvr0", i_adapter );
+    sprintf( psz_tmp, "/dev/dvb/adapter%d/dvr%d", i_adapter, i_fenum );
 
     if( (i_dvr = open(psz_tmp, O_RDONLY)) < 0 )
     {
@@ -243,7 +243,7 @@ int dvb_SetFilter( uint16_t i_pid )
     char psz_tmp[128];
     int i_fd;
 
-    sprintf( psz_tmp, "/dev/dvb/adapter%d/demux0", i_adapter );
+    sprintf( psz_tmp, "/dev/dvb/adapter%d/demux%d", i_adapter, i_fenum );
     if( (i_fd = open(psz_tmp, O_RDWR)) < 0 )
     {
         msg_Err( NULL, "DMXSetFilter: opening device failed (%s)",

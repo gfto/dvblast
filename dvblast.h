@@ -80,6 +80,7 @@ extern char *psz_srv_socket;
 extern int i_ttl;
 extern in_addr_t i_ssrc;
 extern int i_adapter;
+extern int i_fenum;
 extern int i_frequency;
 extern int i_srate;
 extern int i_voltage;

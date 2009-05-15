@@ -46,6 +46,7 @@ int i_ttl = 64;
 in_addr_t i_ssrc = 0;
 static int i_priority = -1;
 int i_adapter = 0;
+int i_fenum = 0;
 int i_frequency = 0;
 int i_srate = 27500000;
 int i_voltage = 13;
@@ -180,7 +181,7 @@ static void SigHandler( int i_signal )
  *****************************************************************************/
 void usage()
 {
-    msg_Err( NULL, "Usage: dvblast -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-d <dest IP:port>]" );
+    msg_Err( NULL, "Usage: dvblast -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>][-n <frontend_num>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-d <dest IP:port>]" );
     msg_Err( NULL, "-v: voltage to apply to the LNB (QPSK)" );
     msg_Err( NULL, "-p: force 22kHz pulses for high-band selection (DVB-S)" );
     msg_Err( NULL, "-m: DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
@@ -205,7 +206,7 @@ int main( int i_argc, char **pp_argv )
     {
         char c;
 
-        if ( (c = getopt(i_argc, pp_argv, "c:r:t:o:i:a:f:s:v:pb:m:ud:h")) == -1 )
+        if ( (c = getopt(i_argc, pp_argv, "c:r:t:o:i:a:n:f:s:v:pb:m:ud:h")) == -1 )
             break;
 
         switch ( c )
@@ -237,6 +238,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'a':
             i_adapter = strtol( optarg, NULL, 0 );
+            break;
+
+        case 'n':
+            i_fenum = strtol( optarg, NULL, 0 );
             break;
 
         case 'f':
