@@ -132,22 +132,36 @@ static void output_Flush( output_t *p_output )
     struct iovec p_iov[NB_BLOCKS + 1];
     uint8_t p_rtp_hdr[RTP_SIZE];
     int i;
+    int i_outblocks = NB_BLOCKS;
 
-    p_iov[0].iov_base = p_rtp_hdr;
-    p_iov[0].iov_len = sizeof(p_rtp_hdr);
-    rtp_SetHdr( p_output, p_rtp_hdr );
-
-    for ( i = 1; i < NB_BLOCKS + 1; i++ )
+    if ( !b_output_udp )
     {
-        p_iov[i].iov_base = p_output->pp_blocks[i - 1]->p_ts;
-        p_iov[i].iov_len = TS_SIZE;
+        p_iov[0].iov_base = p_rtp_hdr;
+        p_iov[0].iov_len = sizeof(p_rtp_hdr);
+        rtp_SetHdr( p_output, p_rtp_hdr );
+
+        for ( i = 1; i < NB_BLOCKS + 1; i++ )
+        {
+            p_iov[i].iov_base = p_output->pp_blocks[i - 1]->p_ts;
+            p_iov[i].iov_len = TS_SIZE;
+        }
+
+        i_outblocks += 1;
+    }
+    else
+    {
+        for ( i = 0; i < NB_BLOCKS; i++ )
+        {
+            p_iov[i].iov_base = p_output->pp_blocks[i]->p_ts;
+            p_iov[i].iov_len = TS_SIZE;
+        }
     }
 
-    if ( writev( p_output->i_handle, p_iov, NB_BLOCKS + 1 ) < 0 )
+    if ( writev( p_output->i_handle, p_iov, i_outblocks ) < 0 )
     {
         struct in_addr s;
         s.s_addr = p_output->i_maddr;
-        msg_Err( NULL, "coundn't writev to %s:%u (%s)", inet_ntoa( s ),
+        msg_Err( NULL, "couldn't writev to %s:%u (%s)", inet_ntoa( s ),
                  p_output->i_port, strerror(errno) );
     }
 

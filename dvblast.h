@@ -88,6 +88,7 @@ extern int b_tone;
 extern int i_bandwidth;
 extern char *psz_modulation;
 extern int b_budget_mode;
+extern int b_output_udp;
 extern volatile int b_hup_received;
 extern mtime_t i_ca_timeout;
 extern int i_comm_fd;

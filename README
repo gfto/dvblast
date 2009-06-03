@@ -5,7 +5,12 @@ linux-dvb API. It opens a DVB device, tunes it, places PID filters,
 configures a CAM module, and demultiplexes the packets to several RTP
 outputs. It supports the new S2API of linux-dvb (compile option).
 
-The configuration file for RTP outputs can be reloaded without losing
+Output to UDP rather than RTP is also supported so those IPTV set top
+boxes that don't do RTP over multicast can also use the streams.  
+This functionality is not recommended and should only be used if
+absolutely necessary.
+
+The configuration file for outputs can be reloaded without losing
 a single packet. MMI operation and monitoring are provided with an
 external control program using a Unix domain socket.
 
@@ -16,3 +21,4 @@ features only one thread of execution. It has very few dependencies
 
 -- 
 Meuuh 2009-05-11
+gatty 2009-05-24

@@ -54,6 +54,7 @@ int b_tone = 0;
 int i_bandwidth = 8;
 char *psz_modulation = NULL;
 int b_budget_mode = 0;
+int b_output_udp = 0;
 volatile int b_hup_received = 0;
 
 /*****************************************************************************
@@ -181,13 +182,14 @@ static void SigHandler( int i_signal )
  *****************************************************************************/
 void usage()
 {
-    msg_Err( NULL, "Usage: dvblast -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>][-n <frontend_num>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-d <dest IP:port>]" );
+    msg_Err( NULL, "Usage: dvblast -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>][-n <frontend_num>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-d <dest IP:port>]" );
     msg_Err( NULL, "-v: voltage to apply to the LNB (QPSK)" );
     msg_Err( NULL, "-p: force 22kHz pulses for high-band selection (DVB-S)" );
     msg_Err( NULL, "-m: DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
     msg_Err( NULL, "    DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
     msg_Err( NULL, "    DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
     msg_Err( NULL, "-u: turn on budget mode (no hardware PID filtering)" );
+    msg_Err( NULL, "-U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
     msg_Err( NULL, "-d: duplicate all received packets to a given port" );
     exit(1);
 }
@@ -206,7 +208,7 @@ int main( int i_argc, char **pp_argv )
     {
         char c;
 
-        if ( (c = getopt(i_argc, pp_argv, "c:r:t:o:i:a:n:f:s:v:pb:m:ud:h")) == -1 )
+        if ( (c = getopt(i_argc, pp_argv, "c:r:t:o:i:a:n:f:s:v:pb:m:uUd:h")) == -1 )
             break;
 
         switch ( c )
@@ -270,6 +272,12 @@ int main( int i_argc, char **pp_argv )
 
         case 'u':
             b_budget_mode = 1;
+            break;
+
+        case 'U':
+            b_output_udp = 1;
+            msg_Warn( NULL, "raw UDP output is deprecated.  Please consider using RTP." );
+            msg_Warn( NULL, "for DVB-IP compliance you should use RTP." );
             break;
 
         case 'd':
