@@ -38,9 +38,11 @@
 #include "en50221.h"
 #include "comm.h"
 
+int i_verbose = 3;
+
 void usage()
 {
-    msg_Err( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice [<CAM slot>] [<text/choice>]" );
+    msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice [<CAM slot>] [<text/choice>]" );
     exit(1);
 }
 

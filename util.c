@@ -38,18 +38,24 @@
  * Local declarations
  *****************************************************************************/
 #define MAX_MSG 1024
+#define VERB_DBG  3
+#define VERB_INFO 2
+#define VERB_WARN 1
 
 /*****************************************************************************
  * msg_Info
  *****************************************************************************/
 void msg_Info( void *_unused, const char *psz_format, ... )
 {
-    va_list args;
-    char psz_fmt[MAX_MSG];
-    va_start( args, psz_format );
+    if ( i_verbose >= VERB_INFO )
+    {
+        va_list args;
+        char psz_fmt[MAX_MSG];
+        va_start( args, psz_format );
 
-    snprintf( psz_fmt, MAX_MSG, "dvblast info: %s\n", psz_format );
-    vfprintf( stderr, psz_fmt, args );
+        snprintf( psz_fmt, MAX_MSG, "dvblast info: %s\n", psz_format );
+        vfprintf( stderr, psz_fmt, args );
+    }
 }
 
 /*****************************************************************************
@@ -70,12 +76,15 @@ void msg_Err( void *_unused, const char *psz_format, ... )
  *****************************************************************************/
 void msg_Warn( void *_unused, const char *psz_format, ... )
 {
-    va_list args;
-    char psz_fmt[MAX_MSG];
-    va_start( args, psz_format );
+    if ( i_verbose >= VERB_WARN )
+    {
+        va_list args;
+        char psz_fmt[MAX_MSG];
+        va_start( args, psz_format );
 
-    snprintf( psz_fmt, MAX_MSG, "dvblast warning: %s\n", psz_format );
-    vfprintf( stderr, psz_fmt, args );
+        snprintf( psz_fmt, MAX_MSG, "dvblast warning: %s\n", psz_format );
+        vfprintf( stderr, psz_fmt, args );
+    }
 }
 
 /*****************************************************************************
@@ -83,11 +92,27 @@ void msg_Warn( void *_unused, const char *psz_format, ... )
  *****************************************************************************/
 void msg_Dbg( void *_unused, const char *psz_format, ... )
 {
+    if ( i_verbose >= VERB_DBG )
+    {
+        va_list args;
+        char psz_fmt[MAX_MSG];
+        va_start( args, psz_format );
+
+        snprintf( psz_fmt, MAX_MSG, "dvblast debug: %s\n", psz_format );
+        vfprintf( stderr, psz_fmt, args );
+    }
+}
+
+/*****************************************************************************
+ * msg_Raw
+ *****************************************************************************/
+void msg_Raw( void *_unused, const char *psz_format, ... )
+{
     va_list args;
     char psz_fmt[MAX_MSG];
     va_start( args, psz_format );
 
-    snprintf( psz_fmt, MAX_MSG, "dvblast debug: %s\n", psz_format );
+    snprintf( psz_fmt, MAX_MSG, "%s\n", psz_format );
     vfprintf( stderr, psz_fmt, args );
 }
 

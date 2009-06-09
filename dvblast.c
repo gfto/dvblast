@@ -56,6 +56,7 @@ char *psz_modulation = NULL;
 int b_budget_mode = 0;
 int b_output_udp = 0;
 volatile int b_hup_received = 0;
+int i_verbose = DEFAULT_VERBOSITY;
 
 /*****************************************************************************
  * Configuration files
@@ -182,15 +183,16 @@ static void SigHandler( int i_signal )
  *****************************************************************************/
 void usage()
 {
-    msg_Err( NULL, "Usage: dvblast -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>][-n <frontend_num>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-d <dest IP:port>]" );
-    msg_Err( NULL, "-v: voltage to apply to the LNB (QPSK)" );
-    msg_Err( NULL, "-p: force 22kHz pulses for high-band selection (DVB-S)" );
-    msg_Err( NULL, "-m: DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
-    msg_Err( NULL, "    DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
-    msg_Err( NULL, "    DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
-    msg_Err( NULL, "-u: turn on budget mode (no hardware PID filtering)" );
-    msg_Err( NULL, "-U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
-    msg_Err( NULL, "-d: duplicate all received packets to a given port" );
+    msg_Raw( NULL, "Usage: dvblast [-q] -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>][-n <frontend_num>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-d <dest IP:port>]" );
+    msg_Raw( NULL, "    -q: be quiet (less verbosity, repeat or use number for even quieter)" );
+    msg_Raw( NULL, "    -v: voltage to apply to the LNB (QPSK)" );
+    msg_Raw( NULL, "    -p: force 22kHz pulses for high-band selection (DVB-S)" );
+    msg_Raw( NULL, "    -m: DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
+    msg_Raw( NULL, "        DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
+    msg_Raw( NULL, "        DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
+    msg_Raw( NULL, "    -u: turn on budget mode (no hardware PID filtering)" );
+    msg_Raw( NULL, "    -U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
+    msg_Raw( NULL, "    -d: duplicate all received packets to a given port" );
     exit(1);
 }
 
@@ -202,17 +204,40 @@ int main( int i_argc, char **pp_argv )
     if ( i_argc == 1 )
         usage();
 
-    msg_Err( NULL, "restarting" );
+    msg_Warn( NULL, "restarting" );
 
     for ( ; ; )
     {
         char c;
 
-        if ( (c = getopt(i_argc, pp_argv, "c:r:t:o:i:a:n:f:s:v:pb:m:uUd:h")) == -1 )
+        if ( (c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:v:pb:m:uUd:h")) == -1 )
             break;
 
         switch ( c )
         {
+        case 'q':
+            if ( optarg )
+            {
+                if ( *optarg == 'q' )  /* e.g. -qqq */
+                {
+                    i_verbose--;
+                    while ( *optarg == 'q' )
+                    {
+                        i_verbose--;
+                        optarg++;
+                    }
+                }
+                else
+                {
+                    i_verbose -= atoi( optarg );  /* e.g. -q2 */
+                }
+            }
+            else
+            {
+                i_verbose--;  /* -q */
+            }
+            break;
+
         case 'c':
             psz_conf_file = optarg;
             break;

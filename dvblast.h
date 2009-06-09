@@ -33,6 +33,7 @@
 #define PADDING_PID 8191
 #define WATCHDOG_WAIT 10000000LL
 #define MAX_ERRORS 100000
+#define DEFAULT_VERBOSITY 3
 
 typedef int64_t mtime_t;
 
@@ -73,6 +74,7 @@ typedef struct output_t
     int b_still_present;
 } output_t;
 
+extern int i_verbose;
 extern output_t **pp_outputs;
 extern int i_nb_outputs;
 extern output_t output_dup;
@@ -100,6 +102,7 @@ void msg_Info( void *_unused, const char *psz_format, ... );
 void msg_Err( void *_unused, const char *psz_format, ... );
 void msg_Warn( void *_unused, const char *psz_format, ... );
 void msg_Dbg( void *_unused, const char *psz_format, ... );
+void msg_Raw( void *_unused, const char *psz_format, ... );
 mtime_t mdate( void );
 void msleep( mtime_t delay );
 
