@@ -301,8 +301,6 @@ int main( int i_argc, char **pp_argv )
 
         case 'U':
             b_output_udp = 1;
-            msg_Warn( NULL, "raw UDP output is deprecated.  Please consider using RTP." );
-            msg_Warn( NULL, "for DVB-IP compliance you should use RTP." );
             break;
 
         case 'd':
@@ -325,6 +323,12 @@ int main( int i_argc, char **pp_argv )
         default:
             usage();
         }
+    }
+
+    if ( b_output_udp ) 
+    {
+        msg_Warn( NULL, "raw UDP output is deprecated.  Please consider using RTP." );
+        msg_Warn( NULL, "for DVB-IP compliance you should use RTP." );
     }
 
     signal( SIGHUP, SigHandler );
