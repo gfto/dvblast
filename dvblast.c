@@ -200,19 +200,15 @@ int main( int i_argc, char **pp_argv )
 {
     struct sched_param param;
     int i_error;
+    char c;
 
     if ( i_argc == 1 )
         usage();
 
     msg_Warn( NULL, "restarting" );
 
-    for ( ; ; )
+    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:v:pb:m:uUd:h")) != (char)EOF )
     {
-        char c;
-
-        if ( (c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:v:pb:m:uUd:h")) == -1 )
-            break;
-
         switch ( c )
         {
         case 'q':
