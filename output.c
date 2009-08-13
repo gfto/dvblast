@@ -87,12 +87,16 @@ int output_Init( output_t *p_output, in_addr_t i_maddr, uint16_t i_port )
     p_output->i_cc = rand() & 0xffff;
     p_output->i_pat_cc = rand() & 0xf;
     p_output->i_pmt_cc = rand() & 0xf;
+    p_output->i_sdt_cc = rand() & 0xf;
+    p_output->i_eit_cc = rand() & 0xf;
     p_output->i_pat_version = rand() & 0xff;
     p_output->i_pmt_version = rand() & 0xff;
     p_output->p_pat_section = NULL;
     p_output->p_pmt_section = NULL;
+    p_output->p_sdt_section = NULL;
     p_output->i_ref_timestamp = 0;
     p_output->i_ref_wallclock = mdate();
+    p_output->i_eit_last_table_id = 0;
 
     p_output->i_maddr = i_maddr;
     p_output->i_port = i_port;

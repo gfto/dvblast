@@ -65,6 +65,9 @@ typedef struct output_t
     uint8_t i_pat_version, i_pat_cc;
     dvbpsi_psi_section_t *p_pmt_section;
     uint8_t i_pmt_version, i_pmt_cc;
+    dvbpsi_psi_section_t *p_sdt_section;
+    uint8_t i_sdt_cc;
+    uint8_t i_eit_cc, i_eit_last_table_id;
 
     /* configuration */
     uint16_t i_sid; /* 0 if raw mode */
@@ -91,6 +94,7 @@ extern int i_bandwidth;
 extern char *psz_modulation;
 extern int b_budget_mode;
 extern int b_output_udp;
+extern int b_enable_epg;
 extern volatile int b_hup_received;
 extern mtime_t i_ca_timeout;
 extern int i_comm_fd;
@@ -105,6 +109,7 @@ void msg_Dbg( void *_unused, const char *psz_format, ... );
 void msg_Raw( void *_unused, const char *psz_format, ... );
 mtime_t mdate( void );
 void msleep( mtime_t delay );
+void hexDump( uint8_t *p_data, uint32_t i_len );
 
 void dvb_Open( void );
 block_t * dvb_Read( void );

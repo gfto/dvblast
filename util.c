@@ -142,3 +142,53 @@ void msleep( mtime_t delay )
 
     nanosleep( &ts_delay, NULL );
 }
+
+/*****************************************************************************
+ * hexDump
+ *****************************************************************************/
+void hexDump( uint8_t *p_data, uint32_t i_len )
+{
+    uint16_t i, j;
+    
+    char *p_outline;
+    char *p_hrdata;
+
+    p_outline = malloc(69);
+    p_hrdata  = malloc(17);
+
+    for( i = 0; i < i_len; i += 16 )
+    {
+
+        sprintf( p_outline, "%03x: ", i );
+
+        for( j = 0; j < 16; j++ )
+        {
+            if( i + j < i_len )
+            {
+                sprintf( &p_outline[5 + (3 * j)], "%02x ", p_data[i + j] );
+
+                if( p_data[i + j] >= 32 && p_data[i + j] <= 136 )
+                {
+                    sprintf( &p_hrdata[j], "%c", p_data[i + j] );
+                }
+
+                else {
+                    sprintf( &p_hrdata[j], "." );
+                }
+            }
+
+            else
+            {
+                sprintf( &p_outline[5 + (3 * j)], "   " );
+                sprintf( &p_hrdata[j], " " );
+            }
+        }
+
+        sprintf( &p_outline[53], "%16s", p_hrdata );
+        msg_Dbg( NULL, p_outline );
+    }
+
+    free( p_hrdata );
+    free( p_outline );
+}
+

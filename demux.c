@@ -5,6 +5,7 @@
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
+ *          Andy Gatward <a.j.gatward@reading.ac.uk>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,12 +35,17 @@
 #include <dvbpsi/demux.h>
 #include <dvbpsi/pat.h>
 #include <dvbpsi/eit.h>
+#include <dvbpsi/sdt.h>
 #include <dvbpsi/dr.h>
 #include <dvbpsi/psi.h>
 
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
+
+#define SDT_PID        0x11
+#define EIT_PID        0x12
+
 typedef struct ts_pid_t
 {
     int i_refcount;
@@ -63,6 +69,8 @@ static sid_t **pp_sids = NULL;
 static int i_nb_sids = 0;
 
 static dvbpsi_handle p_pat_dvbpsi_handle;
+static dvbpsi_handle p_sdt_dvbpsi_handle;
+static dvbpsi_handle p_eit_dvbpsi_handle;
 static dvbpsi_pat_t *p_current_pat = NULL;
 static int i_demux_fd;
 
@@ -90,6 +98,9 @@ static void NewPAT( output_t *p_output );
 static void NewPMT( output_t *p_output );
 static void PATCallback( void *_unused, dvbpsi_pat_t *p_pat );
 static void PMTCallback( void *_unused, dvbpsi_pmt_t *p_pmt );
+static void PSITableCallback( void *_unused, dvbpsi_handle h_dvbpsi,
+                              uint8_t i_table_id, uint16_t i_extension );
+static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt );
 
 /*****************************************************************************
  * demux_Open
@@ -113,6 +124,15 @@ void demux_Open( void )
 
     SetPID(0); /* PAT */
     p_pat_dvbpsi_handle = dvbpsi_AttachPAT( PATCallback, NULL );
+
+    if( b_enable_epg )
+    {
+        SetPID(SDT_PID); /* SDT */
+        p_sdt_dvbpsi_handle = dvbpsi_AttachDemux( PSITableCallback, NULL );
+
+        SetPID(EIT_PID); /* EIT */
+        p_eit_dvbpsi_handle = dvbpsi_AttachDemux( PSITableCallback, NULL );
+    }
 }
 
 /*****************************************************************************
@@ -164,6 +184,14 @@ static void demux_Handle( block_t *p_ts )
             dvbpsi_PushPacket( p_pat_dvbpsi_handle, p_ts->p_ts );
             if ( block_UnitStart( p_ts ) )
                 SendPAT();
+        }
+        else if ( i_pid == EIT_PID )
+        {
+            dvbpsi_PushPacket( p_eit_dvbpsi_handle, p_ts->p_ts );
+        }
+        else if (i_pid == SDT_PID )
+        {
+            dvbpsi_PushPacket( p_sdt_dvbpsi_handle, p_ts->p_ts );
         }
         else
         {
@@ -655,14 +683,66 @@ static void SendPMT( sid_t *p_sid )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == p_sid->i_sid
-              && pp_outputs[i]->p_pmt_section != NULL )
+        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == p_sid->i_sid )
         {
+            if ( pp_outputs[i]->p_pmt_section != NULL )
+            {
+                block_t *p_block;
+
+                p_block = WritePSISection( pp_outputs[i]->p_pmt_section,
+                                           p_sid->i_pmt_pid,
+                                           &pp_outputs[i]->i_pmt_cc );
+                while ( p_block != NULL )
+                {
+                    block_t *p_next = p_block->p_next;
+                    p_block->i_refcount--;
+                    output_Put( pp_outputs[i], p_block );
+                    p_block = p_next;
+                }
+            }
+
+            if ( pp_outputs[i]->p_sdt_section != NULL )
+            {
+                block_t *p_block;
+
+                p_block = WritePSISection( pp_outputs[i]->p_sdt_section,
+                                           SDT_PID,
+                                           &pp_outputs[i]->i_sdt_cc );
+                while ( p_block != NULL )
+                {
+                    block_t *p_next = p_block->p_next;
+                    p_block->i_refcount--;
+                    output_Put( pp_outputs[i], p_block );
+                    p_block = p_next;
+                }
+            }
+        }
+    }
+}
+
+/*****************************************************************************
+ * SendEIT
+ *****************************************************************************/
+static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
+                     uint8_t i_table_id )
+{
+    int i;
+
+
+    for( i = 0; i < i_nb_outputs; i++ )
+    {
+        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
+        {
+            p_section->p_data[8]  = (i_sid >> 8) & 0xff;
+            p_section->p_data[9]  = i_sid & 0xff;
+            p_section->p_data[13] = pp_outputs[i]->i_eit_last_table_id;
+            dvbpsi_BuildPSISection( p_section );
+
             block_t *p_block;
 
-            p_block = WritePSISection( pp_outputs[i]->p_pmt_section,
-                                       p_sid->i_pmt_pid,
-                                       &pp_outputs[i]->i_pmt_cc );
+            p_block = WritePSISection( p_section,
+                                       EIT_PID,
+                                       &pp_outputs[i]->i_eit_cc );
             while ( p_block != NULL )
             {
                 block_t *p_next = p_block->p_next;
@@ -891,7 +971,7 @@ static int PMTNeedsDescrambling( dvbpsi_pmt_t *p_pmt )
     for( p_dr = p_pmt->p_first_descriptor; p_dr != NULL; p_dr = p_dr->p_next )
         if( p_dr->i_tag == 0x9 )
             return 1;
- 
+
     for( p_es = p_pmt->p_first_es; p_es != NULL; p_es = p_es->p_next )
         for( p_dr = p_es->p_first_descriptor; p_dr != NULL;
              p_dr = p_dr->p_next )
@@ -1159,4 +1239,82 @@ static void PMTCallback( void *_unused, dvbpsi_pmt_t *p_pmt )
     }
 
     UpdatePMT( p_pmt->i_program_number );
+}
+
+static void PSITableCallback( void *_unused, dvbpsi_handle h_dvbpsi,
+                              uint8_t i_table_id, uint16_t i_extension )
+{
+    /* EIT tables */
+
+    if ( i_table_id == 0x43 || ( i_table_id >= 0x50 && i_table_id <= 0x5f ) )
+    {
+        SendEIT( h_dvbpsi->p_current_section, i_extension, i_table_id );
+    }
+
+    /* SDT tables */
+
+    if ( i_table_id == 0x42 )
+    {
+        dvbpsi_AttachSDT( h_dvbpsi, i_table_id, i_extension, SDTCallback,
+                          NULL );
+    }
+}
+
+static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
+{
+    int i;
+
+    dvbpsi_sdt_service_t *p_service = p_sdt->p_first_service;
+    dvbpsi_descriptor_t *p_descriptor;
+
+    dvbpsi_sdt_t *p_new_sdt = NULL;
+    dvbpsi_sdt_service_t *p_new_service;
+    dvbpsi_psi_section_t *p_old_section;
+
+    msg_Dbg( NULL, "new SDT, version %d", p_sdt->i_version );
+
+    while ( p_service != NULL )
+    {
+        for ( i = 0; i < i_nb_outputs; i++ )
+        {
+            if ( pp_outputs[i]->i_maddr
+                  && pp_outputs[i]->i_sid == p_service->i_service_id )
+            {
+                p_new_sdt = malloc(sizeof(dvbpsi_sdt_t));
+
+                dvbpsi_InitSDT( p_new_sdt, p_service->i_service_id,
+                                p_sdt->i_version, p_sdt->b_current_next,
+                                p_sdt->i_network_id );
+                p_new_service = dvbpsi_SDTAddService( p_new_sdt,
+                    p_service->i_service_id, p_service->b_eit_schedule,
+                    p_service->b_eit_present, p_service->i_running_status, 0 );
+
+                p_descriptor = p_service->p_first_descriptor;
+
+                while ( p_descriptor != NULL )
+                {
+                    dvbpsi_SDTServiceAddDescriptor( p_new_service,
+                            p_descriptor->i_tag, p_descriptor->i_length,
+                            p_descriptor->p_data );
+                    p_descriptor = p_descriptor->p_next;
+                }
+
+                p_old_section = pp_outputs[i]->p_sdt_section;
+
+                pp_outputs[i]->p_sdt_section
+                                = dvbpsi_GenSDTSections( p_new_sdt );
+
+                if ( p_old_section != NULL )
+                {
+                    dvbpsi_DeletePSISections( p_old_section );
+                }
+
+                dvbpsi_DeleteSDT( p_new_sdt );
+            }
+        }
+
+        p_service = p_service->p_next;
+    }
+
+    dvbpsi_DeleteSDT( p_sdt );
 }
