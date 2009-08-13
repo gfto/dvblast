@@ -48,7 +48,7 @@ void usage()
 
 int main( int i_argc, char **ppsz_argv )
 {
-    char psz_client_socket[FILENAME_MAX];
+    char psz_client_socket[L_tmpnam];
     char *psz_srv_socket = NULL;
     int i_fd, i_mask;
     int i = 65535;
@@ -104,7 +104,12 @@ int main( int i_argc, char **ppsz_argv )
         usage();
 
 #warning expect brain-dead gcc warning about tmpnam here
-    tmpnam(psz_client_socket);
+    if ( tmpnam(psz_client_socket) == NULL )
+    {
+        msg_Err( NULL, "cannot build UNIX socket (%s)", strerror(errno) );
+        return -1;
+    }
+
     if ( (i_fd = socket( AF_UNIX, SOCK_DGRAM, 0 )) < 0 )
     {
         msg_Err( NULL, "cannot create UNIX socket (%s)", strerror(errno) );
