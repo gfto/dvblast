@@ -1,2 +1,16 @@
-DVBlast is mostly written by Christophe Massiot <massiot@via.ecp.fr>. Parts of the code may be
-borrowed from VLC, from various contributors.
+# Contributors to DVBlast
+# 
+# The format of this file was inspired by the Linux kernel CREDITS file.
+# Authors are listed alphabetically.
+# 
+# The fields are: name (N), email (E), web-address (W), CVS account login (C),
+# PGP key ID and fingerprint (P), description (D), and snail-mail address (S).
+
+N: Andy Gatward
+E: a DOT j DOT gatward AT reading DOT ac DOT uk
+D: EIT pass-through mode and misc fixes
+
+N: Christophe Massiot
+E: massiot AT via DOT ecp DOT fr
+C: massiot
+D: Most of the code

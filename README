@@ -10,6 +10,11 @@ boxes that don't do RTP over multicast can also use the streams.
 This functionality is not recommended and should only be used if
 absolutely necessary.
 
+Pass-through of now/next and schedule data (EIT tables) is supported
+(via -e option), this data is filtered to only contain the tables for
+the service being sent, and only works when using SIDs to specify the
+channel in the configuration file.
+
 The configuration file for outputs can be reloaded without losing
 a single packet. MMI operation and monitoring are provided with an
 external control program using a Unix domain socket.
