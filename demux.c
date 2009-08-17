@@ -1246,7 +1246,7 @@ static void PSITableCallback( void *_unused, dvbpsi_handle h_dvbpsi,
 {
     /* EIT tables */
 
-    if ( i_table_id == 0x43 || ( i_table_id >= 0x50 && i_table_id <= 0x5f ) )
+    if ( i_table_id == 0x4e || ( i_table_id >= 0x50 && i_table_id <= 0x5f ) )
     {
         SendEIT( h_dvbpsi->p_current_section, i_extension, i_table_id );
     }
