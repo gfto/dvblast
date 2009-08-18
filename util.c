@@ -53,7 +53,7 @@ void msg_Info( void *_unused, const char *psz_format, ... )
         char psz_fmt[MAX_MSG];
         va_start( args, psz_format );
 
-        snprintf( psz_fmt, MAX_MSG, "dvblast info: %s\n", psz_format );
+        snprintf( psz_fmt, MAX_MSG, "info: %s\n", psz_format );
         vfprintf( stderr, psz_fmt, args );
     }
 }
@@ -67,7 +67,7 @@ void msg_Err( void *_unused, const char *psz_format, ... )
     char psz_fmt[MAX_MSG];
     va_start( args, psz_format );
 
-    snprintf( psz_fmt, MAX_MSG, "dvblast error: %s\n", psz_format );
+    snprintf( psz_fmt, MAX_MSG, "error: %s\n", psz_format );
     vfprintf( stderr, psz_fmt, args );
 }
 
@@ -82,7 +82,7 @@ void msg_Warn( void *_unused, const char *psz_format, ... )
         char psz_fmt[MAX_MSG];
         va_start( args, psz_format );
 
-        snprintf( psz_fmt, MAX_MSG, "dvblast warning: %s\n", psz_format );
+        snprintf( psz_fmt, MAX_MSG, "warning: %s\n", psz_format );
         vfprintf( stderr, psz_fmt, args );
     }
 }
@@ -98,7 +98,7 @@ void msg_Dbg( void *_unused, const char *psz_format, ... )
         char psz_fmt[MAX_MSG];
         va_start( args, psz_format );
 
-        snprintf( psz_fmt, MAX_MSG, "dvblast debug: %s\n", psz_format );
+        snprintf( psz_fmt, MAX_MSG, "debug: %s\n", psz_format );
         vfprintf( stderr, psz_fmt, args );
     }
 }
@@ -149,7 +149,7 @@ void msleep( mtime_t delay )
 void hexDump( uint8_t *p_data, uint32_t i_len )
 {
     uint16_t i, j;
-    
+
     char *p_outline;
     char *p_hrdata;
 
