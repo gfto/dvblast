@@ -119,7 +119,6 @@ block_t *dvb_Read( void )
 {
     struct pollfd ufds[3];
     int i_ret, i_nb_fd = 2;
-    mtime_t i_current_date;
 
     memset( ufds, 0, sizeof(ufds) );
     ufds[0].fd = i_dvr;
@@ -141,19 +140,18 @@ block_t *dvb_Read( void )
             msg_Err( NULL, "poll error: %s", strerror(errno) );
         return NULL;
     }
-    i_current_date = mdate();
 
     if ( i_ca_handle && i_ca_type == CA_CI_LINK
-          && i_current_date > i_ca_next_event )
+          && mdate() > i_ca_next_event )
     {
         en50221_Poll();
-        i_ca_next_event = i_current_date + i_ca_timeout;
+        i_ca_next_event = mdate() + i_ca_timeout;
     }
 
     if ( ufds[1].revents )
         FrontendPoll();
 
-    if ( i_frontend_timeout && i_current_date > i_frontend_timeout )
+    if ( i_frontend_timeout && mdate() > i_frontend_timeout )
     {
         msg_Warn( NULL, "no lock, tuning again" );
         FrontendSet();
