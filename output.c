@@ -96,7 +96,6 @@ int output_Init( output_t *p_output, in_addr_t i_maddr, uint16_t i_port )
     p_output->p_sdt_section = NULL;
     p_output->i_ref_timestamp = 0;
     p_output->i_ref_wallclock = mdate();
-    p_output->i_eit_last_table_id = 0;
 
     p_output->i_maddr = i_maddr;
     p_output->i_port = i_port;

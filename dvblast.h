@@ -67,7 +67,7 @@ typedef struct output_t
     uint8_t i_pmt_version, i_pmt_cc;
     dvbpsi_psi_section_t *p_sdt_section;
     uint8_t i_sdt_cc;
-    uint8_t i_eit_cc, i_eit_last_table_id;
+    uint8_t i_eit_cc;
 
     /* configuration */
     uint16_t i_sid; /* 0 if raw mode */

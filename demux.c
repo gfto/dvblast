@@ -735,7 +735,6 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
         {
             p_section->p_data[8]  = (i_sid >> 8) & 0xff;
             p_section->p_data[9]  = i_sid & 0xff;
-            p_section->p_data[13] = pp_outputs[i]->i_eit_last_table_id;
             dvbpsi_BuildPSISection( p_section );
 
             block_t *p_block;
