@@ -225,7 +225,7 @@ static void demux_Handle( block_t *p_ts )
                     if ( pp_outputs[j]->i_sid == i_sid )
                     {
                         pp_outputs[j]->i_ref_timestamp = i_timestamp;
-                        pp_outputs[j]->i_ref_wallclock = i_wallclock;
+                        pp_outputs[j]->i_ref_wallclock = 0;
                     }
                 }
             }

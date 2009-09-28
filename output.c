@@ -95,7 +95,7 @@ int output_Init( output_t *p_output, in_addr_t i_maddr, uint16_t i_port )
     p_output->p_pmt_section = NULL;
     p_output->p_sdt_section = NULL;
     p_output->i_ref_timestamp = 0;
-    p_output->i_ref_wallclock = mdate();
+    p_output->i_ref_wallclock = 0;
 
     p_output->i_maddr = i_maddr;
     p_output->i_port = i_port;
@@ -244,8 +244,18 @@ static int net_Open( output_t *p_output )
 
 static void rtp_SetHdr( output_t *p_output, uint8_t *p_hdr )
 {
-    mtime_t i_timestamp = p_output->i_ref_timestamp
-                           + (mdate() - p_output->i_ref_wallclock) * 9 / 100;
+    mtime_t i_timestamp;
+
+    if (!p_output->i_ref_wallclock)
+    {
+        i_timestamp = p_output->i_ref_timestamp;
+        p_output->i_ref_wallclock = mdate();
+    }
+    else
+    {
+        i_timestamp = p_output->i_ref_timestamp
+                    + (mdate() - p_output->i_ref_wallclock) * 9 / 100;
+    }
 
     p_hdr[0] = 0x80;
     p_hdr[1] = 33;
