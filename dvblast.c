@@ -362,6 +362,7 @@ int main( int i_argc, char **pp_argv )
             b_hup_received = 0;
             msg_Warn( NULL, "HUP received, reloading" );
             ReadConfiguration( psz_conf_file );
+            demux_Hup();
         }
 
         demux_Run();

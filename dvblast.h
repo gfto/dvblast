@@ -119,6 +119,7 @@ uint8_t dvb_FrontendStatus( uint8_t *p_answer, ssize_t *pi_size );
 
 void demux_Open( void );
 void demux_Run( void );
+void demux_Hup( void );
 void demux_Change( output_t *p_output, uint16_t i_sid,
                    uint16_t *pi_pids, int i_nb_pids );
 void demux_ResendCAPMTs( void );
