@@ -5,6 +5,7 @@
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
+ *          Andy Gatward <a.j.gatward@reading.ac.uk>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,6 +57,7 @@ char *psz_modulation = NULL;
 int b_budget_mode = 0;
 int b_output_udp = 0;
 int b_enable_epg = 0;
+int b_unique_tsid = 0;
 volatile int b_hup_received = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 
@@ -184,7 +186,7 @@ static void SigHandler( int i_signal )
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>][-n <frontend_num>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-d <dest IP:port>] [-e]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>][-n <frontend_num>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-d <dest IP:port>] [-e] [-T]" );
     msg_Raw( NULL, "    -q: be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "    -v: voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "    -p: force 22kHz pulses for high-band selection (DVB-S)" );
@@ -195,6 +197,7 @@ void usage()
     msg_Raw( NULL, "    -U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
     msg_Raw( NULL, "    -d: duplicate all received packets to a given port" );
     msg_Raw( NULL, "    -e: enable EPG pass through (EIT data)" );
+    msg_Raw( NULL, "    -T: generate unique TS ID for each program" );
     exit(1);
 }
 
@@ -209,7 +212,7 @@ int main( int i_argc, char **pp_argv )
 
     msg_Warn( NULL, "restarting" );
 
-    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:v:pb:m:uUd:eh")) != (char)EOF )
+    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:v:pb:m:uUTd:eh")) != (char)EOF )
     {
         switch ( c )
         {
@@ -319,6 +322,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'e':
             b_enable_epg = 1;
+            break;
+
+        case 'T':
+            b_unique_tsid = 1;
             break;
 
         case 'h':

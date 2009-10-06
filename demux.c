@@ -744,8 +744,12 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
     {
         if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
         {
-            p_section->p_data[8]  = (i_sid >> 8) & 0xff;
-            p_section->p_data[9]  = i_sid & 0xff;
+            if( b_unique_tsid )
+            {
+                p_section->p_data[8]  = (i_sid >> 8) & 0xff;
+                p_section->p_data[9]  = i_sid & 0xff;
+            }
+
             dvbpsi_BuildPSISection( p_section );
 
             block_t *p_block;
@@ -795,7 +799,11 @@ static void NewPAT( output_t *p_output )
         return;
     }
 
-    dvbpsi_InitPAT( &pat, p_output->i_sid, p_output->i_pat_version, 1 );
+    if ( b_unique_tsid )
+        dvbpsi_InitPAT( &pat, p_output->i_sid, p_output->i_pat_version, 1 );
+    else
+        dvbpsi_InitPAT( &pat, p_current_pat->i_ts_id, p_output->i_pat_version, 1 );
+
     dvbpsi_PATAddProgram( &pat, p_output->i_sid, p_program->i_pid );
 
     p_output->p_pat_section = dvbpsi_GenPATSections( &pat, 0 );
@@ -1292,9 +1300,15 @@ static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
             {
                 p_new_sdt = malloc(sizeof(dvbpsi_sdt_t));
 
-                dvbpsi_InitSDT( p_new_sdt, p_service->i_service_id,
-                                p_sdt->i_version, p_sdt->b_current_next,
-                                p_sdt->i_network_id );
+                if ( b_unique_tsid )
+                    dvbpsi_InitSDT( p_new_sdt, p_service->i_service_id,
+                                    p_sdt->i_version, p_sdt->b_current_next,
+                                    p_sdt->i_network_id );
+                else
+                    dvbpsi_InitSDT( p_new_sdt, p_sdt->i_ts_id,
+                                    p_sdt->i_version, p_sdt->b_current_next,
+                                    p_sdt->i_network_id );
+
                 p_new_service = dvbpsi_SDTAddService( p_new_sdt,
                     p_service->i_service_id, p_service->b_eit_schedule,
                     p_service->b_eit_present, p_service->i_running_status, 0 );

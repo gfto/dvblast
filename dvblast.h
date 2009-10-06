@@ -95,6 +95,7 @@ extern char *psz_modulation;
 extern int b_budget_mode;
 extern int b_output_udp;
 extern int b_enable_epg;
+extern int b_unique_tsid;
 extern volatile int b_hup_received;
 extern mtime_t i_ca_timeout;
 extern int i_comm_fd;
