@@ -746,8 +746,8 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
         {
             if( b_unique_tsid )
             {
-                p_section->p_data[8]  = (i_sid >> 8) & 0xff;
-                p_section->p_data[9]  = i_sid & 0xff;
+                p_section->p_data[8]  = (pp_outputs[i]->i_ts_id >> 8) & 0xff;
+                p_section->p_data[9]  = pp_outputs[i]->i_ts_id & 0xff;
             }
 
             dvbpsi_BuildPSISection( p_section );
@@ -800,7 +800,7 @@ static void NewPAT( output_t *p_output )
     }
 
     if ( b_unique_tsid )
-        dvbpsi_InitPAT( &pat, p_output->i_sid, p_output->i_pat_version, 1 );
+        dvbpsi_InitPAT( &pat, p_output->i_ts_id, p_output->i_pat_version, 1 );
     else
         dvbpsi_InitPAT( &pat, p_current_pat->i_ts_id, p_output->i_pat_version, 1 );
 
@@ -1301,7 +1301,7 @@ static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
                 p_new_sdt = malloc(sizeof(dvbpsi_sdt_t));
 
                 if ( b_unique_tsid )
-                    dvbpsi_InitSDT( p_new_sdt, p_service->i_service_id,
+                    dvbpsi_InitSDT( p_new_sdt, pp_outputs[i]->i_ts_id,
                                     p_sdt->i_version, p_sdt->b_current_next,
                                     p_sdt->i_network_id );
                 else

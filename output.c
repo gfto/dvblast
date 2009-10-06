@@ -94,6 +94,8 @@ int output_Init( output_t *p_output, in_addr_t i_maddr, uint16_t i_port )
     p_output->p_pat_section = NULL;
     p_output->p_pmt_section = NULL;
     p_output->p_sdt_section = NULL;
+    if ( b_unique_tsid )
+        p_output->i_ts_id = rand() & 0xffff;
     p_output->i_ref_timestamp = 0;
     p_output->i_ref_wallclock = 0;
 
