@@ -97,6 +97,11 @@ void comm_Read( void )
                  strerror(errno) );
         return;
     }
+    if ( sun_length == 0 || sun_length > sizeof(sun_client) )
+    {
+        msg_Err( NULL, "anonymous packet from comm socket\n" );
+        return;
+    }
 
     if ( p_buffer[0] != COMM_HEADER_MAGIC )
     {
