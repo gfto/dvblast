@@ -1,0 +1,11 @@
+$Id: NEWS 171 2008-04-26 12:09:45Z jpsaman $
+
+Changes between 1.0 and 1.1:
+----------------------------
+
+  * Support for adapters with multiple frontends (-n)
+  * Control of verbosity level with -q
+  * Support for TS over raw UDP with -U or /udp in the config file
+  * EIT and SDT pass-through for EPG information
+  * Original TSID kept (randomized TSID via -T)
+  * Miscellaneous CAM and tuning fixes

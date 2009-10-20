@@ -18,13 +18,16 @@ This tunes to frequency 11570 MHz, symbol rate 27500, horizontal (-v 18). For
 DVB-S2, you must indicate a modulation with -m qpsk or -m psk_8. For DVB-T,
 a bandwidth (usually -b 8 for 8 MHz multiplexes).
 
+Other rarely used options are available - run dvblast -h for more
+information.
+
 
 Configuring outputs
 ===================
 
 DVBlast reads a configuration file containing one or several lines in the
 format :
-<IP>[:<port>]	<always on>	<SID>	[<PID>,]*
+<IP>[:<port>][/udp]	<always on>	<SID>	[<PID>,]*
 
 For instance :
 239.255.0.1:1234	1	10750	1234,1235,1236
@@ -103,4 +106,11 @@ DVBlast can also stream the entire transponder to an address :
 dvblast -u -d 172.16.42.42:1235 -f 11570000 -s 27500000 -v 18
 
 The -u switch disables the PID filters, so that all PIDs, even the
-unused ones, can be output.
+unused ones, can be output. With -e, dvblast also streams EIT and SDT packets
+for the related services.
+
+By default DVBlast outputs RTP streams; if you want to disable the RTP
+header, you can either use the -U switch, or append "/udp" to the IP:port
+string of the configuration file.
+
+Other options are self-understandable, and are listed in dvblast -h.
