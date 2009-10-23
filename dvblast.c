@@ -70,6 +70,12 @@ static void ReadConfiguration( char *psz_file )
     char psz_line[2048];
     int i;
 
+    if ( psz_file == NULL )
+    {
+        msg_Err( NULL, "no config file" );
+        return;
+    }
+
     if ( (p_file = fopen( psz_file, "r" )) == NULL )
     {
         msg_Err( NULL, "can't fopen config file %s", psz_file );
@@ -334,7 +340,7 @@ int main( int i_argc, char **pp_argv )
         }
     }
 
-    if ( b_output_udp ) 
+    if ( b_output_udp )
     {
         msg_Warn( NULL, "raw UDP output is deprecated.  Please consider using RTP." );
         msg_Warn( NULL, "for DVB-IP compliance you should use RTP." );
