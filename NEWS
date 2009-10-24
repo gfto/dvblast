@@ -9,3 +9,4 @@ Changes between 1.0 and 1.1:
   * EIT and SDT pass-through for EPG information
   * Original TSID kept (randomized TSID via -T)
   * Miscellaneous CAM and tuning fixes
+  * DVB-S diseqc support

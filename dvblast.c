@@ -50,6 +50,7 @@ int i_adapter = 0;
 int i_fenum = 0;
 int i_frequency = 0;
 int i_srate = 27500000;
+int i_satnum = 0;
 int i_voltage = 13;
 int b_tone = 0;
 int i_bandwidth = 8;
@@ -192,10 +193,11 @@ static void SigHandler( int i_signal )
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>][-n <frontend_num>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-d <dest IP:port>] [-e] [-T]" );
     msg_Raw( NULL, "    -q: be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "    -v: voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "    -p: force 22kHz pulses for high-band selection (DVB-S)" );
+    msg_Raw( NULL, "    -S: satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
     msg_Raw( NULL, "    -m: DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
     msg_Raw( NULL, "        DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
     msg_Raw( NULL, "        DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
@@ -218,7 +220,7 @@ int main( int i_argc, char **pp_argv )
 
     msg_Warn( NULL, "restarting" );
 
-    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:v:pb:m:uUTd:eh")) != (int)EOF )
+    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uUTd:eh")) != (int)EOF )
     {
         switch ( c )
         {
@@ -284,6 +286,10 @@ int main( int i_argc, char **pp_argv )
 
         case 's':
             i_srate = strtol( optarg, NULL, 0 );
+            break;
+
+        case 'S':
+            i_satnum = strtol( optarg, NULL, 16 );
             break;
 
         case 'v':

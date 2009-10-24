@@ -69,12 +69,6 @@ mtime_t i_ca_timeout = 0;
 static block_t *DVRRead( void );
 static void FrontendPoll( void );
 static void FrontendSet( void );
-#if DVB_API_VERSION < 5
-static void FrontendSetQPSK( struct dvb_frontend_parameters *p_fep );
-static void FrontendSetQAM( struct dvb_frontend_parameters *p_fep );
-static void FrontendSetOFDM( struct dvb_frontend_parameters *p_fep );
-static void FrontendSetATSC( struct dvb_frontend_parameters *p_fep );
-#endif
 
 /*****************************************************************************
  * dvb_Open
@@ -82,6 +76,8 @@ static void FrontendSetATSC( struct dvb_frontend_parameters *p_fep );
 void dvb_Open( void )
 {
     char psz_tmp[128];
+
+    msg_Dbg( NULL, "using linux-dvb API version %d", DVB_API_VERSION );
 
     sprintf( psz_tmp, "/dev/dvb/adapter%d/frontend%d", i_adapter, i_fenum );
     if( (i_frontend = open(psz_tmp, O_RDWR | O_NONBLOCK)) < 0 )
@@ -370,7 +366,140 @@ static void FrontendPoll( void )
     }
 }
 
+static int FrontendDoDiseqc(void)
+{
+    fe_sec_voltage_t fe_voltage;
+    fe_sec_tone_mode_t fe_tone;
+    int bis_frequency;
+
+    switch ( i_voltage )
+    {
+        case 0: fe_voltage = SEC_VOLTAGE_OFF; break;
+        default:
+        case 13: fe_voltage = SEC_VOLTAGE_13; break;
+        case 18: fe_voltage = SEC_VOLTAGE_18; break;
+    }
+
+    fe_tone = b_tone ? SEC_TONE_ON : SEC_TONE_OFF;
+
+    /* Automatic mode. */
+    if ( i_frequency >= 950000 && i_frequency <= 2150000 )
+    {
+        msg_Dbg( NULL, "frequency %d is in IF-band", i_frequency );
+        bis_frequency = i_frequency;
+    }
+    else if ( i_frequency >= 2500000 && i_frequency <= 2700000 )
+    {
+        msg_Dbg( NULL, "frequency %d is in S-band", i_frequency );
+        bis_frequency = i_frequency - 3650000;
+    }
+    else if ( i_frequency >= 3400000 && i_frequency <= 4200000 )
+    {
+        msg_Dbg( NULL, "frequency %d is in C-band (lower)",
+                 i_frequency );
+        bis_frequency = i_frequency - 5150000;
+    }
+    else if ( i_frequency >= 4500000 && i_frequency <= 4800000 )
+    {
+        msg_Dbg( NULL, "frequency %d is in C-band (higher)",
+                 i_frequency );
+        bis_frequency = i_frequency - 5950000;
+    }
+    else if ( i_frequency >= 10700000 && i_frequency < 11700000 )
+    {
+        msg_Dbg( NULL, "frequency %d is in Ku-band (lower)",
+                 i_frequency );
+        bis_frequency = i_frequency - 9750000;
+    }
+    else if ( i_frequency >= 11700000 && i_frequency <= 13250000 )
+    {
+        msg_Dbg( NULL, "frequency %d is in Ku-band (higher)",
+                 i_frequency );
+        bis_frequency = i_frequency - 10600000;
+        fe_tone = SEC_TONE_ON;
+    }
+    else
+    {
+        msg_Err( NULL, "frequency %d is out of any known band",
+                 i_frequency );
+        exit(1);
+    }
+
+    /* Switch off continuous tone. */
+    if ( ioctl( i_frontend, FE_SET_TONE, SEC_TONE_OFF ) < 0 )
+    {
+        msg_Err( NULL, "FE_SET_TONE failed (%s)", strerror(errno) );
+        exit(1);
+    }
+
+    /* Configure LNB voltage. */
+    if ( ioctl( i_frontend, FE_SET_VOLTAGE, fe_voltage ) < 0 )
+    {
+        msg_Err( NULL, "FE_SET_VOLTAGE failed (%s)", strerror(errno) );
+        exit(1);
+    }
+
+    /* Wait for at least 15 ms. Currently 100 ms because of broken drivers. */
+    msleep(100000);
+
+    /* Diseqc */
+    if ( i_satnum > 0 && i_satnum < 5 )
+    {
+        /* digital satellite equipment control,
+         * specification is available from http://www.eutelsat.com/
+         */
+
+        struct dvb_diseqc_master_cmd cmd =
+            { {0xe0, 0x10, 0x38, 0xf0, 0x00, 0x00}, 4};
+        cmd.msg[3] = 0xf0 /* reset bits */
+                          | ((i_satnum - 1) << 2)
+                          | (fe_voltage == SEC_VOLTAGE_13 ? 0 : 2)
+                          | (fe_tone == SEC_TONE_ON ? 1 : 0);
+
+        if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &cmd ) < 0 )
+        {
+            msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
+                     strerror(errno) );
+            exit(1);
+        }
+        msleep(100000); /* Should be 15 ms. */
+
+        /* Do it again just to be sure. */
+        if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &cmd ) < 0 )
+        {
+            msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
+                     strerror(errno) );
+            exit(1);
+        }
+        msleep(100000); /* Again, should be 15 ms */
+    }
+    else if ( i_satnum > 0xA )
+    {
+        /* A or B simple diseqc ("diseqc-compatible") */
+        if( ioctl( i_frontend, FE_DISEQC_SEND_BURST,
+                   i_satnum == 0xB ? SEC_MINI_B : SEC_MINI_A ) < 0 )
+        {
+            msg_Err( NULL, "ioctl FE_SEND_BURST failed (%m)", strerror(errno) );
+            exit(1);
+        }
+        msleep(100000); /* ... */
+    }
+
+    else if ( ioctl( i_frontend, FE_SET_TONE, fe_tone ) < 0 )
+    {
+        msg_Err( NULL, "FE_SET_TONE failed (%s)", strerror(errno) );
+        exit(1);
+    }
+
+    msleep(100000); /* ... */
+
+    msg_Dbg( NULL, "configuring LNB to v=%d p=%d satnum=%x",
+             i_voltage, b_tone, i_satnum );
+    return bis_frequency;
+}
+
 #if DVB_API_VERSION >= 5
+
 /*****************************************************************************
  * GetModulation : helper function for both APIs
  *****************************************************************************/
@@ -406,68 +535,64 @@ static fe_modulation_t GetModulation(void)
  *****************************************************************************/
 /* S2API */
 static struct dtv_property dvbs_cmdargs[] = {
-	{ .cmd = DTV_FREQUENCY,       .u.data = 0 },
-	{ .cmd = DTV_MODULATION,      .u.data = QPSK },
-	{ .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
-	{ .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
-	{ .cmd = DTV_VOLTAGE,         .u.data = SEC_VOLTAGE_OFF },
-	{ .cmd = DTV_TONE,            .u.data = SEC_TONE_OFF },
-	{ .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
-	{ .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS },
-	{ .cmd = DTV_TUNE },
+    { .cmd = DTV_FREQUENCY,       .u.data = 0 },
+    { .cmd = DTV_MODULATION,      .u.data = QPSK },
+    { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
+    { .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
+    { .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS },
+    { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbs_cmdseq = {
-	.num = sizeof(dvbs_cmdargs)/sizeof(struct dtv_property),
-	.props = dvbs_cmdargs
+    .num = sizeof(dvbs_cmdargs)/sizeof(struct dtv_property),
+    .props = dvbs_cmdargs
 };
 
 static struct dtv_property dvbs2_cmdargs[] = {
-	{ .cmd = DTV_FREQUENCY,       .u.data = 0 },
-	{ .cmd = DTV_MODULATION,      .u.data = PSK_8 },
-	{ .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
-	{ .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
-	{ .cmd = DTV_VOLTAGE,         .u.data = SEC_VOLTAGE_OFF },
-	{ .cmd = DTV_TONE,            .u.data = SEC_TONE_OFF },
-	{ .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
-	{ .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS2 },
-	{ .cmd = DTV_PILOT,           .u.data = PILOT_AUTO },
-	{ .cmd = DTV_ROLLOFF,         .u.data = ROLLOFF_AUTO },
-	{ .cmd = DTV_TUNE },
+    { .cmd = DTV_FREQUENCY,       .u.data = 0 },
+    { .cmd = DTV_MODULATION,      .u.data = PSK_8 },
+    { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
+    { .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
+    { .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS2 },
+    { .cmd = DTV_PILOT,           .u.data = PILOT_AUTO },
+    { .cmd = DTV_ROLLOFF,         .u.data = ROLLOFF_AUTO },
+    { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbs2_cmdseq = {
-	.num = sizeof(dvbs2_cmdargs)/sizeof(struct dtv_property),
-	.props = dvbs2_cmdargs
+    .num = sizeof(dvbs2_cmdargs)/sizeof(struct dtv_property),
+    .props = dvbs2_cmdargs
 };
 
 static struct dtv_property dvbc_cmdargs[] = {
-	{ .cmd = DTV_FREQUENCY,       .u.data = 0 },
-	{ .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
-	{ .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
-	{ .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
-	{ .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBC_ANNEX_AC },
-	{ .cmd = DTV_TUNE },
+    { .cmd = DTV_FREQUENCY,       .u.data = 0 },
+    { .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
+    { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
+    { .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBC_ANNEX_AC },
+    { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbc_cmdseq = {
-	.num = sizeof(dvbc_cmdargs)/sizeof(struct dtv_property),
-	.props = dvbc_cmdargs
+    .num = sizeof(dvbc_cmdargs)/sizeof(struct dtv_property),
+    .props = dvbc_cmdargs
 };
 
 static struct dtv_property dvbt_cmdargs[] = {
-	{ .cmd = DTV_FREQUENCY,       .u.data = 0 },
-	{ .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
-	{ .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
-	{ .cmd = DTV_BANDWIDTH_HZ,    .u.data = 8000000 },
-	{ .cmd = DTV_CODE_RATE_HP,    .u.data = FEC_AUTO },
-	{ .cmd = DTV_CODE_RATE_LP,    .u.data = FEC_AUTO },
-	{ .cmd = DTV_GUARD_INTERVAL,  .u.data = GUARD_INTERVAL_AUTO },
-	{ .cmd = DTV_TRANSMISSION_MODE,.u.data = TRANSMISSION_MODE_AUTO },
-	{ .cmd = DTV_HIERARCHY,       .u.data = HIERARCHY_AUTO },
-	{ .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBT },
-	{ .cmd = DTV_TUNE },
+    { .cmd = DTV_FREQUENCY,       .u.data = 0 },
+    { .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
+    { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
+    { .cmd = DTV_BANDWIDTH_HZ,    .u.data = 8000000 },
+    { .cmd = DTV_CODE_RATE_HP,    .u.data = FEC_AUTO },
+    { .cmd = DTV_CODE_RATE_LP,    .u.data = FEC_AUTO },
+    { .cmd = DTV_GUARD_INTERVAL,  .u.data = GUARD_INTERVAL_AUTO },
+    { .cmd = DTV_TRANSMISSION_MODE,.u.data = TRANSMISSION_MODE_AUTO },
+    { .cmd = DTV_HIERARCHY,       .u.data = HIERARCHY_AUTO },
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBT },
+    { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbt_cmdseq = {
-	.num = sizeof(dvbt_cmdargs)/sizeof(struct dtv_property),
-	.props = dvbt_cmdargs
+    .num = sizeof(dvbt_cmdargs)/sizeof(struct dtv_property),
+    .props = dvbt_cmdargs
 };
 
 #define FREQUENCY 0
@@ -475,9 +600,6 @@ static struct dtv_properties dvbt_cmdseq = {
 #define INVERSION 2
 #define SYMBOL_RATE 3
 #define BANDWIDTH 3
-#define VOLTAGE 4
-#define TONE 5
-#define INNER_FEC 6
 
 static void FrontendSet( void )
 {
@@ -524,63 +646,12 @@ static void FrontendSet( void )
         }
         else
             p = &dvbs_cmdseq;
+
         p->props[SYMBOL_RATE].u.data = i_srate;
+        p->props[FREQUENCY].u.data = FrontendDoDiseqc();
 
-        switch ( i_voltage )
-        {
-            case 0: p->props[VOLTAGE].u.data = SEC_VOLTAGE_OFF; break;
-            default:
-            case 13: p->props[VOLTAGE].u.data = SEC_VOLTAGE_13; break;
-            case 18: p->props[VOLTAGE].u.data = SEC_VOLTAGE_18; break;
-        }
-
-        p->props[TONE].u.data = b_tone ? SEC_TONE_ON : SEC_TONE_OFF;
-
-        /* Automatic mode. */
-        if ( i_frequency >= 950000 && i_frequency <= 2150000 )
-        {
-            msg_Dbg( NULL, "frequency %d is in IF-band", i_frequency );
-            p->props[FREQUENCY].u.data = i_frequency;
-        }
-        else if ( i_frequency >= 2500000 && i_frequency <= 2700000 )
-        {
-            msg_Dbg( NULL, "frequency %d is in S-band", i_frequency );
-            p->props[FREQUENCY].u.data = i_frequency - 3650000;
-        }
-        else if ( i_frequency >= 3400000 && i_frequency <= 4200000 )
-        {
-            msg_Dbg( NULL, "frequency %d is in C-band (lower)",
-                     i_frequency );
-            p->props[FREQUENCY].u.data = i_frequency - 5150000;
-        }
-        else if ( i_frequency >= 4500000 && i_frequency <= 4800000 )
-        {
-            msg_Dbg( NULL, "frequency %d is in C-band (higher)",
-                     i_frequency );
-            p->props[FREQUENCY].u.data = i_frequency - 5950000;
-        }
-        else if ( i_frequency >= 10700000 && i_frequency < 11700000 )
-        {
-            msg_Dbg( NULL, "frequency %d is in Ku-band (lower)",
-                     i_frequency );
-            p->props[FREQUENCY].u.data = i_frequency - 9750000;
-        }
-        else if ( i_frequency >= 11700000 && i_frequency <= 13250000 )
-        {
-            msg_Dbg( NULL, "frequency %d is in Ku-band (higher)",
-                     i_frequency );
-            p->props[FREQUENCY].u.data = i_frequency - 10600000;
-            p->props[TONE].u.data = SEC_TONE_ON;
-        }
-        else
-        {
-            msg_Err( NULL, "frequency %d is out of any known band",
-                     i_frequency );
-            exit(1);
-        }
-
-        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d v=%d p=%d modulation=%s",
-                 i_frequency, i_srate, i_voltage, b_tone,
+        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d modulation=%s",
+                 i_frequency, i_srate,
                  psz_modulation == NULL ? "legacy" : psz_modulation );
         break;
 
@@ -625,17 +696,57 @@ static void FrontendSet( void )
     switch ( info.type )
     {
     case FE_OFDM:
-        FrontendSetOFDM( &fep );
+        fep.frequency = i_frequency;
+        fep.inversion = INVERSION_AUTO;
+
+        switch ( i_bandwidth )
+        {
+            case 6: fep.u.ofdm.bandwidth = BANDWIDTH_6_MHZ; break;
+            case 7: fep.u.ofdm.bandwidth = BANDWIDTH_7_MHZ; break;
+            default:
+            case 8: fep.u.ofdm.bandwidth = BANDWIDTH_8_MHZ; break;
+        }
+
+        fep.u.ofdm.code_rate_HP = FEC_AUTO;
+        fep.u.ofdm.code_rate_LP = FEC_AUTO;
+        fep.u.ofdm.constellation = QAM_AUTO;
+        fep.u.ofdm.transmission_mode = TRANSMISSION_MODE_AUTO;
+        fep.u.ofdm.guard_interval = GUARD_INTERVAL_AUTO;
+        fep.u.ofdm.hierarchy_information = HIERARCHY_AUTO;
+
+        msg_Dbg( NULL, "tuning OFDM frontend to f=%d, bandwidth=%d",
+                 i_frequency, i_bandwidth );
         break;
+
     case FE_QAM:
-        FrontendSetQAM( &fep );
+        fep.frequency = i_frequency;
+        fep.inversion = INVERSION_AUTO;
+        fep.u.qam.symbol_rate = i_srate;
+        fep.u.qam.fec_inner = FEC_AUTO;
+        fep.u.qam.modulation = QAM_AUTO;
+
+        msg_Dbg( NULL, "tuning QAM frontend to f=%d, srate=%d", i_frequency,
+                 i_srate );
         break;
+
     case FE_QPSK:
-        FrontendSetQPSK( &fep );
+        fep.inversion = INVERSION_AUTO;
+        fep.u.qpsk.symbol_rate = i_srate;
+        fep.u.qpsk.fec_inner = FEC_AUTO;
+        fep.frequency = FrontendDoDiseqc();
+
+        msg_Dbg( NULL, "tuning QPSK frontend to f=%d, srate=%d",
+                 i_frequency, i_srate );
         break;
+
     case FE_ATSC:
-        FrontendSetATSC( &fep );
+        fep.frequency = i_frequency;
+
+        fep.u.vsb.modulation = QAM_AUTO;
+
+        msg_Dbg( NULL, "tuning ATSC frontend to f=%d", i_frequency );
         break;
+
     default:
         msg_Err( NULL, "unknown frontend type %d", info.type );
         exit(1);
@@ -659,156 +770,6 @@ static void FrontendSet( void )
 
     i_last_status = 0;
     i_frontend_timeout = mdate() + FRONTEND_LOCK_TIMEOUT;
-}
-
-/*****************************************************************************
- * FrontendSetQPSK
- *****************************************************************************/
-static void FrontendSetQPSK( struct dvb_frontend_parameters *p_fep )
-{
-    fe_sec_voltage_t fe_voltage;
-    fe_sec_tone_mode_t fe_tone;
-
-    p_fep->inversion = INVERSION_AUTO;
-    p_fep->u.qpsk.symbol_rate = i_srate;
-    p_fep->u.qpsk.fec_inner = FEC_AUTO;
-
-    switch ( i_voltage )
-    {
-        case 0: fe_voltage = SEC_VOLTAGE_OFF; break;
-        default:
-        case 13: fe_voltage = SEC_VOLTAGE_13; break;
-        case 18: fe_voltage = SEC_VOLTAGE_18; break;
-    }
-
-    fe_tone = b_tone ? SEC_TONE_ON : SEC_TONE_OFF;
-
-    /* Automatic mode. */
-    if ( i_frequency >= 950000 && i_frequency <= 2150000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in IF-band", i_frequency );
-        p_fep->frequency = i_frequency;
-    }
-    else if ( i_frequency >= 2500000 && i_frequency <= 2700000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in S-band", i_frequency );
-        p_fep->frequency = i_frequency - 3650000;
-    }
-    else if ( i_frequency >= 3400000 && i_frequency <= 4200000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in C-band (lower)",
-                 i_frequency );
-        p_fep->frequency = i_frequency - 5150000;
-    }
-    else if ( i_frequency >= 4500000 && i_frequency <= 4800000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in C-band (higher)",
-                 i_frequency );
-        p_fep->frequency = i_frequency - 5950000;
-    }
-    else if ( i_frequency >= 10700000 && i_frequency < 11700000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in Ku-band (lower)",
-                 i_frequency );
-        p_fep->frequency = i_frequency - 9750000;
-    }
-    else if ( i_frequency >= 11700000 && i_frequency <= 13250000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in Ku-band (higher)",
-                 i_frequency );
-        p_fep->frequency = i_frequency - 10600000;
-        fe_tone = SEC_TONE_ON;
-    }
-    else
-    {
-        msg_Err( NULL, "frequency %d is out of any known band",
-                 i_frequency );
-        exit(1);
-    }
-
-    /* Switch off continuous tone. */
-    if ( ioctl( i_frontend, FE_SET_TONE, SEC_TONE_OFF ) < 0 )
-    {
-        msg_Err( NULL, "FE_SET_TONE failed (%s)", strerror(errno) );
-        exit(1);
-    }
-
-    /* Configure LNB voltage. */
-    if ( ioctl( i_frontend, FE_SET_VOLTAGE, fe_voltage ) < 0 )
-    {
-        msg_Err( NULL, "FE_SET_VOLTAGE failed (%s)", strerror(errno) );
-        exit(1);
-    }
-
-    /* Wait for at least 15 ms. */
-    msleep(15000);
-
-    if ( ioctl( i_frontend, FE_SET_TONE, fe_tone ) < 0 )
-    {
-        msg_Err( NULL, "FE_SET_TONE failed (%s)", strerror(errno) );
-        exit(1);
-    }
-
-    /* TODO: Diseqc */
-
-    msleep(50000);
-
-    msg_Dbg( NULL, "tuning QPSK frontend to f=%d, srate=%d, v=%d, p=%d",
-             i_frequency, i_srate, i_voltage, b_tone );
-}
-
-/*****************************************************************************
- * FrontendSetQAM
- *****************************************************************************/
-static void FrontendSetQAM( struct dvb_frontend_parameters *p_fep )
-{
-    p_fep->frequency = i_frequency;
-    p_fep->inversion = INVERSION_AUTO;
-    p_fep->u.qam.symbol_rate = i_srate;
-    p_fep->u.qam.fec_inner = FEC_AUTO;
-    p_fep->u.qam.modulation = QAM_AUTO;
-
-    msg_Dbg( NULL, "tuning QAM frontend to f=%d, srate=%d", i_frequency,
-             i_srate );
-}
-
-/*****************************************************************************
- * FrontendSetOFDM
- *****************************************************************************/
-static void FrontendSetOFDM( struct dvb_frontend_parameters *p_fep )
-{
-    p_fep->frequency = i_frequency;
-    p_fep->inversion = INVERSION_AUTO;
-
-    switch ( i_bandwidth )
-    {
-        case 6: p_fep->u.ofdm.bandwidth = BANDWIDTH_6_MHZ; break;
-        case 7: p_fep->u.ofdm.bandwidth = BANDWIDTH_7_MHZ; break;
-        default:
-        case 8: p_fep->u.ofdm.bandwidth = BANDWIDTH_8_MHZ; break;
-    }
-
-    p_fep->u.ofdm.code_rate_HP = FEC_AUTO;
-    p_fep->u.ofdm.code_rate_LP = FEC_AUTO;
-    p_fep->u.ofdm.constellation = QAM_AUTO;
-    p_fep->u.ofdm.transmission_mode = TRANSMISSION_MODE_AUTO;
-    p_fep->u.ofdm.guard_interval = GUARD_INTERVAL_AUTO;
-    p_fep->u.ofdm.hierarchy_information = HIERARCHY_AUTO;
-
-    msg_Dbg( NULL, "tuning OFDM frontend to f=%d, bandwidth=%d", i_frequency,
-             i_bandwidth );
-}
-
-/*****************************************************************************
- * FrontendSetATSC
- *****************************************************************************/
-static void FrontendSetATSC( struct dvb_frontend_parameters *p_fep )
-{
-    p_fep->frequency = i_frequency;
-
-    p_fep->u.vsb.modulation = QAM_AUTO;
-
-    msg_Dbg( NULL, "tuning ATSC frontend to f=%d", i_frequency );
 }
 
 #endif /* S2API */

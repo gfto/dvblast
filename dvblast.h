@@ -89,6 +89,7 @@ extern int i_adapter;
 extern int i_fenum;
 extern int i_frequency;
 extern int i_srate;
+extern int i_satnum;
 extern int i_voltage;
 extern int b_tone;
 extern int i_bandwidth;
