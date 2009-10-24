@@ -203,7 +203,7 @@ void usage()
     msg_Raw( NULL, "        DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
     msg_Raw( NULL, "    -u: turn on budget mode (no hardware PID filtering)" );
     msg_Raw( NULL, "    -U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
-    msg_Raw( NULL, "    -d: duplicate all received packets to a given port" );
+    msg_Raw( NULL, "    -d: duplicate all received packets to a given destination" );
     msg_Raw( NULL, "    -e: enable EPG pass through (EIT data)" );
     msg_Raw( NULL, "    -T: generate unique TS ID for each program" );
     exit(1);
