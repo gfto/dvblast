@@ -50,7 +50,7 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
-#define FRONTEND_LOCK_TIMEOUT 10000000 /* 10 s */
+#define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
 #define COUNTER_WRAP 200 /* we make 200 read calls per second */
 #define MAX_READ_ONCE 50
 
