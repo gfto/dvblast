@@ -58,7 +58,7 @@ int main( int i_argc, char **ppsz_argv )
 
     for ( ; ; )
     {
-        char c;
+        int c;
 
         if ( (c = getopt(i_argc, ppsz_argv, "r:h")) == -1 )
             break;

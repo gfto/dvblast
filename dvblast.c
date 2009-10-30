@@ -220,7 +220,7 @@ int main( int i_argc, char **pp_argv )
 
     msg_Warn( NULL, "restarting" );
 
-    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uUTd:eh")) != (int)EOF )
+    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uUTd:eh")) != -1 )
     {
         switch ( c )
         {
