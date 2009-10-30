@@ -56,6 +56,7 @@ int b_tone = 0;
 int i_bandwidth = 8;
 char *psz_modulation = NULL;
 int b_budget_mode = 0;
+int b_slow_cam = 0;
 int b_output_udp = 0;
 int b_enable_epg = 0;
 int b_unique_tsid = 0;
@@ -193,7 +194,7 @@ static void SigHandler( int i_signal )
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
     msg_Raw( NULL, "    -q: be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "    -v: voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "    -p: force 22kHz pulses for high-band selection (DVB-S)" );
@@ -202,6 +203,7 @@ void usage()
     msg_Raw( NULL, "        DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
     msg_Raw( NULL, "        DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
     msg_Raw( NULL, "    -u: turn on budget mode (no hardware PID filtering)" );
+    msg_Raw( NULL, "    -W: add extra delays for slow CAMs" );
     msg_Raw( NULL, "    -U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
     msg_Raw( NULL, "    -d: duplicate all received packets to a given destination" );
     msg_Raw( NULL, "    -e: enable EPG pass through (EIT data)" );
@@ -220,7 +222,7 @@ int main( int i_argc, char **pp_argv )
 
     msg_Warn( NULL, "restarting" );
 
-    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uUTd:eh")) != -1 )
+    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:eh")) != -1 )
     {
         switch ( c )
         {
@@ -310,6 +312,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'u':
             b_budget_mode = 1;
+            break;
+
+        case 'W':
+            b_slow_cam = 1;
             break;
 
         case 'U':

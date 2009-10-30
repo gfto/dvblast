@@ -66,6 +66,7 @@
 #undef DEBUG_TPDU
 #define HLCI_WAIT_CAM_READY 0
 #define CAM_PROG_MAX MAX_PROGRAMS
+#define CAPMT_WAIT 100 /* ms */
 
 typedef struct en50221_session_t
 {
@@ -1201,6 +1202,8 @@ static void CAPMTAdd( access_t * p_access, int i_session_id,
         return;
     }
 
+    if( b_slow_cam )
+        msleep( CAPMT_WAIT * 1000 );
 
     msg_Dbg( p_access, "adding CAPMT for SID %d on session %d",
              p_pmt->i_program_number, i_session_id );
