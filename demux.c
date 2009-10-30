@@ -332,6 +332,24 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
     GetPIDS( &pi_current_pids, &i_nb_current_pids, p_output->i_sid,
              p_output->pi_pids, p_output->i_nb_pids );
 
+    if ( i_old_sid && i_old_sid != i_sid )
+    {
+        p_output->i_sid = i_sid;
+        for ( i = 0; i < i_nb_sids; i++ )
+        {
+            if ( pp_sids[i]->i_sid == i_old_sid )
+            {
+                UnsetPID( pp_sids[i]->i_pmt_pid );
+
+                if ( i_ca_handle && !SIDIsSelected( i_old_sid )
+                      && pp_sids[i]->p_current_pmt != NULL
+                      && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
+                    en50221_DeletePMT( pp_sids[i]->p_current_pmt );
+                break;
+            }
+        }
+    }
+
     for ( i = 0; i < i_nb_current_pids; i++ )
     {
         if ( pi_current_pids[i] != EMPTY_PID &&
@@ -354,8 +372,9 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
     free( pi_wanted_pids );
     free( pi_current_pids );
 
-    if ( i_sid && p_output->i_sid != i_sid )
+    if ( i_sid && i_sid != i_old_sid )
     {
+        p_output->i_sid = i_old_sid;
         for ( i = 0; i < i_nb_sids; i++ )
         {
             if ( pp_sids[i]->i_sid == i_sid )
@@ -380,23 +399,6 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
     p_output->pi_pids = malloc( sizeof(uint16_t) * i_nb_pids );
     memcpy( p_output->pi_pids, pi_pids, sizeof(uint16_t) * i_nb_pids );
     p_output->i_nb_pids = i_nb_pids;
-
-    if ( i_old_sid && i_old_sid != i_sid )
-    {
-        for ( i = 0; i < i_nb_sids; i++ )
-        {
-            if ( pp_sids[i]->i_sid == i_old_sid )
-            {
-                UnsetPID( pp_sids[i]->i_pmt_pid );
-
-                if ( i_ca_handle && !SIDIsSelected( i_old_sid )
-                      && pp_sids[i]->p_current_pmt != NULL
-                      && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
-                    en50221_DeletePMT( pp_sids[i]->p_current_pmt );
-                break;
-            }
-        }
-    }
 
     if ( i_sid != i_old_sid )
     {
