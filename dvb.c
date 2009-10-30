@@ -473,7 +473,7 @@ static int FrontendDoDiseqc(void)
         }
         msleep(100000); /* Again, should be 15 ms */
     }
-    else if ( i_satnum > 0xA )
+    else if ( i_satnum == 0xA || i_satnum == 0xB )
     {
         /* A or B simple diseqc ("diseqc-compatible") */
         if( ioctl( i_frontend, FE_DISEQC_SEND_BURST,
