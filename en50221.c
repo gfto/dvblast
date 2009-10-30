@@ -947,7 +947,7 @@ static void ApplicationInformationOpen( access_t * p_access, int i_session_id )
  * Conditional Access
  */
 
-#define MAX_CASYSTEM_IDS 16
+#define MAX_CASYSTEM_IDS 64
 
 typedef struct
 {
@@ -959,7 +959,7 @@ typedef struct
 static int CheckSystemID( system_ids_t *p_ids, uint16_t i_id )
 {
     int i = 0;
-    if( !p_ids ) return 1;
+    if( !p_ids ) return 0;
 
     while ( p_ids->pi_system_ids[i] )
     {
