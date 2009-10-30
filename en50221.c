@@ -954,12 +954,14 @@ typedef struct
     uint16_t pi_system_ids[MAX_CASYSTEM_IDS + 1];
 
     int i_selected_programs;
+    int b_high_level;
 } system_ids_t;
 
 static int CheckSystemID( system_ids_t *p_ids, uint16_t i_id )
 {
     int i = 0;
     if( !p_ids ) return 0;
+    if( p_ids->b_high_level ) return 1;
 
     while ( p_ids->pi_system_ids[i] )
     {
@@ -1955,6 +1957,7 @@ void en50221_Reset( void )
     else
     {
         struct ca_slot_info info;
+        system_ids_t *p_ids;
         info.num = 0;
 
         /* We don't reset the CAM in that case because it's done by the
@@ -1975,7 +1978,13 @@ void en50221_Reset( void )
         }
 
         /* Allocate a dummy sessions */
-        p_sessions[ 0 ].i_resource_id = RI_CONDITIONAL_ACCESS_SUPPORT;
+        p_sessions[0].i_resource_id = RI_CONDITIONAL_ACCESS_SUPPORT;
+        p_sessions[0].pf_close = ConditionalAccessClose;
+        if ( p_sessions[0].p_sys == NULL )
+            p_sessions[0].p_sys = malloc(sizeof(system_ids_t));
+        memset( p_sessions[0].p_sys, 0, sizeof(system_ids_t) );
+        p_ids = (system_ids_t *)p_sessions[0].p_sys;
+        p_ids->b_high_level = 1;
 
         /* Get application info to find out which cam we are using and make
            sure everything is ready to play */
