@@ -32,7 +32,7 @@ format :
 <IP>[:<port>][/udp]	<always on>	<SID>	[<PID>,]*
 
 For instance :
-239.255.0.1:1234	1	10750	1234,1235,1236
+239.255.0.1:1234		1	10750	1234,1235,1236
 
 The configuration file can be reloaded by sending "HUP" to the program, or
 via the dvblastctl program.
@@ -42,6 +42,16 @@ be on at all times or if it may break. If set to "1", then DVBlast will
 regularly reset the CAM module if it fails to descramble the service,
 assuming the module is dead. Every time it is reset a few TS packets
 will be lost, that is why this feature is optional.
+
+The optional "/udp" parameter can be used to force DVBlast to output
+raw UDP stream. This functionality is provided for backwards compatibility
+with IPTV set top boxes that don't support RTP and should only be used
+if absolutely necessary. If you need both RTP and UDP streams of the same
+program, specify them on separate lines like this:
+
+239.255.0.1:1234	1	10750
+239.255.0.2:1234/udp	1	10750
+
 
 There are three ways of configuring the PIDs to stream :
 

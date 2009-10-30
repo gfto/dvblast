@@ -75,6 +75,7 @@ typedef struct output_t
     uint16_t *pi_pids;
     int i_nb_pids;
     int b_watch;
+    int b_rawudp;
     int b_still_present;
 } output_t;
 

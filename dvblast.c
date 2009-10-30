@@ -87,18 +87,24 @@ static void ReadConfiguration( char *psz_file )
     while ( fgets( psz_line, sizeof(psz_line), p_file ) != NULL )
     {
         output_t *p_output = NULL;
-        char *psz_parser, *psz_token, *psz_token2;
+        char *psz_parser, *psz_token, *psz_token2, *psz_token3;
         struct in_addr maddr;
         uint16_t i_port = DEFAULT_PORT;
         uint16_t i_sid = 0;
         uint16_t *pi_pids = NULL;
         int i_nb_pids = 0;
+        int b_rawudp = 0;
         int b_watch;
 
         psz_token = strtok_r( psz_line, "\t\n ", &psz_parser );
         if ( psz_token == NULL )
             continue;
 
+        if ( (psz_token3 = strrchr( psz_token, '/' )) != NULL )
+        {
+            *psz_token3 = '\0';
+            b_rawudp = ( strncasecmp( psz_token3 + 1, "udp", 3 ) == 0 );
+        }
         if ( (psz_token2 = strrchr( psz_token, ':' )) != NULL )
         {
             *psz_token2 = '\0';
@@ -156,6 +162,7 @@ static void ReadConfiguration( char *psz_file )
         if ( p_output != NULL )
         {
             demux_Change( p_output, i_sid, pi_pids, i_nb_pids );
+            p_output->b_rawudp = b_rawudp;
             p_output->b_watch = (b_watch == 1);
             p_output->b_still_present = 1;
         }

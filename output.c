@@ -139,7 +139,7 @@ static void output_Flush( output_t *p_output )
     int i;
     int i_outblocks = NB_BLOCKS;
 
-    if ( !b_output_udp )
+    if ( !b_output_udp && !p_output->b_rawudp )
     {
         p_iov[0].iov_base = p_rtp_hdr;
         p_iov[0].iov_len = sizeof(p_rtp_hdr);
