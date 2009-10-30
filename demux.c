@@ -45,6 +45,7 @@
 
 #define SDT_PID        0x11
 #define EIT_PID        0x12
+#define TDT_PID        0x14
 
 typedef struct ts_pid_t
 {
@@ -132,6 +133,8 @@ void demux_Open( void )
 
         SetPID(EIT_PID); /* EIT */
         p_eit_dvbpsi_handle = dvbpsi_AttachDemux( PSITableCallback, NULL );
+
+        SetPID(TDT_PID); /* TDT */
     }
 }
 
@@ -203,6 +206,14 @@ static void demux_Handle( block_t *p_ts )
         else if ( b_enable_epg && i_pid == SDT_PID )
         {
             dvbpsi_PushPacket( p_sdt_dvbpsi_handle, p_ts->p_ts );
+        }
+        else if ( b_enable_epg && i_pid == TDT_PID )
+        {
+            for ( i = 0; i < i_nb_outputs; i++ )
+            {
+                if ( pp_outputs[i]->i_maddr )
+                    output_Put( pp_outputs[i], p_ts );
+            }
         }
         else
         {
