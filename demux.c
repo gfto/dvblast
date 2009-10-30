@@ -196,11 +196,11 @@ static void demux_Handle( block_t *p_ts )
             if ( block_UnitStart( p_ts ) )
                 SendPAT();
         }
-        else if ( i_pid == EIT_PID )
+        else if ( b_enable_epg && i_pid == EIT_PID )
         {
             dvbpsi_PushPacket( p_eit_dvbpsi_handle, p_ts->p_ts );
         }
-        else if (i_pid == SDT_PID )
+        else if ( b_enable_epg && i_pid == SDT_PID )
         {
             dvbpsi_PushPacket( p_sdt_dvbpsi_handle, p_ts->p_ts );
         }
