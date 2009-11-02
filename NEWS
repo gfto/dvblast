@@ -8,5 +8,5 @@ Changes between 1.0 and 1.1:
   * Support for TS over raw UDP with -U or /udp in the config file
   * EIT, SDT and TDT pass-through for EPG information (-e)
   * Original TSID kept (randomized TSID via -T)
-  * Miscellaneous CAM and tuning fixes
+  * Miscellaneous CAM, demux and tuning fixes
   * DVB-S diseqc support

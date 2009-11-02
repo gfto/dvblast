@@ -121,8 +121,4 @@ The -u switch disables the PID filters, so that all PIDs, even the
 unused ones, can be output. With -e, dvblast also streams EIT and SDT packets
 for the related services.
 
-By default DVBlast outputs RTP streams; if you want to disable the RTP
-header, you can either use the -U switch, or append "/udp" to the IP:port
-string of the configuration file.
-
 Other options are self-understandable, and are listed in dvblast -h.
