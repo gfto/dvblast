@@ -37,6 +37,7 @@
 #include <arpa/inet.h>
 #include <poll.h>
 #include <errno.h>
+#include <time.h>
 
 /* DVB Card Drivers */
 #include <linux/dvb/version.h>
@@ -1961,6 +1962,7 @@ void en50221_Reset( void )
     {
         struct ca_slot_info info;
         system_ids_t *p_ids;
+        ca_msg_t ca_msg;
         info.num = 0;
 
         /* We don't reset the CAM in that case because it's done by the
@@ -1991,7 +1993,6 @@ void en50221_Reset( void )
 
         /* Get application info to find out which cam we are using and make
            sure everything is ready to play */
-        ca_msg_t ca_msg;
         ca_msg.length=3;
         ca_msg.msg[0] = ( AOT_APPLICATION_INFO & 0xFF0000 ) >> 16;
         ca_msg.msg[1] = ( AOT_APPLICATION_INFO & 0x00FF00 ) >> 8;

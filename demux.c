@@ -749,6 +749,8 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
     {
         if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
         {
+            block_t *p_block;
+
             if( b_unique_tsid )
             {
                 p_section->p_data[8]  = (pp_outputs[i]->i_ts_id >> 8) & 0xff;
@@ -756,8 +758,6 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
             }
 
             dvbpsi_BuildPSISection( p_section );
-
-            block_t *p_block;
 
             p_block = WritePSISection( p_section,
                                        EIT_PID,
