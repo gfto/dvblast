@@ -1241,6 +1241,10 @@ static void PMTCallback( void *_unused, dvbpsi_pmt_t *p_pmt )
             }
         }
 
+        if ( i_ca_handle && b_is_selected &&
+             !b_needs_descrambling && b_needed_descrambling )
+            en50221_DeletePMT( p_current_pmt );
+
         dvbpsi_DeletePMT( p_current_pmt );
     }
 
@@ -1252,8 +1256,6 @@ static void PMTCallback( void *_unused, dvbpsi_pmt_t *p_pmt )
             en50221_AddPMT( p_pmt );
         else if ( b_needs_descrambling && b_needed_descrambling )
             en50221_UpdatePMT( p_pmt );
-        else if ( !b_needs_descrambling && b_needed_descrambling )
-            en50221_DeletePMT( p_pmt );
     }
 
     UpdatePMT( p_pmt->i_program_number );
