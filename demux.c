@@ -488,9 +488,7 @@ static void StopPID( output_t *p_output, uint16_t i_pid )
         }
     }
 
-    if ( j == p_pids[i_pid].i_nb_outputs )
-        msg_Warn( NULL, "unselecting an unselected PID %d", i_pid );
-    else
+    if ( j != p_pids[i_pid].i_nb_outputs )
     {
         p_pids[i_pid].pp_outputs[j] = NULL;
         UnsetPID( i_pid );
@@ -1020,6 +1018,52 @@ void demux_ResendCAPMTs( void )
 }
 
 /*****************************************************************************
+ * DeleteProgram
+ *****************************************************************************/
+static void DeleteProgram( dvbpsi_pat_program_t *p_program )
+{
+    int i_pmt;
+
+    UnselectPSI( p_program->i_number, p_program->i_pid );
+
+    for ( i_pmt = 0; i_pmt < i_nb_sids; i_pmt++ )
+    {
+        if ( pp_sids[i_pmt]->i_sid == p_program->i_number )
+        {
+            dvbpsi_pmt_t *p_pmt = pp_sids[i_pmt]->p_current_pmt;
+
+            if ( p_pmt != NULL )
+            {
+                dvbpsi_pmt_es_t *p_es;
+
+                if ( i_ca_handle
+                     && SIDIsSelected( p_program->i_number )
+                     && PMTNeedsDescrambling( p_pmt ) )
+                    en50221_DeletePMT( p_pmt );
+
+                if ( p_pmt->i_pcr_pid != PADDING_PID
+                     && p_pmt->i_pcr_pid != pp_sids[i_pmt]->i_pmt_pid )
+                    UnselectPID( p_program->i_number, p_pmt->i_pcr_pid );
+
+                for( p_es = p_pmt->p_first_es; p_es != NULL;
+                     p_es = p_es->p_next )
+                {
+                    if ( PIDWouldBeSelected( p_es ) )
+                        UnselectPID( p_program->i_number, p_es->i_pid );
+                }
+
+                dvbpsi_DeletePMT( p_pmt );
+            }
+            pp_sids[i_pmt]->p_current_pmt = NULL;
+            pp_sids[i_pmt]->i_sid = 0;
+            pp_sids[i_pmt]->i_pmt_pid = 0;
+            dvbpsi_DetachPMT( pp_sids[i_pmt]->p_dvbpsi_handle );
+            break;
+        }
+    }
+}
+
+/*****************************************************************************
  * dvbpsi callbacks
  *****************************************************************************/
 static void PATCallback( void *_unused, dvbpsi_pat_t *p_pat )
@@ -1064,33 +1108,7 @@ static void PATCallback( void *_unused, dvbpsi_pat_t *p_pat )
 
             if ( p_old_program != NULL &&
                  p_old_program->i_pid != p_program->i_pid )
-            {
-                /* Delete old PID */
-                UnselectPSI( p_old_program->i_number,
-                             p_old_program->i_pid );
-
-                for ( i_pmt = 0; i_pmt < i_nb_sids; i_pmt++ )
-                {
-                    if ( pp_sids[i_pmt]->i_sid == p_program->i_number )
-                    {
-                        dvbpsi_pmt_t *p_old_pmt = pp_sids[i_pmt]->p_current_pmt;
-
-                        if ( p_old_pmt != NULL )
-                        {
-                            if ( i_ca_handle
-                                 && SIDIsSelected( p_old_program->i_number )
-                                 && PMTNeedsDescrambling( p_old_pmt ) )
-                                en50221_DeletePMT( p_old_pmt );
-                            dvbpsi_DeletePMT( p_old_pmt );
-                        }
-                        pp_sids[i_pmt]->p_current_pmt = NULL;
-                        pp_sids[i_pmt]->i_sid = 0;
-                        pp_sids[i_pmt]->i_pmt_pid = 0;
-                        dvbpsi_DetachPMT( pp_sids[i_pmt]->p_dvbpsi_handle );
-                        break;
-                    }
-                }
-            }
+                DeleteProgram( p_old_program );
         }
 
         SelectPSI( p_program->i_number, p_program->i_pid );
@@ -1132,36 +1150,11 @@ static void PATCallback( void *_unused, dvbpsi_pat_t *p_pat )
 
             if ( p_program == NULL )
             {
-                int i_pmt;
                 msg_Dbg( NULL, "  * removed number=%d pid=%d",
                          p_old_program->i_number,
                          p_old_program->i_pid );
 
-                UnselectPSI( p_old_program->i_number,
-                             p_old_program->i_pid );
-
-                for ( i_pmt = 0; i_pmt < i_nb_sids; i_pmt++ )
-                {
-                    if ( pp_sids[i_pmt]->i_sid == p_old_program->i_number )
-                    {
-                        dvbpsi_pmt_t *p_old_pmt = pp_sids[i_pmt]->p_current_pmt;
-
-                        if ( p_old_pmt != NULL )
-                        {
-                            if ( i_ca_handle
-                                 && SIDIsSelected( p_old_program->i_number )
-                                 && PMTNeedsDescrambling( p_old_pmt ) )
-                                en50221_DeletePMT( p_old_pmt );
-                            dvbpsi_DeletePMT( p_old_pmt );
-                        }
-                        pp_sids[i_pmt]->p_current_pmt = NULL;
-                        pp_sids[i_pmt]->i_sid = 0;
-                        pp_sids[i_pmt]->i_pmt_pid = 0;
-                        dvbpsi_DetachPMT( pp_sids[i_pmt]->p_dvbpsi_handle );
-                        break;
-                    }
-                }
-
+                DeleteProgram( p_old_program );
                 UpdatePAT( p_old_program->i_number );
             }
         }
