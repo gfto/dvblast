@@ -308,17 +308,23 @@ int main( int i_argc, char **ppsz_argv )
         PRINT_CAPS( CAN_BANDWIDTH_AUTO );
         PRINT_CAPS( CAN_GUARD_INTERVAL_AUTO );
         PRINT_CAPS( CAN_HIERARCHY_AUTO );
+#ifdef FE_CAN_8VSB
         PRINT_CAPS( CAN_8VSB );
         PRINT_CAPS( CAN_16VSB );
+#endif
 #if DVB_API_VERSION >= 5
         PRINT_CAPS( HAS_EXTENDED_CAPS );
-        /* FIXME: apparently this doesn't exist in some versions of the
-         * linux-dvb headers */
-        /* PRINT_CAPS( CAN_2G_MODULATION ); */
+#ifdef FE_CAN_2G_MODULATION
+        PRINT_CAPS( CAN_2G_MODULATION );
 #endif
+#endif
+#ifdef FE_NEEDS_BENDING
         PRINT_CAPS( NEEDS_BENDING );
+#endif
         PRINT_CAPS( CAN_MUTE_TS );
+#ifdef FE_CAN_RECOVER
         PRINT_CAPS( CAN_RECOVER );
+#endif
 #undef PRINT_CAPS
 
         printf("\nstatus:\n");

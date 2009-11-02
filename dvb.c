@@ -374,7 +374,9 @@ static int FrontendDoDiseqc(void)
 
     switch ( i_voltage )
     {
+#ifdef SEC_VOLTAGE_OFF
         case 0: fe_voltage = SEC_VOLTAGE_OFF; break;
+#endif
         default:
         case 13: fe_voltage = SEC_VOLTAGE_13; break;
         case 18: fe_voltage = SEC_VOLTAGE_18; break;
@@ -739,6 +741,7 @@ static void FrontendSet( void )
                  i_frequency, i_srate );
         break;
 
+#ifdef FE_ATSC
     case FE_ATSC:
         fep.frequency = i_frequency;
 
@@ -746,6 +749,7 @@ static void FrontendSet( void )
 
         msg_Dbg( NULL, "tuning ATSC frontend to f=%d", i_frequency );
         break;
+#endif
 
     default:
         msg_Err( NULL, "unknown frontend type %d", info.type );
