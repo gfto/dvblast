@@ -471,14 +471,12 @@ static void StartPID( output_t *p_output, uint16_t i_pid )
         }
 
         p_pids[i_pid].pp_outputs[j] = p_output;
+        SetPID( i_pid );
     }
-
-    SetPID( i_pid );
 }
 
 static void StopPID( output_t *p_output, uint16_t i_pid )
 {
-    int b_wanted = 0;
     int j;
 
     for ( j = 0; j < p_pids[i_pid].i_nb_outputs; j++ )
@@ -487,20 +485,16 @@ static void StopPID( output_t *p_output, uint16_t i_pid )
         {
             if ( p_pids[i_pid].pp_outputs[j] == p_output )
                 break;
-            b_wanted = 1;
         }
     }
 
     if ( j == p_pids[i_pid].i_nb_outputs )
         msg_Warn( NULL, "unselecting an unselected PID %d", i_pid );
     else
+    {
         p_pids[i_pid].pp_outputs[j] = NULL;
-
-    for ( j++; !b_wanted && j < p_pids[i_pid].i_nb_outputs; j++ )
-        if ( p_pids[i_pid].pp_outputs[j] != NULL )
-            b_wanted = 1;
-
-    UnsetPID( i_pid );
+        UnsetPID( i_pid );
+    }
 }
 
 /*****************************************************************************
