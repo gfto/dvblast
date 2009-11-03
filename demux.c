@@ -211,7 +211,7 @@ static void demux_Handle( block_t *p_ts )
         {
             for ( i = 0; i < i_nb_outputs; i++ )
             {
-                if ( pp_outputs[i]->i_maddr )
+                if ( pp_outputs[i]->i_maddr && pp_outputs[i]->p_pat_section )
                     output_Put( pp_outputs[i], p_ts );
             }
         }
