@@ -60,7 +60,6 @@ typedef struct output_t
     /* demux */
     int i_nb_errors;
     mtime_t i_last_error;
-    int b_valid;
     dvbpsi_psi_section_t *p_pat_section;
     uint8_t i_pat_version, i_pat_cc;
     dvbpsi_psi_section_t *p_pmt_section;

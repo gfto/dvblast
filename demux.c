@@ -383,8 +383,6 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
 
                 if ( pp_sids[i]->p_current_pmt != NULL )
                 {
-                    p_output->b_valid = 1;
-
                     if ( i_ca_handle && !SIDIsSelected( i_sid )
                           && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
                         en50221_AddPMT( pp_sids[i]->p_current_pmt );
@@ -794,15 +792,7 @@ static void NewPAT( output_t *p_output )
         if ( p_program->i_number == p_output->i_sid )
             break;
 
-    if ( p_program == NULL )
-    {
-        if ( p_output->b_valid )
-        {
-            msg_Warn( NULL, "can't find program %d !", p_output->i_sid );
-            p_output->b_valid = 0;
-        }
-        return;
-    }
+    if ( p_program == NULL ) return;
 
     if ( b_unique_tsid )
         dvbpsi_InitPAT( &pat, p_output->i_ts_id, p_output->i_pat_version, 1 );
