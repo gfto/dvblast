@@ -745,7 +745,8 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
 
     for( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
+        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid &&
+             pp_outputs[i]->p_pat_section )
         {
             block_t *p_block;
 
