@@ -1156,6 +1156,14 @@ static uint8_t *CAPMTBuild( access_t * p_access, int i_session_id,
         }
     }
 
+    if ( *pi_capmt_size <= 7 + i_cad_program_size )
+    {
+        msg_Dbg( p_access, "CAPMT not needed, no ES selected" );
+        free( p_capmt );
+        *pi_capmt_size = 0;
+        return NULL;
+    }
+
     return p_capmt;
 }
 
