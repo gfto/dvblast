@@ -110,7 +110,8 @@ dvblast_mmi.sh -r /tmp/dvblast.sock
 Advanced features
 =================
 
-DVBlast may handle several DVB adapters in the same machine with the -a switch.
+DVBlast may handle several DVB adapters in the same machine with the -a switch:
+-a 3 will use /dev/dvb/adapter3.
 
 For better latency, run DVBlast in real-time priority (-i 1).
 
