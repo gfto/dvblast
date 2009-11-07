@@ -308,22 +308,21 @@ int main( int i_argc, char **ppsz_argv )
         PRINT_CAPS( CAN_BANDWIDTH_AUTO );
         PRINT_CAPS( CAN_GUARD_INTERVAL_AUTO );
         PRINT_CAPS( CAN_HIERARCHY_AUTO );
-#ifdef FE_CAN_8VSB
+        PRINT_CAPS( CAN_MUTE_TS );
+
+#define DVBAPI_VERSION ((DVB_API_VERSION)*100+(DVB_API_VERSION_MINOR))
+
+#if DVBAPI_VERSION >= 301
         PRINT_CAPS( CAN_8VSB );
         PRINT_CAPS( CAN_16VSB );
-#endif
-#if DVB_API_VERSION >= 5
-        PRINT_CAPS( HAS_EXTENDED_CAPS );
-#ifdef FE_CAN_2G_MODULATION
-        PRINT_CAPS( CAN_2G_MODULATION );
-#endif
-#endif
-#ifdef FE_NEEDS_BENDING
         PRINT_CAPS( NEEDS_BENDING );
-#endif
-        PRINT_CAPS( CAN_MUTE_TS );
-#ifdef FE_CAN_RECOVER
         PRINT_CAPS( CAN_RECOVER );
+#endif
+#if DVBAPI_VERSION >= 500
+        PRINT_CAPS( HAS_EXTENDED_CAPS );
+#endif
+#if DVBAPI_VERSION >= 501
+        PRINT_CAPS( CAN_2G_MODULATION );
 #endif
 #undef PRINT_CAPS
 

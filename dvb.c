@@ -374,9 +374,7 @@ static int FrontendDoDiseqc(void)
 
     switch ( i_voltage )
     {
-#ifdef SEC_VOLTAGE_OFF
         case 0: fe_voltage = SEC_VOLTAGE_OFF; break;
-#endif
         default:
         case 13: fe_voltage = SEC_VOLTAGE_13; break;
         case 18: fe_voltage = SEC_VOLTAGE_18; break;
@@ -499,6 +497,8 @@ static int FrontendDoDiseqc(void)
              i_voltage, b_tone, i_satnum );
     return bis_frequency;
 }
+
+#define DVBAPI_VERSION ((DVB_API_VERSION)*100+(DVB_API_VERSION_MINOR))
 
 #if DVB_API_VERSION >= 5
 
@@ -741,7 +741,7 @@ static void FrontendSet( void )
                  i_frequency, i_srate );
         break;
 
-#ifdef FE_ATSC
+#if DVBAPI_VERSION >= 301
     case FE_ATSC:
         fep.frequency = i_frequency;
 
