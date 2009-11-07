@@ -214,7 +214,7 @@ static void demux_Handle( block_t *p_ts )
         {
             for ( i = 0; i < i_nb_outputs; i++ )
             {
-                if ( pp_outputs[i]->i_maddr && pp_outputs[i]->p_pat_section )
+                if ( pp_outputs[i]->i_maddr && pp_outputs[i]->p_sdt_section )
                     output_Put( pp_outputs[i], p_ts );
             }
         }
@@ -758,8 +758,7 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
 
     for( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid &&
-             pp_outputs[i]->p_pat_section )
+        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
         {
             block_t *p_block;
 
@@ -1288,21 +1287,29 @@ static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
 {
     int i;
 
-    dvbpsi_sdt_service_t *p_service = p_sdt->p_first_service;
+    dvbpsi_sdt_service_t *p_service;
     dvbpsi_descriptor_t *p_descriptor;
 
     dvbpsi_sdt_t *p_new_sdt = NULL;
     dvbpsi_sdt_service_t *p_new_service;
-    dvbpsi_psi_section_t *p_old_section;
 
     msg_Dbg( NULL, "new SDT, version %d", p_sdt->i_version );
 
-    while ( p_service != NULL )
+    for ( i = 0; i < i_nb_outputs; i++ )
     {
-        for ( i = 0; i < i_nb_outputs; i++ )
+        if ( !pp_outputs[i]->i_maddr || !pp_outputs[i]->i_sid )
+            continue;
+
+        if ( pp_outputs[i]->p_sdt_section )
         {
-            if ( pp_outputs[i]->i_maddr
-                  && pp_outputs[i]->i_sid == p_service->i_service_id )
+            dvbpsi_DeletePSISections( pp_outputs[i]->p_sdt_section );
+            pp_outputs[i]->p_sdt_section = NULL;
+        }
+
+        for ( p_service = p_sdt->p_first_service; p_service != NULL;
+              p_service = p_service->p_next )
+        {
+            if ( pp_outputs[i]->i_sid == p_service->i_service_id )
             {
                 p_new_sdt = malloc(sizeof(dvbpsi_sdt_t));
 
@@ -1329,21 +1336,13 @@ static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
                     p_descriptor = p_descriptor->p_next;
                 }
 
-                p_old_section = pp_outputs[i]->p_sdt_section;
-
                 pp_outputs[i]->p_sdt_section
                                 = dvbpsi_GenSDTSections( p_new_sdt );
 
-                if ( p_old_section != NULL )
-                {
-                    dvbpsi_DeletePSISections( p_old_section );
-                }
-
                 dvbpsi_DeleteSDT( p_new_sdt );
+                break;
             }
         }
-
-        p_service = p_service->p_next;
     }
 
     dvbpsi_DeleteSDT( p_sdt );
