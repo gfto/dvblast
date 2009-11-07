@@ -94,6 +94,7 @@ static int SIDIsSelected( uint16_t i_sid );
 int PIDWouldBeSelected( dvbpsi_pmt_es_t *p_es );
 static int PMTNeedsDescrambling( dvbpsi_pmt_t *p_pmt );
 static void SendPAT( void );
+static void SendSDT( void );
 static void SendPMT( sid_t *p_sid );
 static void NewPAT( output_t *p_output );
 static void NewPMT( output_t *p_output );
@@ -206,6 +207,8 @@ static void demux_Handle( block_t *p_ts )
         else if ( b_enable_epg && i_pid == SDT_PID )
         {
             dvbpsi_PushPacket( p_sdt_dvbpsi_handle, p_ts->p_ts );
+            if ( block_UnitStart( p_ts ) )
+                SendSDT();
         }
         else if ( b_enable_epg && i_pid == TDT_PID )
         {
@@ -689,6 +692,32 @@ static void SendPAT( void )
 }
 
 /*****************************************************************************
+ * SendSDT
+ *****************************************************************************/
+static void SendSDT( void )
+{
+    int i;
+
+    for ( i = 0; i < i_nb_outputs; i++ )
+    {
+        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->p_sdt_section != NULL )
+        {
+            block_t *p_block;
+
+            p_block = WritePSISection( pp_outputs[i]->p_sdt_section, SDT_PID,
+                                       &pp_outputs[i]->i_sdt_cc );
+            while ( p_block != NULL )
+            {
+                block_t *p_next = p_block->p_next;
+                p_block->i_refcount--;
+                output_Put( pp_outputs[i], p_block );
+                p_block = p_next;
+            }
+        }
+    }
+}
+
+/*****************************************************************************
  * SendPMT
  *****************************************************************************/
 static void SendPMT( sid_t *p_sid )
@@ -706,22 +735,6 @@ static void SendPMT( sid_t *p_sid )
                 p_block = WritePSISection( pp_outputs[i]->p_pmt_section,
                                            p_sid->i_pmt_pid,
                                            &pp_outputs[i]->i_pmt_cc );
-                while ( p_block != NULL )
-                {
-                    block_t *p_next = p_block->p_next;
-                    p_block->i_refcount--;
-                    output_Put( pp_outputs[i], p_block );
-                    p_block = p_next;
-                }
-            }
-
-            if ( pp_outputs[i]->p_sdt_section != NULL )
-            {
-                block_t *p_block;
-
-                p_block = WritePSISection( pp_outputs[i]->p_sdt_section,
-                                           SDT_PID,
-                                           &pp_outputs[i]->i_sdt_cc );
                 while ( p_block != NULL )
                 {
                     block_t *p_next = p_block->p_next;
