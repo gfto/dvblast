@@ -6,6 +6,7 @@
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
+ *          Marian Ďurkovič <md@bts.sk>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -775,9 +776,8 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
             {
                 p_section->p_data[8]  = (pp_outputs[i]->i_ts_id >> 8) & 0xff;
                 p_section->p_data[9]  = pp_outputs[i]->i_ts_id & 0xff;
+                dvbpsi_BuildPSISection( p_section );
             }
-
-            dvbpsi_BuildPSISection( p_section );
 
             p_block = WritePSISection( p_section,
                                        EIT_PID,
