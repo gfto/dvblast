@@ -612,7 +612,7 @@ static block_t *WritePSISection( dvbpsi_psi_section_t *p_section,
     {
         uint32_t i_copy = i_length > (184 - b_first) ? (184 - b_first) :
                           i_length;
-        int b_adaptation_field = (i_copy < (184 - b_first));
+        int i;
         block_t *p_ts;
 
         p_ts = *pp_last = block_New();
@@ -632,29 +632,19 @@ static block_t *WritePSISection( dvbpsi_psi_section_t *p_section,
         p_ts->p_ts[0] = 0x47;
         p_ts->p_ts[1] = ( b_first ? 0x40 : 0x00 ) | ( ( i_pid >> 8 ) & 0x1f );
         p_ts->p_ts[2] = i_pid & 0xff;
-        p_ts->p_ts[3] = ( b_adaptation_field ? 0x30 : 0x10 ) | *pi_cc;
+        p_ts->p_ts[3] = 0x10 | *pi_cc;
         (*pi_cc)++;
         *pi_cc &= 0xf;
 
-        if( b_adaptation_field )
-        {
-            int i_stuffing = 184 - i_copy - b_first;
-            int i;
-
-            p_ts->p_ts[4] = i_stuffing - 1;
-            if( i_stuffing > 1 )
-            {
-                p_ts->p_ts[5] = 0x00;
-                for( i = 6; i < 6 + i_stuffing - 2; i++ )
-                    p_ts->p_ts[i] = 0xff;
-            }
-        }
-
         if ( b_first )
-            p_ts->p_ts[188 - i_copy - 1] = 0; /* pointer */
+            p_ts->p_ts[4] = 0; /* pointer */
 
         /* copy payload */
-        memcpy( &p_ts->p_ts[188 - i_copy], p_data, i_copy );
+        memcpy( &p_ts->p_ts[4 + b_first], p_data, i_copy );
+
+        /* stuffing */
+        for( i = 4 + b_first + i_copy; i < 188; i++ )
+            p_ts->p_ts[i] = 0xff;
 
         b_first = 0;
         i_length -= i_copy;
