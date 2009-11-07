@@ -1,2 +1,233 @@
-dvblast-1.0:
- - First public release
+------------------------------------------------------------------------
+r48 | massiot | 2009-11-02 15:41:46 +0100 (lun. 02 nov. 2009) | 2 lignes
+
+ * demux.c: Correctly remove CAPMT when the program goes clear, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r47 | massiot | 2009-11-02 15:31:47 +0100 (lun. 02 nov. 2009) | 2 lignes
+
+ * demux.c, en50221.c: Compatibility with gcc 2.95, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r46 | massiot | 2009-11-02 15:30:56 +0100 (lun. 02 nov. 2009) | 2 lignes
+
+ * dvblastctl.c, dvb.c: Compatibility with older DVB drivers, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r45 | massiot | 2009-11-02 14:31:17 +0100 (lun. 02 nov. 2009) | 2 lignes
+
+ * demux.c: Fix program cleanup when new PAT removes a program, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r44 | massiot | 2009-11-02 14:23:47 +0100 (lun. 02 nov. 2009) | 2 lignes
+
+ * demux.c: Fix multiple PID refcounting, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r43 | massiot | 2009-10-30 17:51:43 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * dvblast.c: Add support for /udp syntax in config file, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r42 | massiot | 2009-10-30 17:43:52 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * demux.c: Fix invalid CAPMTs when unselecting programs, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r41 | massiot | 2009-10-30 17:03:06 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * en50221.c: New -W switch to support sloW CAMs.
+
+------------------------------------------------------------------------
+r40 | massiot | 2009-10-30 16:45:25 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * en50221.c: Attempt at fixing high-level CI (but can't test).
+
+------------------------------------------------------------------------
+r39 | massiot | 2009-10-30 16:13:40 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * en50221.c: Increase MAX_CASYSTEM_IDS to 64 and fix inverted logic (thanks Marian !)
+
+------------------------------------------------------------------------
+r38 | massiot | 2009-10-30 16:10:02 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * demux.c: Pass through the TDT for DVB compliance, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r37 | massiot | 2009-10-30 16:08:08 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * demux.c: Avoid segfault caused when EPG is not used (thanks Marian !).
+
+------------------------------------------------------------------------
+r36 | massiot | 2009-10-30 16:06:37 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * dvb.c: More fixes for people who like typing invalid values.
+
+------------------------------------------------------------------------
+r35 | massiot | 2009-10-30 16:04:00 +0100 (ven. 30 oct. 2009) | 2 lignes
+
+ * More getopt() related fixes.
+
+------------------------------------------------------------------------
+r34 | massiot | 2009-10-24 18:44:45 +0200 (sam. 24 oct. 2009) | 2 lignes
+
+ * en50221.c: Fix memory leak (thanks ivoire).
+
+------------------------------------------------------------------------
+r33 | massiot | 2009-10-24 15:06:34 +0200 (sam. 24 oct. 2009) | 2 lignes
+
+ * dvblast.c: Fix -d description.
+
+------------------------------------------------------------------------
+r32 | massiot | 2009-10-24 14:17:44 +0200 (sam. 24 oct. 2009) | 2 lignes
+
+ * dvb.c: Diseqc support (based on patch #5 with extended msleep()s).
+
+------------------------------------------------------------------------
+r31 | massiot | 2009-10-24 14:12:33 +0200 (sam. 24 oct. 2009) | 2 lignes
+
+ * dvblast.c: getopt() returns int rather than (possibly unsigned) char.
+
+------------------------------------------------------------------------
+r30 | massiot | 2009-10-24 14:03:29 +0200 (sam. 24 oct. 2009) | 3 lignes
+
+ * dvb.c: Increase lock timeout to 30 s, because some low symbol rate
+   transponders are very hard to lock.
+
+------------------------------------------------------------------------
+r29 | massiot | 2009-10-23 12:58:25 +0200 (ven. 23 oct. 2009) | 2 lignes
+
+ * dvblast.c: Check if a config file has been given.
+
+------------------------------------------------------------------------
+r28 | massiot | 2009-10-21 00:01:26 +0200 (mer. 21 oct. 2009) | 2 lignes
+
+ * comm.c: Early termination for anonymous sockets.
+
+------------------------------------------------------------------------
+r27 | massiot | 2009-10-20 21:15:04 +0200 (mar. 20 oct. 2009) | 2 lignes
+
+ * ALL: Update Copyright information.
+
+------------------------------------------------------------------------
+r26 | massiot | 2009-10-20 20:44:22 +0200 (mar. 20 oct. 2009) | 2 lignes
+
+ * Documentation: Add $Id$ keyword.
+
+------------------------------------------------------------------------
+r25 | massiot | 2009-10-20 20:38:44 +0200 (mar. 20 oct. 2009) | 2 lignes
+
+ * Documentation update.
+
+------------------------------------------------------------------------
+r24 | massiot | 2009-10-06 22:14:50 +0200 (mar. 06 oct. 2009) | 2 lignes
+
+ * demux.c: Randomize TSID in unique TSID mode.
+
+------------------------------------------------------------------------
+r23 | massiot | 2009-10-06 22:00:20 +0200 (mar. 06 oct. 2009) | 2 lignes
+
+ * demux.c: By default preserve original TSID, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r22 | massiot | 2009-10-06 21:56:57 +0200 (mar. 06 oct. 2009) | 2 lignes
+
+ * demux.c: Correctly handle SDT on configuration changes.
+
+------------------------------------------------------------------------
+r21 | massiot | 2009-10-06 21:50:53 +0200 (mar. 06 oct. 2009) | 2 lignes
+
+ * en50221.c: Allow for larger TPDUs, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r20 | massiot | 2009-09-29 00:32:28 +0200 (mar. 29 sept. 2009) | 2 lignes
+
+ * output.c: Avoid jitter in RTP timestamps, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r19 | massiot | 2009-09-28 22:24:11 +0200 (lun. 28 sept. 2009) | 2 lignes
+
+ * dvb.c: Fix CAM poll timing, patch by Marian Ďurkovič.
+
+------------------------------------------------------------------------
+r18 | massiot | 2009-09-28 22:18:51 +0200 (lun. 28 sept. 2009) | 2 lignes
+
+ * demux.c: do not erase EIT last_table_id, patch by Andy Gatward.
+
+------------------------------------------------------------------------
+r17 | massiot | 2009-08-18 11:06:05 +0200 (mar. 18 août 2009) | 2 lignes
+
+ * utils.c: Shorter stderr output.
+
+------------------------------------------------------------------------
+r16 | massiot | 2009-08-17 20:23:32 +0200 (lun. 17 août 2009) | 2 lignes
+
+ * Update distribution files.
+
+------------------------------------------------------------------------
+r15 | massiot | 2009-08-17 20:06:59 +0200 (lun. 17 août 2009) | 2 lignes
+
+ * demux.c: Typo int the EITp/f table_id, spotted by Marian Ďurkovič. Thanks !
+
+------------------------------------------------------------------------
+r14 | massiot | 2009-08-13 18:18:10 +0200 (jeu. 13 août 2009) | 2 lignes
+
+ * ALL: EPG pass-through support, with SDT regeneration, patch courtesy of Andy Gatward.
+
+------------------------------------------------------------------------
+r13 | massiot | 2009-08-13 18:17:23 +0200 (jeu. 13 août 2009) | 2 lignes
+
+ * dvblastctl.c: Fix a gcc warning.
+
+------------------------------------------------------------------------
+r12 | massiot | 2009-07-02 23:55:25 +0200 (jeu. 02 juil. 2009) | 2 lignes
+
+ * dvblast.c: Fix for getopt on unicode consoles, patch courtesy of Andy Gatward.
+
+------------------------------------------------------------------------
+r11 | massiot | 2009-06-09 23:55:02 +0200 (mar. 09 juin 2009) | 2 lignes
+
+ * dvblast.c: Also move warnings outside of the getopt loop.
+
+------------------------------------------------------------------------
+r10 | massiot | 2009-06-09 23:45:17 +0200 (mar. 09 juin 2009) | 2 lignes
+
+ * dvblast.c, util.c: Quietness patch, courtesy of Andy Gatward.
+
+------------------------------------------------------------------------
+r9 | massiot | 2009-06-03 22:28:23 +0200 (mer. 03 juin 2009) | 3 lignes
+
+ * output.c: Support for MPEG-TS over raw UDP with the -U switch, patch
+   courtesy of Andy Gatward.
+
+------------------------------------------------------------------------
+r8 | massiot | 2009-05-15 20:53:57 +0200 (ven. 15 mai 2009) | 3 lignes
+
+ * dvb.c: Add support for adapters with multiple frontend, patch courtesy
+   of Andy Gatward.
+
+------------------------------------------------------------------------
+r7 | sam | 2009-05-12 14:01:27 +0200 (mar. 12 mai 2009) | 1 ligne
+
+Minor spelling fixes.
+------------------------------------------------------------------------
+r5 | massiot | 2009-05-11 16:54:00 +0200 (lun. 11 mai 2009) | 2 lignes
+
+ * dvb.c: Fine-tune the S2API code. Fix issues with some DVB-T cards.
+
+------------------------------------------------------------------------
+r4 | massiot | 2009-05-11 15:35:16 +0200 (lun. 11 mai 2009) | 2 lignes
+
+ * README: Better wording.
+
+------------------------------------------------------------------------
+r3 | massiot | 2009-05-11 15:19:16 +0200 (lun. 11 mai 2009) | 2 lignes
+
+ * dvblast: Set svn property "keyword".
+
+------------------------------------------------------------------------
+r1 | massiot | 2009-05-11 15:05:39 +0200 (lun. 11 mai 2009) | 2 lignes
+
+ * dvblast: Initial import of DVBlast 1.0.
+
+------------------------------------------------------------------------
