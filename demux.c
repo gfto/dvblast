@@ -674,7 +674,26 @@ static void SendPAT( void )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->p_pat_section != NULL )
+        if ( !pp_outputs[i]->i_maddr )
+            continue;
+
+        if ( pp_outputs[i]->p_pat_section == NULL &&
+             pp_outputs[i]->p_sdt_section != NULL && p_current_pat != NULL )
+        {
+            dvbpsi_pat_t pat;
+
+            if ( b_unique_tsid )
+                dvbpsi_InitPAT( &pat, pp_outputs[i]->i_ts_id,
+                                pp_outputs[i]->i_pat_version, 1 );
+            else
+                dvbpsi_InitPAT( &pat, p_current_pat->i_ts_id,
+                                pp_outputs[i]->i_pat_version, 1 );
+
+            pp_outputs[i]->p_pat_section = dvbpsi_GenPATSections( &pat, 0 );
+        }
+
+
+        if ( pp_outputs[i]->p_pat_section != NULL )
         {
             block_t *p_block;
 
@@ -1341,6 +1360,16 @@ static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
 
                 dvbpsi_DeleteSDT( p_new_sdt );
                 break;
+            }
+        }
+        if ( p_service == NULL )
+        {
+            if ( pp_outputs[i]->p_pat_section != NULL &&
+                 pp_outputs[i]->p_pat_section->i_length == 9 )
+            {
+                dvbpsi_DeletePSISections( pp_outputs[i]->p_pat_section );
+                pp_outputs[i]->p_pat_section = NULL;
+                pp_outputs[i]->i_pat_version++;
             }
         }
     }
