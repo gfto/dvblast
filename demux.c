@@ -1363,6 +1363,8 @@ static void PSITableCallback( void *_unused, dvbpsi_handle h_dvbpsi,
 static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
 {
     dvbpsi_sdt_t *p_old_sdt = p_current_sdt;
+    dvbpsi_sdt_service_t *p_srv;
+    dvbpsi_descriptor_t *p_dr;
     int i;
 
     if( p_current_sdt != NULL &&
@@ -1373,7 +1375,38 @@ static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
         return;
     }
 
-    msg_Dbg( NULL, "new SDT, version %d", p_sdt->i_version );
+    msg_Dbg( NULL, "new SDT ts_id=%d version=%d current_next=%d "
+             "network_id=%d",
+             p_sdt->i_ts_id, p_sdt->i_version, p_sdt->b_current_next,
+             p_sdt->i_network_id );
+
+    for( p_srv = p_sdt->p_first_service; p_srv; p_srv = p_srv->p_next )
+    {
+        msg_Dbg( NULL, "  * service id=%d eit schedule=%d present=%d "
+                 "running=%d free_ca=%d",
+                 p_srv->i_service_id, p_srv->b_eit_schedule,
+                 p_srv->b_eit_present, p_srv->i_running_status,
+                 p_srv->b_free_ca );
+
+        for( p_dr = p_srv->p_first_descriptor; p_dr; p_dr = p_dr->p_next )
+        {
+            if( p_dr->i_tag == 0x48 )
+            {
+                 dvbpsi_service_dr_t *pD = dvbpsi_DecodeServiceDr( p_dr );
+                 char str1[256];
+                 char str2[256];
+
+                 memcpy( str1, pD->i_service_provider_name,
+                         pD->i_service_provider_name_length );
+                 str1[pD->i_service_provider_name_length] = '\0';
+                 memcpy( str2, pD->i_service_name, pD->i_service_name_length );
+                 str2[pD->i_service_name_length] = '\0';
+ 
+                 msg_Dbg( NULL, "    - type=%d provider=%s name=%s",
+                          pD->i_service_type, str1, str2 );
+            }
+        }
+    }
 
     p_current_sdt = p_sdt;
 
