@@ -53,6 +53,7 @@
 #define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
 #define COUNTER_WRAP 200 /* we make 200 read calls per second */
 #define MAX_READ_ONCE 50
+#define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
 
 static int i_frontend, i_dvr;
 static fe_status_t i_last_status;
@@ -102,6 +103,12 @@ void dvb_Open( void )
     {
         msg_Warn( NULL, "couldn't set %s non-blocking mode (%s)", psz_tmp,
                   strerror(errno) );
+    }
+
+    if ( ioctl( i_dvr, DMX_SET_BUFFER_SIZE, DVR_BUFFER_SIZE ) < 0 )
+    {
+        msg_Warn( NULL, "couldn't set %s buffer size (%s)", psz_tmp,
+                 strerror(errno) );
     }
 
     en50221_Init();
