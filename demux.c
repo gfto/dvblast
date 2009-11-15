@@ -74,6 +74,7 @@ static dvbpsi_handle p_pat_dvbpsi_handle;
 static dvbpsi_handle p_sdt_dvbpsi_handle;
 static dvbpsi_handle p_eit_dvbpsi_handle;
 static dvbpsi_pat_t *p_current_pat = NULL;
+static dvbpsi_sdt_t *p_current_sdt = NULL;
 static int i_demux_fd;
 
 /*****************************************************************************
@@ -98,12 +99,13 @@ static void SendPAT( void );
 static void SendSDT( void );
 static void SendPMT( sid_t *p_sid );
 static void NewPAT( output_t *p_output );
+static void NewSDT( output_t *p_output );
 static void NewPMT( output_t *p_output );
 static void PATCallback( void *_unused, dvbpsi_pat_t *p_pat );
+static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt );
 static void PMTCallback( void *_unused, dvbpsi_pmt_t *p_pmt );
 static void PSITableCallback( void *_unused, dvbpsi_handle h_dvbpsi,
                               uint8_t i_table_id, uint16_t i_extension );
-static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt );
 
 /*****************************************************************************
  * demux_Open
@@ -137,17 +139,6 @@ void demux_Open( void )
         p_eit_dvbpsi_handle = dvbpsi_AttachDemux( PSITableCallback, NULL );
 
         SetPID(TDT_PID); /* TDT */
-    }
-}
-
-/*****************************************************************************
- * demux_Hup
- *****************************************************************************/
-void demux_Hup( void )
-{
-    if( b_enable_epg )
-    {
-        p_sdt_dvbpsi_handle->b_discontinuity = 1;
     }
 }
 
@@ -404,6 +395,7 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
 
     if ( i_sid != i_old_sid )
     {
+        NewSDT( p_output );
         NewPAT( p_output );
         NewPMT( p_output );
     }
@@ -825,6 +817,65 @@ static void NewPAT( output_t *p_output )
 
     p_output->p_pat_section = dvbpsi_GenPATSections( &pat, 0 );
     dvbpsi_EmptyPAT( &pat );
+}
+
+/*****************************************************************************
+ * NewSDT
+ *****************************************************************************/
+static void NewSDT( output_t *p_output )
+{
+    dvbpsi_sdt_t sdt;
+    dvbpsi_sdt_service_t *p_service, *p_new_service ;
+    dvbpsi_descriptor_t *p_descriptor;
+
+    if ( p_output->p_sdt_section != NULL )
+        dvbpsi_DeletePSISections( p_output->p_sdt_section );
+    p_output->p_sdt_section = NULL;
+
+    if ( !p_output->i_sid ) return;
+    if ( p_current_sdt == NULL ) return;
+
+    for( p_service = p_current_sdt->p_first_service; p_service != NULL;
+         p_service = p_service->p_next )
+        if ( p_service->i_service_id == p_output->i_sid )
+            break;
+
+    if ( p_service == NULL )
+    {
+        if ( p_output->p_pat_section != NULL &&
+             p_output->p_pat_section->i_length == 9 )
+        {
+            dvbpsi_DeletePSISections( p_output->p_pat_section );
+            p_output->p_pat_section = NULL;
+            p_output->i_pat_version++;
+        }
+        return;
+    }
+
+    if ( b_unique_tsid )
+        dvbpsi_InitSDT( &sdt, p_output->i_ts_id,
+                        p_current_sdt->i_version,
+                        p_current_sdt->b_current_next,
+                        p_current_sdt->i_network_id );
+    else
+        dvbpsi_InitSDT( &sdt, p_current_sdt->i_ts_id,
+                        p_current_sdt->i_version,
+                        p_current_sdt->b_current_next,
+                        p_current_sdt->i_network_id );
+
+    p_new_service = dvbpsi_SDTAddService( &sdt,
+        p_service->i_service_id, p_service->b_eit_schedule,
+        p_service->b_eit_present, p_service->i_running_status, 0 );
+
+    for( p_descriptor = p_service->p_first_descriptor; p_descriptor != NULL;
+         p_descriptor = p_descriptor->p_next )
+        dvbpsi_SDTServiceAddDescriptor( p_new_service,
+                  p_descriptor->i_tag, p_descriptor->i_length,
+                  p_descriptor->p_data );
+
+    p_output->p_sdt_section = dvbpsi_GenSDTSections( &sdt );
+
+    dvbpsi_EmptySDT( &sdt );
 }
 
 /*****************************************************************************
@@ -1294,75 +1345,27 @@ static void PSITableCallback( void *_unused, dvbpsi_handle h_dvbpsi,
 
 static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
 {
+    dvbpsi_sdt_t *p_old_sdt = p_current_sdt;
     int i;
 
-    dvbpsi_sdt_service_t *p_service;
-    dvbpsi_descriptor_t *p_descriptor;
-
-    dvbpsi_sdt_t *p_new_sdt = NULL;
-    dvbpsi_sdt_service_t *p_new_service;
+    if( p_current_sdt != NULL &&
+        ( !p_sdt->b_current_next ||
+          p_sdt->i_version == p_current_sdt->i_version ) )
+    {
+        dvbpsi_DeleteSDT( p_sdt );
+        return;
+    }
 
     msg_Dbg( NULL, "new SDT, version %d", p_sdt->i_version );
 
+    p_current_sdt = p_sdt;
+
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( !pp_outputs[i]->i_maddr || !pp_outputs[i]->i_sid )
-            continue;
-
-        if ( pp_outputs[i]->p_sdt_section )
-        {
-            dvbpsi_DeletePSISections( pp_outputs[i]->p_sdt_section );
-            pp_outputs[i]->p_sdt_section = NULL;
-        }
-
-        for ( p_service = p_sdt->p_first_service; p_service != NULL;
-              p_service = p_service->p_next )
-        {
-            if ( pp_outputs[i]->i_sid == p_service->i_service_id )
-            {
-                p_new_sdt = malloc(sizeof(dvbpsi_sdt_t));
-
-                if ( b_unique_tsid )
-                    dvbpsi_InitSDT( p_new_sdt, pp_outputs[i]->i_ts_id,
-                                    p_sdt->i_version, p_sdt->b_current_next,
-                                    p_sdt->i_network_id );
-                else
-                    dvbpsi_InitSDT( p_new_sdt, p_sdt->i_ts_id,
-                                    p_sdt->i_version, p_sdt->b_current_next,
-                                    p_sdt->i_network_id );
-
-                p_new_service = dvbpsi_SDTAddService( p_new_sdt,
-                    p_service->i_service_id, p_service->b_eit_schedule,
-                    p_service->b_eit_present, p_service->i_running_status, 0 );
-
-                p_descriptor = p_service->p_first_descriptor;
-
-                while ( p_descriptor != NULL )
-                {
-                    dvbpsi_SDTServiceAddDescriptor( p_new_service,
-                            p_descriptor->i_tag, p_descriptor->i_length,
-                            p_descriptor->p_data );
-                    p_descriptor = p_descriptor->p_next;
-                }
-
-                pp_outputs[i]->p_sdt_section
-                                = dvbpsi_GenSDTSections( p_new_sdt );
-
-                dvbpsi_DeleteSDT( p_new_sdt );
-                break;
-            }
-        }
-        if ( p_service == NULL )
-        {
-            if ( pp_outputs[i]->p_pat_section != NULL &&
-                 pp_outputs[i]->p_pat_section->i_length == 9 )
-            {
-                dvbpsi_DeletePSISections( pp_outputs[i]->p_pat_section );
-                pp_outputs[i]->p_pat_section = NULL;
-                pp_outputs[i]->i_pat_version++;
-            }
-        }
+        if ( pp_outputs[i]->i_maddr ) 
+            NewSDT( pp_outputs[i] );
     }
 
-    dvbpsi_DeleteSDT( p_sdt );
+    if ( p_old_sdt != NULL )
+        dvbpsi_DeleteSDT( p_old_sdt );
 }
