@@ -316,7 +316,8 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
     uint16_t *pi_wanted_pids, *pi_current_pids;
     int i_nb_wanted_pids, i_nb_current_pids;
     uint16_t i_old_sid = p_output->i_sid;
-    int b_change = 0;
+    int sid_change = ( i_sid != i_old_sid );
+    int pid_change = 0;
 
     if ( i_sid == p_output->i_sid && i_nb_pids == p_output->i_nb_pids &&
          (!i_nb_pids ||
@@ -327,7 +328,7 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
     GetPIDS( &pi_current_pids, &i_nb_current_pids, p_output->i_sid,
              p_output->pi_pids, p_output->i_nb_pids );
 
-    if ( i_old_sid && i_old_sid != i_sid )
+    if ( sid_change && i_old_sid )
     {
         p_output->i_sid = i_sid;
         for ( i = 0; i < i_nb_sids; i++ )
@@ -351,7 +352,22 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
              !IsIn( pi_wanted_pids, i_nb_wanted_pids, pi_current_pids[i] ) )
         {
             StopPID( p_output, pi_current_pids[i] );
-            b_change = 1;
+            pid_change = 1;
+        }
+    }
+
+    if ( sid_change &&
+         i_ca_handle && i_old_sid && SIDIsSelected( i_old_sid ) )
+    {
+        for ( i = 0; i < i_nb_sids; i++ )
+        {
+            if ( pp_sids[i]->i_sid == i_old_sid )
+            {
+                if ( pp_sids[i]->p_current_pmt != NULL 
+                      && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
+                    en50221_UpdatePMT( pp_sids[i]->p_current_pmt );
+                break;
+            }
         }
     }
 
@@ -361,13 +377,14 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
              !IsIn( pi_current_pids, i_nb_current_pids, pi_wanted_pids[i] ) )
         {
             StartPID( p_output, pi_wanted_pids[i] );
-            b_change = 1;
+            pid_change = 1;
         }
     }
+
     free( pi_wanted_pids );
     free( pi_current_pids );
 
-    if ( i_sid && i_sid != i_old_sid )
+    if ( sid_change && i_sid )
     {
         p_output->i_sid = i_old_sid;
         for ( i = 0; i < i_nb_sids; i++ )
@@ -376,32 +393,17 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
             {
                 SetPID( pp_sids[i]->i_pmt_pid );
 
-                if ( pp_sids[i]->p_current_pmt != NULL )
-                {
-                    if ( i_ca_handle && !SIDIsSelected( i_sid )
-                          && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
-                        en50221_AddPMT( pp_sids[i]->p_current_pmt );
-                    break;
-                }
+                if ( i_ca_handle && !SIDIsSelected( i_sid )
+                      && pp_sids[i]->p_current_pmt != NULL
+                      && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
+                    en50221_AddPMT( pp_sids[i]->p_current_pmt );
+                break;
             }
         }
     }
 
-    p_output->i_sid = i_sid;
-    free( p_output->pi_pids );
-    p_output->pi_pids = malloc( sizeof(uint16_t) * i_nb_pids );
-    memcpy( p_output->pi_pids, pi_pids, sizeof(uint16_t) * i_nb_pids );
-    p_output->i_nb_pids = i_nb_pids;
-
-    if ( i_sid != i_old_sid )
+    if ( i_ca_handle && i_sid && SIDIsSelected( i_sid ) )
     {
-        NewSDT( p_output );
-        NewPAT( p_output );
-        NewPMT( p_output );
-    }
-    else if ( b_change )
-    {
-        NewPMT( p_output );
         for ( i = 0; i < i_nb_sids; i++ )
         {
             if ( pp_sids[i]->i_sid == i_sid )
@@ -413,6 +415,21 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
             }
         }
     }
+
+    p_output->i_sid = i_sid;
+    free( p_output->pi_pids );
+    p_output->pi_pids = malloc( sizeof(uint16_t) * i_nb_pids );
+    memcpy( p_output->pi_pids, pi_pids, sizeof(uint16_t) * i_nb_pids );
+    p_output->i_nb_pids = i_nb_pids;
+
+    if ( sid_change )
+    {
+        NewSDT( p_output );
+        NewPAT( p_output );
+        NewPMT( p_output );
+    }
+    else if ( pid_change )
+        NewPMT( p_output );
 }
 
 /*****************************************************************************
