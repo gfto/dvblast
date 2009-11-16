@@ -44,6 +44,7 @@
  * Local declarations
  *****************************************************************************/
 
+#define PAT_PID        0x00
 #define SDT_PID        0x11
 #define EIT_PID        0x12
 #define TDT_PID        0x14
@@ -127,7 +128,7 @@ void demux_Open( void )
     if ( b_budget_mode )
         i_demux_fd = dvb_SetFilter(8192);
 
-    SetPID(0); /* PAT */
+    SetPID(PAT_PID); /* PAT */
     p_pat_dvbpsi_handle = dvbpsi_AttachPAT( PATCallback, NULL );
 
     if( b_enable_epg )
@@ -186,7 +187,7 @@ static void demux_Handle( block_t *p_ts )
 
     if ( p_pids[i_pid].i_refcount )
     {
-        if ( i_pid == 0 )
+        if ( i_pid == PAT_PID )
         {
             dvbpsi_PushPacket( p_pat_dvbpsi_handle, p_ts->p_ts );
             if ( block_UnitStart( p_ts ) )
@@ -697,7 +698,7 @@ static void SendPAT( void )
         {
             block_t *p_block;
 
-            p_block = WritePSISection( pp_outputs[i]->p_pat_section, 0,
+            p_block = WritePSISection( pp_outputs[i]->p_pat_section, PAT_PID,
                                        &pp_outputs[i]->i_pat_cc );
             while ( p_block != NULL )
             {

@@ -8,7 +8,8 @@
 # PGP key ID and fingerprint (P), description (D), and snail-mail address (S).
 
 N: Marian Ďurkovič
-E: md AT bts DOT SK
+E: md AT bts DOT sk
+C: md
 D: numerous bug fixes
 
 N: Andy Gatward
