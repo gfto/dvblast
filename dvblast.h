@@ -65,7 +65,7 @@ typedef struct output_t
     dvbpsi_psi_section_t *p_pmt_section;
     uint8_t i_pmt_version, i_pmt_cc;
     dvbpsi_psi_section_t *p_sdt_section;
-    uint8_t i_sdt_cc;
+    uint8_t i_sdt_version, i_sdt_cc;
     uint8_t i_eit_cc;
     uint16_t i_ts_id;
 

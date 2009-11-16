@@ -91,6 +91,7 @@ int output_Init( output_t *p_output, in_addr_t i_maddr, uint16_t i_port )
     p_output->i_eit_cc = rand() & 0xf;
     p_output->i_pat_version = rand() & 0xff;
     p_output->i_pmt_version = rand() & 0xff;
+    p_output->i_sdt_version = rand() & 0xff;
     p_output->p_pat_section = NULL;
     p_output->p_pmt_section = NULL;
     p_output->p_sdt_section = NULL;

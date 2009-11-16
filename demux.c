@@ -848,6 +848,7 @@ static void NewSDT( output_t *p_output )
     if ( p_output->p_sdt_section != NULL )
         dvbpsi_DeletePSISections( p_output->p_sdt_section );
     p_output->p_sdt_section = NULL;
+    p_output->i_sdt_version++;
 
     if ( !p_output->i_sid ) return;
     if ( p_current_sdt == NULL ) return;
@@ -871,13 +872,11 @@ static void NewSDT( output_t *p_output )
 
     if ( b_unique_tsid )
         dvbpsi_InitSDT( &sdt, p_output->i_ts_id,
-                        p_current_sdt->i_version,
-                        p_current_sdt->b_current_next,
+                        p_output->i_sdt_version, 1,
                         p_current_sdt->i_network_id );
     else
         dvbpsi_InitSDT( &sdt, p_current_sdt->i_ts_id,
-                        p_current_sdt->i_version,
-                        p_current_sdt->b_current_next,
+                        p_output->i_sdt_version, 1,
                         p_current_sdt->i_network_id );
 
     p_new_service = dvbpsi_SDTAddService( &sdt,
