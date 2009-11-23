@@ -398,19 +398,17 @@ static int FrontendDoDiseqc(void)
     else if ( i_frequency >= 2500000 && i_frequency <= 2700000 )
     {
         msg_Dbg( NULL, "frequency %d is in S-band", i_frequency );
-        bis_frequency = i_frequency - 3650000;
+        bis_frequency = 3650000 - i_frequency;
     }
     else if ( i_frequency >= 3400000 && i_frequency <= 4200000 )
     {
-        msg_Dbg( NULL, "frequency %d is in C-band (lower)",
-                 i_frequency );
-        bis_frequency = i_frequency - 5150000;
+        msg_Dbg( NULL, "frequency %d is in C-band (lower)", i_frequency );
+        bis_frequency = 5150000 - i_frequency;
     }
     else if ( i_frequency >= 4500000 && i_frequency <= 4800000 )
     {
-        msg_Dbg( NULL, "frequency %d is in C-band (higher)",
-                 i_frequency );
-        bis_frequency = i_frequency - 5950000;
+        msg_Dbg( NULL, "frequency %d is in C-band (higher)", i_frequency );
+        bis_frequency = 5950000 - i_frequency;
     }
     else if ( i_frequency >= 10700000 && i_frequency < 11700000 )
     {
