@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -82,10 +83,10 @@ typedef struct en50221_session_t
 int i_ca_handle = 0;
 int i_ca_type = -1;
 static int i_nb_slots = 0;
-static int pb_active_slot[MAX_CI_SLOTS];
-static int pb_tc_has_data[MAX_CI_SLOTS];
-static int pb_slot_mmi_expected[MAX_CI_SLOTS];
-static int pb_slot_mmi_undisplayed[MAX_CI_SLOTS];
+static bool pb_active_slot[MAX_CI_SLOTS];
+static bool pb_tc_has_data[MAX_CI_SLOTS];
+static bool pb_slot_mmi_expected[MAX_CI_SLOTS];
+static bool pb_slot_mmi_undisplayed[MAX_CI_SLOTS];
 static en50221_session_t p_sessions[MAX_SESSIONS];
 
 /*****************************************************************************
@@ -179,7 +180,7 @@ static uint8_t *SetLength( uint8_t *p_data, int i_length )
 #define T_DATA_LAST    0xA0
 #define T_DATA_MORE    0xA1
 
-static void Dump( int b_outgoing, uint8_t *p_data, int i_size )
+static void Dump( bool b_outgoing, uint8_t *p_data, int i_size )
 {
 #ifdef DEBUG_TPDU
     int i;
@@ -244,7 +245,7 @@ static int TPDUSend( access_t * p_access, uint8_t i_slot, uint8_t i_tag,
     default:
         break;
     }
-    Dump( 1, p_data, i_size );
+    Dump( true, p_data, i_size );
 
     if ( write( i_ca_handle, p_data, i_size ) != i_size )
     {
@@ -307,9 +308,9 @@ static int TPDURecv( access_t * p_access, uint8_t i_slot, uint8_t *pi_tag,
                                       && p_data[i_size - 4] == T_SB
                                       && p_data[i_size - 3] == 2
                                       && (p_data[i_size - 1] & DATA_INDICATOR))
-                                        ?  1 : 0;
+                                        ?  true : false;
 
-    Dump( 0, p_data, i_size );
+    Dump( false, p_data, i_size );
 
     if ( pi_size == NULL )
         free( p_data );
@@ -892,7 +893,7 @@ static void ApplicationInformationEnterMenu( access_t * p_access,
 
     msg_Dbg( p_access, "entering MMI menus on session %d", i_session_id );
     APDUSend( p_access, i_session_id, AOT_ENTER_MENU, NULL, 0 );
-    pb_slot_mmi_expected[i_slot] = 1;
+    pb_slot_mmi_expected[i_slot] = true;
 }
 
 /*****************************************************************************
@@ -959,20 +960,20 @@ typedef struct
     int b_high_level;
 } system_ids_t;
 
-static int CheckSystemID( system_ids_t *p_ids, uint16_t i_id )
+static bool CheckSystemID( system_ids_t *p_ids, uint16_t i_id )
 {
     int i = 0;
-    if( !p_ids ) return 0;
-    if( p_ids->b_high_level ) return 1;
+    if( !p_ids ) return false;
+    if( p_ids->b_high_level ) return true;
 
     while ( p_ids->pi_system_ids[i] )
     {
         if ( p_ids->pi_system_ids[i] == i_id )
-            return 1;
+            return true;
         i++;
     }
 
-    return 0;
+    return false;
 }
 
 /*****************************************************************************
@@ -1563,7 +1564,7 @@ static void MMISendObject( access_t *p_access, int i_session_id,
         i_tag = AOT_ANSW;
         i_size = 1 + strlen( p_object->u.answ.psz_answ );
         p_data = malloc( i_size );
-        p_data[0] = (p_object->u.answ.b_ok == 1) ? 0x1 : 0x0;
+        p_data[0] = (p_object->u.answ.b_ok == true) ? 0x1 : 0x0;
         strncpy( (char *)&p_data[1], p_object->u.answ.psz_answ, i_size - 1 );
         break;
 
@@ -1582,7 +1583,7 @@ static void MMISendObject( access_t *p_access, int i_session_id,
     APDUSend( p_access, i_session_id, i_tag, p_data, i_size );
     free( p_data );
 
-    pb_slot_mmi_expected[i_slot] = 1;
+    pb_slot_mmi_expected[i_slot] = true;
 }
 
 /*****************************************************************************
@@ -1594,7 +1595,7 @@ static void MMISendClose( access_t *p_access, int i_session_id )
 
     APDUSend( p_access, i_session_id, AOT_CLOSE_MMI, NULL, 0 );
 
-    pb_slot_mmi_expected[i_slot] = 1;
+    pb_slot_mmi_expected[i_slot] = true;
 }
 
 /*****************************************************************************
@@ -1653,7 +1654,7 @@ static void MMIHandleEnq( access_t *p_access, int i_session_id,
 
     en50221_MMIFree( &p_mmi->last_object );
     p_mmi->last_object.i_object_type = EN50221_MMI_ENQ;
-    p_mmi->last_object.u.enq.b_blind = (*d & 0x1) ? 1 : 0;
+    p_mmi->last_object.u.enq.b_blind = (*d & 0x1) ? true : false;
     d += 2; /* skip answer_text_length because it is not mandatory */
     l -= 2;
     p_mmi->last_object.u.enq.psz_text = malloc( l + 1 );
@@ -1661,9 +1662,9 @@ static void MMIHandleEnq( access_t *p_access, int i_session_id,
     p_mmi->last_object.u.enq.psz_text[l] = '\0';
 
     msg_Dbg( p_access, "MMI enq: %s%s", p_mmi->last_object.u.enq.psz_text,
-             p_mmi->last_object.u.enq.b_blind == 1 ? " (blind)" : "" );
-    pb_slot_mmi_expected[i_slot] = 0;
-    pb_slot_mmi_undisplayed[i_slot] = 1;
+             p_mmi->last_object.u.enq.b_blind == true ? " (blind)" : "" );
+    pb_slot_mmi_expected[i_slot] = false;
+    pb_slot_mmi_undisplayed[i_slot] = true;
 }
 
 /*****************************************************************************
@@ -1710,8 +1711,8 @@ static void MMIHandleMenu( access_t *p_access, int i_session_id, int i_tag,
             msg_Dbg( p_access, "MMI choice: %s", psz_text );
         }
     }
-    pb_slot_mmi_expected[i_slot] = 0;
-    pb_slot_mmi_undisplayed[i_slot] = 1;
+    pb_slot_mmi_expected[i_slot] = false;
+    pb_slot_mmi_undisplayed[i_slot] = true;
 }
 
 /*****************************************************************************
@@ -1779,8 +1780,8 @@ static void MMIClose( access_t *p_access, int i_session_id )
     free( p_sessions[i_session_id - 1].p_sys );
 
     msg_Dbg( p_access, "closing MMI session (%d)", i_session_id );
-    pb_slot_mmi_expected[i_slot] = 0;
-    pb_slot_mmi_undisplayed[i_slot] = 1;
+    pb_slot_mmi_expected[i_slot] = false;
+    pb_slot_mmi_undisplayed[i_slot] = true;
 }
 
 /*****************************************************************************
@@ -1828,7 +1829,7 @@ static int InitSlot( access_t * p_access, int i_slot )
         if ( TPDURecv( p_access, i_slot, &i_tag, NULL, NULL ) == 0
               && i_tag == T_CTC_REPLY )
         {
-            pb_active_slot[i_slot] = 1;
+            pb_active_slot[i_slot] = true;
             break;
         }
 
@@ -1860,8 +1861,8 @@ static void ResetSlot( int i_slot )
 
     if ( ioctl( i_ca_handle, CA_RESET, 1 << i_slot ) != 0 )
         msg_Err( NULL, "en50221_Poll: couldn't reset slot %d", i_slot );
-    pb_active_slot[i_slot] = 0;
-    pb_tc_has_data[i_slot] = 0;
+    pb_active_slot[i_slot] = false;
+    pb_tc_has_data[i_slot] = false;
 
     /* Close all sessions for this slot. */
     for ( i_session_id = 1; i_session_id <= MAX_SESSIONS; i_session_id++ )
@@ -2088,9 +2089,9 @@ void en50221_Poll( void )
             {
                 msg_Dbg( NULL, "en50221_Poll: slot %d has been removed",
                          i_slot );
-                pb_active_slot[i_slot] = 0;
-                pb_slot_mmi_expected[i_slot] = 0;
-                pb_slot_mmi_undisplayed[i_slot] = 0;
+                pb_active_slot[i_slot] = false;
+                pb_slot_mmi_expected[i_slot] = false;
+                pb_slot_mmi_undisplayed[i_slot] = false;
 
                 /* Close all sessions for this slot. */
                 for ( i_session_id = 1; i_session_id <= MAX_SESSIONS;
@@ -2377,7 +2378,7 @@ uint8_t en50221_GetMMIObject( uint8_t *p_buffer, ssize_t i_size,
     if ( i_size != 1 ) return RET_HUH;
     i_slot = *p_buffer;
 
-    if ( pb_slot_mmi_expected[i_slot] == 1 )
+    if ( pb_slot_mmi_expected[i_slot] == true )
         return RET_ERR; /* should not happen */
 
     p_ret->object.i_object_type = EN50221_MMI_NONE;
