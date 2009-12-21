@@ -211,7 +211,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] -c <config file> [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
     msg_Raw( NULL, "    -q: be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "    -v: voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "    -p: force 22kHz pulses for high-band selection (DVB-S)" );
@@ -225,6 +225,8 @@ void usage()
     msg_Raw( NULL, "    -d: duplicate all received packets to a given destination" );
     msg_Raw( NULL, "    -e: enable EPG pass through (EIT data)" );
     msg_Raw( NULL, "    -T: generate unique TS ID for each program" );
+    msg_Raw( NULL, "    -h: display this full help" );
+    msg_Raw( NULL, "    -V: only display the version" );
     exit(1);
 }
 
@@ -239,9 +241,7 @@ int main( int i_argc, char **pp_argv )
     if ( i_argc == 1 )
         usage();
 
-    msg_Warn(NULL, "restarting");
-
-    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:eh")) != -1 )
+    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:ehV")) != -1 )
     {
         switch ( c )
         {
@@ -365,11 +365,19 @@ int main( int i_argc, char **pp_argv )
             b_unique_tsid = 1;
             break;
 
+        case 'V':
+            exit(0);
+            break;
+
         case 'h':
         default:
             usage();
         }
     }
+    if ( optind < i_argc )
+        usage();
+
+    msg_Warn( NULL, "restarting" );
 
     if ( b_output_udp )
     {
