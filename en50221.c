@@ -1972,10 +1972,10 @@ void en50221_Init( void )
  *****************************************************************************/
 void en50221_Reset( void )
 {
-    memset( pb_active_slot, 0, sizeof(int) * MAX_CI_SLOTS );
-    memset( pb_tc_has_data, 0, sizeof(int) * MAX_CI_SLOTS );
-    memset( pb_slot_mmi_expected, 0, sizeof(int) * MAX_CI_SLOTS );
-    memset( pb_slot_mmi_undisplayed, 0, sizeof(int) * MAX_CI_SLOTS );
+    memset( pb_active_slot, 0, sizeof(bool) * MAX_CI_SLOTS );
+    memset( pb_tc_has_data, 0, sizeof(bool) * MAX_CI_SLOTS );
+    memset( pb_slot_mmi_expected, 0, sizeof(bool) * MAX_CI_SLOTS );
+    memset( pb_slot_mmi_undisplayed, 0, sizeof(bool) * MAX_CI_SLOTS );
 
     if( i_ca_type & CA_CI_LINK )
     {
