@@ -102,6 +102,14 @@ extern int b_unique_tsid;
 extern volatile int b_hup_received;
 extern mtime_t i_ca_timeout;
 extern int i_comm_fd;
+extern uint16_t i_src_port;
+extern in_addr_t i_src_addr;
+extern int b_src_rawudp;
+
+extern void (*pf_Open)( void );
+extern block_t * (*pf_Read)( void );
+extern int (*pf_SetFilter)( uint16_t i_pid );
+extern void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid );
 
 /*****************************************************************************
  * Prototypes
@@ -120,6 +128,11 @@ block_t * dvb_Read( void );
 int dvb_SetFilter( uint16_t i_pid );
 void dvb_UnsetFilter( int i_fd, uint16_t i_pid );
 uint8_t dvb_FrontendStatus( uint8_t *p_answer, ssize_t *pi_size );
+
+void udp_Open( void );
+block_t * udp_Read( void );
+int udp_SetFilter( uint16_t i_pid );
+void udp_UnsetFilter( int i_fd, uint16_t i_pid );
 
 void demux_Open( void );
 void demux_Run( void );

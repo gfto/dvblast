@@ -63,6 +63,14 @@ int b_enable_epg = 0;
 int b_unique_tsid = 0;
 volatile int b_hup_received = 0;
 int i_verbose = DEFAULT_VERBOSITY;
+uint16_t i_src_port = DEFAULT_PORT;
+in_addr_t i_src_addr = { 0 };
+int b_src_rawudp = 0;
+
+void (*pf_Open)( void ) = NULL;
+block_t * (*pf_Read)( void ) = NULL;
+int (*pf_SetFilter)( uint16_t i_pid ) = NULL;
+void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid ) = NULL;
 
 /*****************************************************************************
  * Configuration files
@@ -211,7 +219,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] -f <frequency> [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
     msg_Raw( NULL, "    -q: be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "    -v: voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "    -p: force 22kHz pulses for high-band selection (DVB-S)" );
@@ -223,6 +231,7 @@ void usage()
     msg_Raw( NULL, "    -W: add extra delays for slow CAMs" );
     msg_Raw( NULL, "    -U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
     msg_Raw( NULL, "    -d: duplicate all received packets to a given destination" );
+    msg_Raw( NULL, "    -D: read packets from a multicast address instead of a DVB card" );
     msg_Raw( NULL, "    -e: enable EPG pass through (EIT data)" );
     msg_Raw( NULL, "    -T: generate unique TS ID for each program" );
     msg_Raw( NULL, "    -h: display this full help" );
@@ -241,7 +250,7 @@ int main( int i_argc, char **pp_argv )
     if ( i_argc == 1 )
         usage();
 
-    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:ehV")) != -1 )
+    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:D:ehV")) != -1 )
     {
         switch ( c )
         {
@@ -273,6 +282,11 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'r':
+            if ( pf_Open != dvb_Open && pf_Open != NULL )
+            {
+                msg_Err( NULL, "-r is only available for linux-dvb input" );
+                usage();
+            }
             psz_srv_socket = optarg;
             break;
 
@@ -303,6 +317,12 @@ int main( int i_argc, char **pp_argv )
 
         case 'f':
             i_frequency = strtol( optarg, NULL, 0 );
+            if ( pf_Open != NULL )
+                usage();
+            pf_Open = dvb_Open;
+            pf_Read = dvb_Read;
+            pf_SetFilter = dvb_SetFilter;
+            pf_UnsetFilter = dvb_UnsetFilter;
             break;
 
         case 's':
@@ -354,6 +374,39 @@ int main( int i_argc, char **pp_argv )
             if ( !inet_aton( optarg, &maddr ) )
                 usage();
             output_Init( &output_dup, maddr.s_addr, i_port );
+            break;
+        }
+
+        case 'D':
+        {
+            char *psz_token;
+            struct in_addr maddr;
+            if ( pf_Open != NULL )
+                usage();
+            if ( psz_srv_socket != NULL )
+            {
+                msg_Err( NULL, "-r is only available for linux-dvb input" );
+                usage();
+            }
+
+            pf_Open = udp_Open;
+            pf_Read = udp_Read;
+            pf_SetFilter = udp_SetFilter;
+            pf_UnsetFilter = udp_UnsetFilter;
+
+            if ( (psz_token = strrchr( optarg, '/' )) != NULL )
+            {
+                *psz_token = '\0';
+                b_src_rawudp = ( strncasecmp( psz_token + 1, "udp", 3 ) == 0 );
+            }
+            if ( (psz_token = strrchr( optarg, ':' )) != NULL )
+            {
+                *psz_token = '\0';
+                i_src_port = atoi( psz_token + 1 );
+            }
+            if ( !inet_aton( optarg, &maddr ) )
+                usage();
+            i_src_addr = maddr.s_addr;
             break;
         }
 

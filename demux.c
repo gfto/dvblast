@@ -117,7 +117,7 @@ void demux_Open( void )
 
     memset( p_pids, 0, sizeof(p_pids) );
 
-    dvb_Open();
+    pf_Open();
 
     for ( i = 0; i < 8192; i++ )
     {
@@ -126,7 +126,7 @@ void demux_Open( void )
     }
 
     if ( b_budget_mode )
-        i_demux_fd = dvb_SetFilter(8192);
+        i_demux_fd = pf_SetFilter(8192);
 
     SetPID(PAT_PID); /* PAT */
     p_pat_dvbpsi_handle = dvbpsi_AttachPAT( PATCallback, NULL );
@@ -148,7 +148,7 @@ void demux_Open( void )
  *****************************************************************************/
 void demux_Run( void )
 {
-    block_t *p_ts = dvb_Read();
+    block_t *p_ts = pf_Read();
 
     while ( p_ts != NULL )
     {
@@ -442,7 +442,7 @@ static void SetPID( uint16_t i_pid )
 
     if ( !b_budget_mode && p_pids[i_pid].i_refcount
           && p_pids[i_pid].i_demux_fd == -1 )
-        p_pids[i_pid].i_demux_fd = dvb_SetFilter( i_pid );
+        p_pids[i_pid].i_demux_fd = pf_SetFilter( i_pid );
 }
 
 static void UnsetPID( uint16_t i_pid )
@@ -452,7 +452,7 @@ static void UnsetPID( uint16_t i_pid )
     if ( !b_budget_mode && !p_pids[i_pid].i_refcount
           && p_pids[i_pid].i_demux_fd != -1 )
     {
-        dvb_UnsetFilter( p_pids[i_pid].i_demux_fd, i_pid );
+        pf_UnsetFilter( p_pids[i_pid].i_demux_fd, i_pid );
         p_pids[i_pid].i_demux_fd = -1;
     }
 }
