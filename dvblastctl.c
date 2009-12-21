@@ -37,11 +37,14 @@
 #include "dvblast.h"
 #include "en50221.h"
 #include "comm.h"
+#include "version.h"
 
 int i_verbose = 3;
 
 void usage()
 {
+    msg_Raw( NULL, "DVBlastctl %d.%d.%d%s", VERSION_MAJOR, VERSION_MINOR, 
+					 VERSION_REVISION, VERSION_EXTRA );
     msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice [<CAM slot>] [<text/choice>]" );
     exit(1);
 }

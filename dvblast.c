@@ -34,6 +34,7 @@
 #include <signal.h>
 
 #include "dvblast.h"
+#include "version.h"
 
 /*****************************************************************************
  * Local declarations
@@ -197,6 +198,15 @@ static void SigHandler( int i_signal )
 }
 
 /*****************************************************************************
+ * Version
+ *****************************************************************************/
+static void DisplayVersion()
+{
+    msg_Raw( NULL, "DVBlast %d.%d.%d%s", VERSION_MAJOR, VERSION_MINOR,
+                                         VERSION_REVISION, VERSION_EXTRA );
+}
+
+/*****************************************************************************
  * Entry point
  *****************************************************************************/
 void usage()
@@ -224,10 +234,12 @@ int main( int i_argc, char **pp_argv )
     int i_error;
     int c;
 
+    DisplayVersion();
+
     if ( i_argc == 1 )
         usage();
 
-    msg_Warn( NULL, "restarting" );
+    msg_Warn(NULL, "restarting");
 
     while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:eh")) != -1 )
     {

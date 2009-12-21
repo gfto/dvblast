@@ -11,7 +11,7 @@ OBJ_DVBLASTCTL = util.o dvblastctl.o
 
 all: dvblast dvblastctl
 
-$(OBJ_DVBLAST) $(OBJ_DVBLASTCTL): Makefile dvblast.h en50221.h comm.h
+$(OBJ_DVBLAST) $(OBJ_DVBLASTCTL): Makefile dvblast.h en50221.h comm.h version.h
 
 dvblast: $(OBJ_DVBLAST)
 	$(CC) -o $@ $(OBJ_DVBLAST) $(LDFLAGS_DVBLAST)
