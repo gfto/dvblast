@@ -51,16 +51,11 @@
  * Local declarations
  *****************************************************************************/
 #define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
-#define COUNTER_WRAP 200 /* we make 200 read calls per second */
-#define MAX_READ_ONCE 50
 #define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
 
 static int i_frontend, i_dvr;
 static fe_status_t i_last_status;
 static mtime_t i_frontend_timeout;
-static unsigned int i_read_once = 1;
-static unsigned int i_read_counter = 0;
-static mtime_t i_last_counter = 0;
 static mtime_t i_ca_next_event = 0;
 mtime_t i_ca_timeout = 0;
 
@@ -176,6 +171,7 @@ static block_t *DVRRead( void )
 {
     int i, i_len;
     block_t *p_ts, **pp_current = &p_ts;
+    int i_read_once = output_Count() * NB_BLOCKS;
     struct iovec p_iov[i_read_once];
 
     for ( i = 0; i < i_read_once; i++ )
@@ -194,8 +190,6 @@ static block_t *DVRRead( void )
     }
     i_len /= TS_SIZE;
 
-    //msg_Err( NULL, "Meuuh %d %d", i_len, i_read_once );
-
     pp_current = &p_ts;
     while ( i_len && *pp_current )
     {
@@ -205,27 +199,6 @@ static block_t *DVRRead( void )
 
     block_DeleteChain( *pp_current );
     *pp_current = NULL;
-
-    i_read_counter++;
-    if ( i_read_counter >= COUNTER_WRAP )
-    {
-        mtime_t i_current_date = mdate();
-
-        if ( i_last_counter )
-        {
-            /* Adjust the buffer size to keep the read() calls frequency
-             * at a certain limit */
-            i_read_once = (mtime_t)i_read_once * 1000000LL
-                           / (i_current_date - i_last_counter);
-            if ( i_read_once < 1 )
-                i_read_once = 1;
-            if ( i_read_once > MAX_READ_ONCE )
-                i_read_once = MAX_READ_ONCE;
-        }
-
-        i_read_counter = 0;
-        i_last_counter = i_current_date;
-    }
 
     return p_ts;
 }
