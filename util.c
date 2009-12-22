@@ -31,8 +31,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 #include "dvblast.h"
+
+#define HAVE_CLOCK_NANOSLEEP
 
 /*****************************************************************************
  * Local declarations
@@ -121,6 +124,17 @@ void msg_Raw( void *_unused, const char *psz_format, ... )
  *****************************************************************************/
 mtime_t mdate( void )
 {
+#if defined (HAVE_CLOCK_NANOSLEEP)
+    struct timespec ts;
+
+    /* Try to use POSIX monotonic clock if available */
+    if( clock_gettime( CLOCK_MONOTONIC, &ts ) == EINVAL )
+        /* Run-time fallback to real-time clock (always available) */
+        (void)clock_gettime( CLOCK_REALTIME, &ts );
+
+    return ((mtime_t)ts.tv_sec * (mtime_t)1000000)
+            + (mtime_t)(ts.tv_nsec / 1000);
+#else
     struct timeval tv_date;
 
     /* gettimeofday() could return an error, and should be tested. However, the
@@ -128,6 +142,7 @@ mtime_t mdate( void )
      * here, since tv is a local variable. */
     gettimeofday( &tv_date, NULL );
     return( (mtime_t) tv_date.tv_sec * 1000000 + (mtime_t) tv_date.tv_usec );
+#endif
 }
 
 /*****************************************************************************
@@ -135,12 +150,22 @@ mtime_t mdate( void )
  *****************************************************************************/
 void msleep( mtime_t delay )
 {
-    struct timespec ts_delay;
+    struct timespec ts;
+    ts.tv_sec = delay / 1000000;
+    ts.tv_nsec = (delay % 1000000) * 1000;
 
-    ts_delay.tv_sec = delay / 1000000;
-    ts_delay.tv_nsec = (delay % 1000000) * 1000;
-
-    nanosleep( &ts_delay, NULL );
+#if defined( HAVE_CLOCK_NANOSLEEP )
+    int val;
+    while ( ( val = clock_nanosleep( CLOCK_MONOTONIC, 0, &ts, &ts ) ) == EINTR );
+    if( val == EINVAL )
+    {
+        ts.tv_sec = delay / 1000000;
+        ts.tv_nsec = (delay % 1000000) * 1000;
+        while ( clock_nanosleep( CLOCK_REALTIME, 0, &ts, &ts ) == EINTR );
+    }
+#else
+    while ( nanosleep( &ts, &ts ) && errno == EINTR );
+#endif
 }
 
 /*****************************************************************************
