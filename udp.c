@@ -136,6 +136,8 @@ block_t *udp_Read( void )
         i_len--;
     }
 
+    if ( *pp_current )
+        msg_Dbg( NULL, "partial buffer received" );
     block_DeleteChain( *pp_current );
     *pp_current = NULL;
 

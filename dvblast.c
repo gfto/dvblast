@@ -66,6 +66,7 @@ int i_verbose = DEFAULT_VERBOSITY;
 uint16_t i_src_port = DEFAULT_PORT;
 in_addr_t i_src_addr = { 0 };
 int b_src_rawudp = 0;
+int i_asi_adapter = 0;
 
 void (*pf_Open)( void ) = NULL;
 block_t * (*pf_Read)( void ) = NULL;
@@ -219,7 +220,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
     msg_Raw( NULL, "    -q: be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "    -v: voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "    -p: force 22kHz pulses for high-band selection (DVB-S)" );
@@ -232,6 +233,7 @@ void usage()
     msg_Raw( NULL, "    -U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
     msg_Raw( NULL, "    -d: duplicate all received packets to a given destination" );
     msg_Raw( NULL, "    -D: read packets from a multicast address instead of a DVB card" );
+    msg_Raw( NULL, "    -A: read packets from an ASI adapter (0-n)" );
     msg_Raw( NULL, "    -e: enable EPG pass through (EIT data)" );
     msg_Raw( NULL, "    -T: generate unique TS ID for each program" );
     msg_Raw( NULL, "    -h: display this full help" );
@@ -250,7 +252,7 @@ int main( int i_argc, char **pp_argv )
     if ( i_argc == 1 )
         usage();
 
-    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:D:ehV")) != -1 )
+    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:D:A:ehV")) != -1 )
     {
         switch ( c )
         {
@@ -409,6 +411,21 @@ int main( int i_argc, char **pp_argv )
             i_src_addr = maddr.s_addr;
             break;
         }
+
+        case 'A':
+            i_asi_adapter = strtol( optarg, NULL, 0 );
+            if ( pf_Open != NULL )
+                usage();
+            if ( psz_srv_socket != NULL )
+            {
+                msg_Err( NULL, "-r is only available for linux-dvb input" );
+                usage();
+            }
+            pf_Open = asi_Open;
+            pf_Read = asi_Read;
+            pf_SetFilter = asi_SetFilter;
+            pf_UnsetFilter = asi_UnsetFilter;
+            break;
 
         case 'e':
             b_enable_epg = 1;
