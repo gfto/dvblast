@@ -51,7 +51,7 @@ output_t *output_Create( in_addr_t i_maddr, uint16_t i_port )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( !pp_outputs[i]->i_maddr )
+        if ( !( pp_outputs[i]->i_config & OUTPUT_VALID ) )
         {
             p_output = pp_outputs[i];
             break;
@@ -100,13 +100,16 @@ int output_Init( output_t *p_output, in_addr_t i_maddr, uint16_t i_port )
     p_output->i_ref_timestamp = 0;
     p_output->i_ref_wallclock = 0;
 
-    p_output->i_maddr = i_maddr;
-    p_output->i_port = i_port;
+    p_output->maddr.sin_family = AF_INET;
+    p_output->maddr.sin_addr.s_addr = i_maddr;
+    p_output->maddr.sin_port = htons(i_port);
     if ( (p_output->i_handle = net_Open(p_output)) < 0 )
     {
-        p_output->i_maddr = 0;
+        p_output->i_config &= ~OUTPUT_VALID;
         return -1;
     }
+
+    p_output->i_config |= OUTPUT_VALID;
 
     return 0;
 }
@@ -126,7 +129,7 @@ void output_Close( output_t *p_output )
     }
 
     p_output->i_depth = 0;
-    p_output->i_maddr = 0;
+    p_output->i_config &= ~OUTPUT_VALID;
     close( p_output->i_handle );
 }
 
@@ -140,7 +143,7 @@ static void output_Flush( output_t *p_output )
     int i;
     int i_outblocks = NB_BLOCKS;
 
-    if ( !b_output_udp && !p_output->b_rawudp )
+    if ( !b_output_udp && !(p_output->i_config & OUTPUT_UDP) )
     {
         p_iov[0].iov_base = p_rtp_hdr;
         p_iov[0].iov_len = sizeof(p_rtp_hdr);
@@ -165,10 +168,8 @@ static void output_Flush( output_t *p_output )
 
     if ( writev( p_output->i_handle, p_iov, i_outblocks ) < 0 )
     {
-        struct in_addr s;
-        s.s_addr = p_output->i_maddr;
-        msg_Err( NULL, "couldn't writev to %s:%u (%s)", inet_ntoa( s ),
-                 p_output->i_port, strerror(errno) );
+        msg_Err( NULL, "couldn't writev to %s:%u (%s)", inet_ntoa( p_output->maddr.sin_addr ),
+                 p_output->maddr.sin_port, strerror(errno) );
     }
 
     for ( i = 0; i < NB_BLOCKS; i++ )
@@ -200,23 +201,16 @@ void output_Put( output_t *p_output, block_t *p_block )
 static int net_Open( output_t *p_output )
 {
     int i_handle = socket( AF_INET, SOCK_DGRAM, 0 );
-    struct sockaddr_in sin;
 
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(p_output->i_port);
-    sin.sin_addr.s_addr = p_output->i_maddr;
-
-    if ( connect( i_handle, (struct sockaddr *)&sin, sizeof( sin ) ) < 0 )
+    if ( connect( i_handle, (struct sockaddr *)&p_output->maddr, sizeof( p_output->maddr ) ) < 0 )
     {
-        struct in_addr s;
-        s.s_addr = p_output->i_maddr;
-        msg_Err( NULL, "couldn't connect to %s:%u (%s)", inet_ntoa( s ),
-                 p_output->i_port, strerror(errno) );
+        msg_Err( NULL, "couldn't connect to %s:%u (%s)", inet_ntoa( p_output->maddr.sin_addr ),
+                 p_output->maddr.sin_port, strerror(errno) );
         close( i_handle );
         return -1;
     }
 
-    if ( IN_MULTICAST( ntohl(p_output->i_maddr) ) )
+    if ( IN_MULTICAST( ntohl(p_output->maddr.sin_addr.s_addr ) ) )
     {
         int i = i_ttl;
         setsockopt( i_handle, IPPROTO_IP, IP_MULTICAST_TTL,

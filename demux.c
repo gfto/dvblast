@@ -207,7 +207,7 @@ static void demux_Handle( block_t *p_ts )
         {
             for ( i = 0; i < i_nb_outputs; i++ )
             {
-                if ( pp_outputs[i]->i_maddr && pp_outputs[i]->p_sdt_section )
+                if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->p_sdt_section )
                     output_Put( pp_outputs[i], p_ts );
             }
         }
@@ -255,7 +255,7 @@ static void demux_Handle( block_t *p_ts )
         output_t *p_output = p_pids[i_pid].pp_outputs[i];
         if ( p_output != NULL )
         {
-            if ( i_ca_handle && p_output->b_watch )
+            if ( i_ca_handle && (p_output->i_config & OUTPUT_WATCH) )
             {
                 uint8_t *p_payload;
 
@@ -274,15 +274,13 @@ static void demux_Handle( block_t *p_ts )
 
                 if ( p_output->i_nb_errors > MAX_ERRORS )
                 {
-                    struct in_addr s;
                     int j;
                     for ( j = 0; j < i_nb_outputs; j++ )
                         pp_outputs[j]->i_nb_errors = 0;
 
-                    s.s_addr = p_output->i_maddr;
                     msg_Warn( NULL,
                              "too many errors for stream %s:%d, resetting",
-                             inet_ntoa( s ), p_output->i_port );
+                             inet_ntoa( p_output->maddr.sin_addr ), p_output->maddr.sin_port );
                     en50221_Reset();
                 }
             }
@@ -291,7 +289,7 @@ static void demux_Handle( block_t *p_ts )
         }
     }
 
-    if ( output_dup.i_maddr )
+    if ( output_dup.i_config & OUTPUT_VALID )
         output_Put( &output_dup, p_ts );
 
     p_ts->i_refcount--;
@@ -515,7 +513,7 @@ static void SelectPID( uint16_t i_sid, uint16_t i_pid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == i_sid
               && !pp_outputs[i]->i_nb_pids )
             StartPID( pp_outputs[i], i_pid );
 }
@@ -525,7 +523,7 @@ static void UnselectPID( uint16_t i_sid, uint16_t i_pid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == i_sid
               && !pp_outputs[i]->i_nb_pids )
             StopPID( pp_outputs[i], i_pid );
 }
@@ -538,7 +536,7 @@ static void SelectPSI( uint16_t i_sid, uint16_t i_pid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == i_sid )
             SetPID( i_pid );
 }
 
@@ -547,7 +545,7 @@ static void UnselectPSI( uint16_t i_sid, uint16_t i_pid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == i_sid )
             UnsetPID( i_pid );
 }
 
@@ -675,7 +673,7 @@ static void SendPAT( void )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( !pp_outputs[i]->i_maddr )
+        if ( !( pp_outputs[i]->i_config & OUTPUT_VALID ) )
             continue;
 
         if ( pp_outputs[i]->p_pat_section == NULL &&
@@ -720,7 +718,7 @@ static void SendSDT( void )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->p_sdt_section != NULL )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->p_sdt_section != NULL )
         {
             block_t *p_block;
 
@@ -746,7 +744,7 @@ static void SendPMT( sid_t *p_sid )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == p_sid->i_sid )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == p_sid->i_sid )
         {
             if ( pp_outputs[i]->p_pmt_section != NULL )
             {
@@ -778,7 +776,7 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
 
     for( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == i_sid )
         {
             block_t *p_block;
 
@@ -959,7 +957,7 @@ static void UpdatePAT( uint16_t i_sid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == i_sid )
             NewPAT( pp_outputs[i] );
 }
 
@@ -971,7 +969,7 @@ static void UpdatePMT( uint16_t i_sid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == i_sid )
             NewPMT( pp_outputs[i] );
 }
 
@@ -983,7 +981,7 @@ static int SIDIsSelected( uint16_t i_sid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_maddr && pp_outputs[i]->i_sid == i_sid )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && pp_outputs[i]->i_sid == i_sid )
             return 1;
 
     return 0;
@@ -1412,7 +1410,7 @@ static void SDTCallback( void *_unused, dvbpsi_sdt_t *p_sdt )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr ) 
+        if ( pp_outputs[i]->i_config & OUTPUT_VALID )
             NewSDT( pp_outputs[i] );
     }
 

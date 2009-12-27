@@ -41,7 +41,7 @@
  *****************************************************************************/
 output_t **pp_outputs = NULL;
 int i_nb_outputs = 0;
-output_t output_dup = { 0 };
+output_t output_dup = {{ 0 }};
 static char *psz_conf_file = NULL;
 char *psz_srv_socket = NULL;
 int i_ttl = 64;
@@ -159,8 +159,8 @@ static void ReadConfiguration( char *psz_file )
 
         for ( i = 0; i < i_nb_outputs; i++ )
         {
-            if ( pp_outputs[i]->i_maddr == maddr.s_addr
-                  && pp_outputs[i]->i_port == i_port )
+            if ( pp_outputs[i]->maddr.sin_addr.s_addr == maddr.s_addr
+                  && ntohs( pp_outputs[i]->maddr.sin_port ) == i_port )
             {
                 p_output = pp_outputs[i];
                 break;
@@ -172,9 +172,18 @@ static void ReadConfiguration( char *psz_file )
         if ( p_output != NULL )
         {
             demux_Change( p_output, i_sid, pi_pids, i_nb_pids );
-            p_output->b_rawudp = b_rawudp;
-            p_output->b_watch = (b_watch == 1);
-            p_output->b_still_present = 1;
+
+            if( b_rawudp )
+              p_output->i_config |= OUTPUT_UDP;
+            else
+              p_output->i_config &= ~OUTPUT_UDP;
+
+            if( b_watch == 1)
+              p_output->i_config |= OUTPUT_WATCH;
+            else
+              p_output->i_config &= ~OUTPUT_WATCH;
+
+            p_output->i_config |= OUTPUT_STILL_PRESENT;
         }
 
         free( pi_pids );
@@ -184,17 +193,16 @@ static void ReadConfiguration( char *psz_file )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( pp_outputs[i]->i_maddr && !pp_outputs[i]->b_still_present )
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && 
+            !( pp_outputs[i]->i_config & OUTPUT_STILL_PRESENT ) )
         {
-            struct in_addr s;
-            s.s_addr = pp_outputs[i]->i_maddr;
-            msg_Dbg( NULL, "closing %s:%u", inet_ntoa( s ),
-                     pp_outputs[i]->i_port );
+            msg_Dbg( NULL, "closing %s:%u", inet_ntoa( pp_outputs[i]->maddr.sin_addr ),
+                     ntohs( pp_outputs[i]->maddr.sin_port ) );
             demux_Change( pp_outputs[i], 0, NULL, 0 );
             output_Close( pp_outputs[i] );
         }
 
-        pp_outputs[i]->b_still_present = 0;
+        pp_outputs[i]->i_config &= ~OUTPUT_STILL_PRESENT;
     }
 }
 

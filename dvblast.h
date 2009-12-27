@@ -35,6 +35,23 @@
 #define MAX_ERRORS 100000
 #define DEFAULT_VERBOSITY 3
 
+/*****************************************************************************
+ * Output configuration flags (for output_t -> i_config) - bit values
+ * Bit  0 : Set for watch mode
+ * Bit  1 : Set output still present
+ * Bit  2 : Set if output is valid (replaces m_addr != 0 tests)
+ * Bit  3 : Set for UDP, otherwise use RTP if a network stream
+ * Bit  4 : Set for IPv6, unset for IPv4 (future use)
+ * Bit  5 : Set for file / FIFO output, unset for network (future use)
+ *****************************************************************************/
+
+#define OUTPUT_WATCH         0x01
+#define OUTPUT_STILL_PRESENT 0x02
+#define OUTPUT_VALID         0x04
+#define OUTPUT_UDP           0x08
+#define OUTPUT_IPV6          0x10
+#define OUTPUT_FILE	     0x20
+
 typedef int64_t mtime_t;
 
 typedef struct block_t
@@ -46,8 +63,7 @@ typedef struct block_t
 
 typedef struct output_t
 {
-    in_addr_t i_maddr;
-    uint16_t i_port;
+    struct sockaddr_in maddr;
 
     /* output */
     int i_handle;
@@ -73,9 +89,7 @@ typedef struct output_t
     uint16_t i_sid; /* 0 if raw mode */
     uint16_t *pi_pids;
     int i_nb_pids;
-    int b_watch;
-    int b_rawudp;
-    int b_still_present;
+    uint8_t i_config;
 } output_t;
 
 extern int i_verbose;
@@ -162,7 +176,7 @@ static inline int output_Count( void )
 {
     int i, i_nb = 0;
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_maddr )
+        if ( pp_outputs[i]->i_config & OUTPUT_VALID )
             i_nb++;
     return i_nb;
 }
