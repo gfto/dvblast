@@ -255,12 +255,13 @@ static void demux_Handle( block_t *p_ts )
         output_t *p_output = p_pids[i_pid].pp_outputs[i];
         if ( p_output != NULL )
         {
-            if ( i_ca_handle && (p_output->i_config & OUTPUT_WATCH) )
+            if ( i_ca_handle && (p_output->i_config & OUTPUT_WATCH) &&
+                 block_UnitStart( p_ts ) ) 
             {
                 uint8_t *p_payload;
 
                 if ( block_GetScrambling( p_ts ) ||
-                     ( block_UnitStart( p_ts ) && p_pids[i_pid].b_pes
+                     ( p_pids[i_pid].b_pes
                         && (p_payload = block_GetPayload( p_ts )) != NULL
                         && p_payload + 3 < p_ts->p_ts + TS_SIZE
                           && (p_payload[0] != 0 || p_payload[1] != 0

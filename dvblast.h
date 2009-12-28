@@ -32,7 +32,7 @@
 #define EMPTY_PID 8192
 #define PADDING_PID 8191
 #define WATCHDOG_WAIT 10000000LL
-#define MAX_ERRORS 100000
+#define MAX_ERRORS 1000
 #define DEFAULT_VERBOSITY 3
 
 /*****************************************************************************
