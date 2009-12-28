@@ -20,6 +20,9 @@ This tunes to frequency 11570 MHz, symbol rate 27500, horizontal (-v 18). For
 DVB-S2, you must indicate a modulation with -m qpsk or -m psk_8. For DVB-T,
 a bandwidth (usually -b 8 for 8 MHz multiplexes).
 
+Please note that frequencies are in kHz for DVB-S/S2/C, but Hz for DVB-T.
+Symbol rates are in symbols/s, and bandwidths in MHz.
+
 Other rarely used options are available - run dvblast -h for more
 information.
 
