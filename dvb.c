@@ -57,6 +57,7 @@ static int i_frontend, i_dvr;
 static fe_status_t i_last_status;
 static mtime_t i_frontend_timeout;
 static mtime_t i_ca_next_event = 0;
+static block_t *p_freelist = NULL;
 mtime_t i_ca_timeout = 0;
 
 /*****************************************************************************
@@ -170,13 +171,13 @@ block_t *dvb_Read( void )
 static block_t *DVRRead( void )
 {
     int i, i_len;
-    block_t *p_ts, **pp_current = &p_ts;
+    block_t *p_ts = p_freelist, **pp_current = &p_ts;
     int i_read_once = output_Count() * NB_BLOCKS;
     struct iovec p_iov[i_read_once];
 
     for ( i = 0; i < i_read_once; i++ )
     {
-        *pp_current = block_New();
+        if ( (*pp_current) == NULL ) *pp_current = block_New();
         p_iov[i].iov_base = (*pp_current)->p_ts;
         p_iov[i].iov_len = TS_SIZE;
         pp_current = &(*pp_current)->p_next;
@@ -197,7 +198,7 @@ static block_t *DVRRead( void )
         i_len--;
     }
 
-    block_DeleteChain( *pp_current );
+    p_freelist = *pp_current;
     *pp_current = NULL;
 
     return p_ts;
