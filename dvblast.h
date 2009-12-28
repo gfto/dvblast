@@ -170,18 +170,6 @@ void comm_Open( void );
 void comm_Read( void );
 
 /*****************************************************************************
- * output_Count
- *****************************************************************************/
-static inline int output_Count( void )
-{
-    int i, i_nb = 0;
-    for ( i = 0; i < i_nb_outputs; i++ )
-        if ( pp_outputs[i]->i_config & OUTPUT_VALID )
-            i_nb++;
-    return i_nb;
-}
-
-/*****************************************************************************
  * block_New
  *****************************************************************************/
 static inline block_t *block_New( void )

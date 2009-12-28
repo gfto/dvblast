@@ -51,6 +51,7 @@
  * Local declarations
  *****************************************************************************/
 #define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
+#define MAX_READ_ONCE 50
 #define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
 
 static int i_frontend, i_dvr;
@@ -172,10 +173,9 @@ static block_t *DVRRead( void )
 {
     int i, i_len;
     block_t *p_ts = p_freelist, **pp_current = &p_ts;
-    int i_read_once = output_Count() * NB_BLOCKS;
-    struct iovec p_iov[i_read_once];
+    struct iovec p_iov[MAX_READ_ONCE];
 
-    for ( i = 0; i < i_read_once; i++ )
+    for ( i = 0; i < MAX_READ_ONCE; i++ )
     {
         if ( (*pp_current) == NULL ) *pp_current = block_New();
         p_iov[i].iov_base = (*pp_current)->p_ts;
@@ -183,7 +183,7 @@ static block_t *DVRRead( void )
         pp_current = &(*pp_current)->p_next;
     }
 
-    if ( (i_len = readv(i_dvr, p_iov, i_read_once)) < 0 )
+    if ( (i_len = readv(i_dvr, p_iov, MAX_READ_ONCE)) < 0 )
     {
         msg_Err( NULL, "couldn't read from DVR device (%s)",
                  strerror(errno) );
