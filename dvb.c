@@ -89,17 +89,11 @@ void dvb_Open( void )
 
     sprintf( psz_tmp, "/dev/dvb/adapter%d/dvr%d", i_adapter, i_fenum );
 
-    if( (i_dvr = open(psz_tmp, O_RDONLY)) < 0 )
+    if( (i_dvr = open(psz_tmp, O_RDONLY | O_NONBLOCK)) < 0 )
     {
         msg_Err( NULL, "opening device %s failed (%s)", psz_tmp,
                  strerror(errno) );
         exit(1);
-    }
-
-    if( fcntl( i_dvr, F_SETFL, O_NONBLOCK ) == -1 )
-    {
-        msg_Warn( NULL, "couldn't set %s non-blocking mode (%s)", psz_tmp,
-                  strerror(errno) );
     }
 
     if ( ioctl( i_dvr, DMX_SET_BUFFER_SIZE, DVR_BUFFER_SIZE ) < 0 )
