@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <pthread.h>
+#include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -41,7 +42,7 @@
  *****************************************************************************/
 output_t **pp_outputs = NULL;
 int i_nb_outputs = 0;
-output_t output_dup = {{ 0 }};
+output_t output_dup = { 0 };
 static char *psz_conf_file = NULL;
 char *psz_srv_socket = NULL;
 int i_ttl = 64;
@@ -98,13 +99,19 @@ static void ReadConfiguration( char *psz_file )
     {
         output_t *p_output = NULL;
         char *psz_parser, *psz_token, *psz_token2, *psz_token3;
-        struct in_addr maddr;
-        uint16_t i_port = DEFAULT_PORT;
+        struct addrinfo *p_addr;
+        struct addrinfo ai_hints;
+        char sz_port[5];
+        char *psz_displayname;
         uint16_t i_sid = 0;
         uint16_t *pi_pids = NULL;
         int i_nb_pids = 0;
-        int b_rawudp = 0;
-        int b_watch;
+        uint8_t i_config = 0;
+
+        snprintf( sz_port, sizeof( sz_port ), "%d", DEFAULT_PORT );
+
+        if ( !strncmp( psz_line, "#", 1 ) )
+            continue;
 
         psz_token = strtok_r( psz_line, "\t\n ", &psz_parser );
         if ( psz_token == NULL )
@@ -113,20 +120,81 @@ static void ReadConfiguration( char *psz_file )
         if ( (psz_token3 = strrchr( psz_token, '/' )) != NULL )
         {
             *psz_token3 = '\0';
-            b_rawudp = ( strncasecmp( psz_token3 + 1, "udp", 3 ) == 0 );
+            if( strncasecmp( psz_token3 + 1, "udp", 3 ) == 0 )
+                i_config |= OUTPUT_UDP;
         }
-        if ( (psz_token2 = strrchr( psz_token, ':' )) != NULL )
+
+        if ( !strncmp( psz_token, "[", 1 ) )
         {
-            *psz_token2 = '\0';
-            i_port = atoi( psz_token2 + 1 );
+            if ( (psz_token2 = strchr( psz_token, ']' ) ) == NULL )
+              continue;
+
+            char *psz_maddr = malloc( psz_token2 - psz_token );
+            memset( psz_maddr, '\0', ( psz_token2 - psz_token ) );
+            strncpy( psz_maddr, psz_token + 1, ( psz_token2 - psz_token - 1 ));
+
+            if ( (psz_token2 = strchr( psz_token2, ':' )) != NULL )
+            {
+                *psz_token2 = '\0';
+                snprintf( sz_port, sizeof( sz_port ), "%d", atoi( psz_token2 + 1 ) );
+            }
+
+            p_addr = malloc( sizeof( p_addr ) );
+
+            memset( &ai_hints, 0, sizeof( ai_hints ) );
+            ai_hints.ai_socktype = SOCK_DGRAM;
+            ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
+            ai_hints.ai_family   = AF_INET6;
+  
+            int i_ai = getaddrinfo( psz_maddr, sz_port, &ai_hints, &p_addr );
+            if ( i_ai != 0 )
+            {
+                msg_Err( NULL, "Cannot configure output [%s]:%s: %s", psz_maddr,
+                         sz_port, gai_strerror( i_ai ) );
+                continue;
+            }
+
+            psz_displayname = malloc( INET6_ADDRSTRLEN + 8 );
+            snprintf( psz_displayname, ( INET6_ADDRSTRLEN + 8 ), "[%s]:%s",
+                      psz_maddr, sz_port );
+
+            free( psz_maddr );
         }
-        if ( !inet_aton( psz_token, &maddr ) )
-            continue;
+        else
+        {
+            if ( (psz_token2 = strrchr( psz_token, ':' )) != NULL )
+            {
+                *psz_token2 = '\0';
+                snprintf( sz_port, sizeof( sz_port ), "%d",  atoi( psz_token2 + 1 ) );
+            }
+
+            p_addr = malloc( sizeof( p_addr ) );
+
+            memset( &ai_hints, 0, sizeof( ai_hints ) );
+            ai_hints.ai_socktype = SOCK_DGRAM;
+            ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
+            ai_hints.ai_family   = AF_INET;
+
+            int i_ai = getaddrinfo( psz_token, sz_port, &ai_hints, &p_addr );
+            if ( i_ai != 0 )
+            {
+                msg_Err( NULL, "Cannot configure output %s:%s: %s", psz_token,
+                         sz_port, gai_strerror( i_ai ) );
+                continue;
+            }
+
+            psz_displayname = malloc( INET_ADDRSTRLEN + 6 );
+            snprintf( psz_displayname, ( INET_ADDRSTRLEN + 6 ), "%s:%s",
+                      psz_token, sz_port );
+        }
 
         psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
         if ( psz_token == NULL )
             continue;
-        b_watch = atoi( psz_token );
+        if( atoi( psz_token ) )
+          i_config |= OUTPUT_WATCH;
+        else
+          i_config &= ~OUTPUT_WATCH;
 
         psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
         if ( psz_token == NULL )
@@ -149,8 +217,9 @@ static void ReadConfiguration( char *psz_file )
             }
         }
 
-        msg_Dbg( NULL, "conf: %s:%u w=%d sid=%d pids[%d]=%d,%d,%d,%d,%d...",
-                 inet_ntoa( maddr ), i_port, b_watch, i_sid, i_nb_pids,
+        msg_Dbg( NULL, "conf: %s w=%d sid=%d pids[%d]=%d,%d,%d,%d,%d...",
+                 psz_displayname,
+                 ( i_config & OUTPUT_WATCH ) ? 1 : 0, i_sid, i_nb_pids,
                  i_nb_pids < 1 ? -1 : pi_pids[0],
                  i_nb_pids < 2 ? -1 : pi_pids[1],
                  i_nb_pids < 3 ? -1 : pi_pids[2],
@@ -159,34 +228,48 @@ static void ReadConfiguration( char *psz_file )
 
         for ( i = 0; i < i_nb_outputs; i++ )
         {
-            if ( pp_outputs[i]->maddr.sin_addr.s_addr == maddr.s_addr
-                  && ntohs( pp_outputs[i]->maddr.sin_port ) == i_port )
+            if ( pp_outputs[i]->p_addr->ss_family == AF_INET )
             {
-                p_output = pp_outputs[i];
-                break;
+                struct sockaddr_in *p_esad = (struct sockaddr_in *)pp_outputs[i]->p_addr;
+                struct sockaddr_in *p_nsad = (struct sockaddr_in *)p_addr->ai_addr;
+
+                if ( ( p_esad->sin_addr.s_addr == p_nsad->sin_addr.s_addr ) &&
+                     ( p_esad->sin_port == p_nsad->sin_port ) )
+                {
+                    p_output = pp_outputs[i];
+                    output_Init( p_output, i_config, psz_displayname, (void *)p_addr );
+                    break;
+                }
+            }
+            else if ( pp_outputs[i]->p_addr->ss_family == AF_INET6 )
+            {
+                struct sockaddr_in6 *p_esad = (struct sockaddr_in6 *)pp_outputs[i]->p_addr;
+                struct sockaddr_in6 *p_nsad = (struct sockaddr_in6 *)p_addr->ai_addr;
+
+                if ( ( p_esad->sin6_addr.s6_addr32[0] == p_nsad->sin6_addr.s6_addr32[0] ) &&
+                     ( p_esad->sin6_addr.s6_addr32[1] == p_nsad->sin6_addr.s6_addr32[1] ) &&
+                     ( p_esad->sin6_addr.s6_addr32[2] == p_nsad->sin6_addr.s6_addr32[2] ) &&
+                     ( p_esad->sin6_addr.s6_addr32[3] == p_nsad->sin6_addr.s6_addr32[3] ) &&
+                     ( p_esad->sin6_port == p_nsad->sin6_port ) )
+                {
+                    p_output = pp_outputs[i];
+                    output_Init( p_output, i_config, psz_displayname, (void *)p_addr );
+                    break;
+                }
             }
         }
+
         if ( i == i_nb_outputs )
-            p_output = output_Create( maddr.s_addr, i_port );
+            p_output = output_Create( i_config, psz_displayname, (void *)p_addr );
 
         if ( p_output != NULL )
         {
             demux_Change( p_output, i_sid, pi_pids, i_nb_pids );
-
-            if( b_rawudp )
-              p_output->i_config |= OUTPUT_UDP;
-            else
-              p_output->i_config &= ~OUTPUT_UDP;
-
-            if( b_watch == 1)
-              p_output->i_config |= OUTPUT_WATCH;
-            else
-              p_output->i_config &= ~OUTPUT_WATCH;
-
             p_output->i_config |= OUTPUT_STILL_PRESENT;
         }
 
         free( pi_pids );
+        freeaddrinfo( p_addr );
     }
 
     fclose( p_file );
@@ -196,8 +279,7 @@ static void ReadConfiguration( char *psz_file )
         if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && 
             !( pp_outputs[i]->i_config & OUTPUT_STILL_PRESENT ) )
         {
-            msg_Dbg( NULL, "closing %s:%u", inet_ntoa( pp_outputs[i]->maddr.sin_addr ),
-                     ntohs( pp_outputs[i]->maddr.sin_port ) );
+            msg_Dbg( NULL, "closing %s", pp_outputs[i]->psz_displayname );
             demux_Change( pp_outputs[i], 0, NULL, 0 );
             output_Close( pp_outputs[i] );
         }
@@ -373,17 +455,92 @@ int main( int i_argc, char **pp_argv )
 
         case 'd':
         {
-            char *psz_token;
-            uint16_t i_port = DEFAULT_PORT;
-            struct in_addr maddr;
-            if ( (psz_token = strrchr( optarg, ':' )) != NULL )
+            char *psz_token, *psz_displayname;
+            char sz_port[5];
+            struct addrinfo *p_daddr;
+            struct addrinfo ai_hints;
+            int i_dup_config = 0;
+
+            snprintf( sz_port, sizeof( sz_port ), "%d", DEFAULT_PORT );
+
+            p_daddr = malloc( sizeof( p_daddr ) );
+            memset( p_daddr, '\0', sizeof( p_daddr ) );
+
+            if ( !strncmp( optarg, "[", 1 ) )
             {
-                *psz_token = '\0';
-                i_port = atoi( psz_token + 1 );
+                if ( (psz_token = strchr( optarg, ']' ) ) == NULL )
+                {
+                    msg_Err(NULL, "Invalid target address for -d switch");
+                    break;
+                }
+    
+                char *psz_maddr = malloc( psz_token - optarg );
+                memset( psz_maddr, '\0', ( psz_token - optarg ) );
+                strncpy( psz_maddr, optarg + 1, ( psz_token - optarg - 1 ));
+    
+                if ( (psz_token = strchr( psz_token, ':' )) != NULL )
+                {
+                    *psz_token = '\0';
+                    snprintf( sz_port, sizeof( sz_port ), "%d", atoi( psz_token + 1 ) );
+                }
+    
+    
+                memset( &ai_hints, 0, sizeof( ai_hints ) );
+                ai_hints.ai_socktype = SOCK_DGRAM;
+                ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
+                ai_hints.ai_family   = AF_INET6;
+    
+                int i_ai = getaddrinfo( psz_maddr, sz_port, &ai_hints, &p_daddr );
+                if ( i_ai != 0 )
+                {
+                    msg_Err( NULL, "Cannot duplicate to [%s]:%s: %s", psz_maddr,
+                             sz_port, gai_strerror( i_ai ) );
+                    break;
+                }
+
+                psz_displayname = malloc( INET6_ADDRSTRLEN + 20 );
+                snprintf( psz_displayname, ( INET6_ADDRSTRLEN + 20 ),
+                          "duplicate ([%s]:%s)", psz_maddr, sz_port );
+
+                i_dup_config |= OUTPUT_VALID;
+    
+                free( psz_maddr );
             }
-            if ( !inet_aton( optarg, &maddr ) )
-                usage();
-            output_Init( &output_dup, maddr.s_addr, i_port );
+            else
+            {
+                if ( (psz_token = strrchr( optarg, ':' )) != NULL )
+                {
+                    *psz_token = '\0';
+                    snprintf( sz_port, sizeof( sz_port ), "%d",  atoi( psz_token + 1 ) );
+                }
+
+                memset( &ai_hints, 0, sizeof( ai_hints ) );
+                ai_hints.ai_socktype = SOCK_DGRAM;
+                ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
+                ai_hints.ai_family   = AF_INET;
+
+                int i_ai = getaddrinfo( optarg, sz_port, &ai_hints, &p_daddr );
+                if ( i_ai != 0 )
+                {
+                    msg_Err( NULL, "Cannot duplicate to %s:%s: %s", optarg,
+                             sz_port, gai_strerror( i_ai ) );
+                    break;
+                }
+
+                psz_displayname = malloc( INET_ADDRSTRLEN + 18 );
+                snprintf( psz_displayname, ( INET6_ADDRSTRLEN + 18 ),
+                          "duplicate (%s:%s)", optarg, sz_port );
+
+                i_dup_config |= OUTPUT_VALID;
+            }
+
+            if ( i_dup_config &= OUTPUT_VALID ) {
+              output_Init( &output_dup, i_dup_config, psz_displayname, p_daddr );
+            }
+            else
+              msg_Err( NULL, "Invalid configuration for -d switch: %s" , optarg);
+
+            freeaddrinfo( p_daddr );
             break;
         }
 

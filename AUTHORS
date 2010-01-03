@@ -7,14 +7,15 @@
 # The fields are: name (N), email (E), web-address (W), CVS account login (C),
 # PGP key ID and fingerprint (P), description (D), and snail-mail address (S).
 
-N: Marian Ďurkovič
+N: Marian Durkovic
 E: md AT bts DOT sk
 C: md
 D: numerous bug fixes
 
 N: Andy Gatward
 E: a DOT j DOT gatward AT reading DOT ac DOT uk
-D: EIT pass-through mode and misc fixes
+C: gatty
+D: EIT pass-through, IPv6 support, various bug fixes
 
 N: Christophe Massiot
 E: massiot AT via DOT ecp DOT fr

@@ -5,6 +5,7 @@
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
+ *          Andy Gatward <a.j.gatward@reading.ac.uk>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +26,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -44,7 +46,7 @@ static void rtp_SetHdr( output_t *p_output, uint8_t *p_hdr );
 /*****************************************************************************
  * output_Create : called from main thread
  *****************************************************************************/
-output_t *output_Create( in_addr_t i_maddr, uint16_t i_port )
+output_t *output_Create( uint8_t i_config, char *psz_displayname, void *p_init_data )
 {
     int i;
     output_t *p_output = NULL;
@@ -67,7 +69,7 @@ output_t *output_Create( in_addr_t i_maddr, uint16_t i_port )
         pp_outputs[i] = p_output;
     }
 
-    if ( output_Init( p_output, i_maddr, i_port ) < 0 )
+    if ( output_Init( p_output, i_config, psz_displayname, p_init_data ) < 0 )
         return NULL;
 
     return p_output;
@@ -76,7 +78,7 @@ output_t *output_Create( in_addr_t i_maddr, uint16_t i_port )
 /*****************************************************************************
  * output_Init
  *****************************************************************************/
-int output_Init( output_t *p_output, in_addr_t i_maddr, uint16_t i_port )
+int output_Init( output_t *p_output, uint8_t i_config, char *psz_displayname, void *p_init_data )
 {
     p_output->i_sid = 0;
     p_output->i_depth = 0;
@@ -100,10 +102,16 @@ int output_Init( output_t *p_output, in_addr_t i_maddr, uint16_t i_port )
     p_output->i_ref_timestamp = 0;
     p_output->i_ref_wallclock = 0;
 
-    p_output->maddr.sin_family = AF_INET;
-    p_output->maddr.sin_addr.s_addr = i_maddr;
-    p_output->maddr.sin_port = htons(i_port);
-    if ( (p_output->i_handle = net_Open(p_output)) < 0 )
+    p_output->i_config = i_config;
+    p_output->psz_displayname = psz_displayname;
+
+    struct addrinfo *p_ai = (struct addrinfo *)p_init_data;
+    p_output->i_addrlen = p_ai->ai_addrlen;
+    p_output->p_addr = malloc( p_output->i_addrlen );
+    memcpy( p_output->p_addr, p_ai->ai_addr, 
+            p_output->i_addrlen );
+
+    if ( ( p_output->i_handle = net_Open( p_output ) ) < 0 )
     {
         p_output->i_config &= ~OUTPUT_VALID;
         return -1;
@@ -141,7 +149,9 @@ static void output_Flush( output_t *p_output )
     struct iovec p_iov[NB_BLOCKS + 1];
     uint8_t p_rtp_hdr[RTP_SIZE];
     int i;
-    int i_outblocks = NB_BLOCKS;
+
+    int i_block_cnt = ( p_output->p_addr->ss_family == AF_INET6 ) ? NB_BLOCKS_IPV6 : NB_BLOCKS;
+    int i_outblocks = i_block_cnt;
 
     if ( !b_output_udp && !(p_output->i_config & OUTPUT_UDP) )
     {
@@ -149,7 +159,7 @@ static void output_Flush( output_t *p_output )
         p_iov[0].iov_len = sizeof(p_rtp_hdr);
         rtp_SetHdr( p_output, p_rtp_hdr );
 
-        for ( i = 1; i < NB_BLOCKS + 1; i++ )
+        for ( i = 1; i < i_block_cnt + 1; i++ )
         {
             p_iov[i].iov_base = p_output->pp_blocks[i - 1]->p_ts;
             p_iov[i].iov_len = TS_SIZE;
@@ -159,7 +169,7 @@ static void output_Flush( output_t *p_output )
     }
     else
     {
-        for ( i = 0; i < NB_BLOCKS; i++ )
+        for ( i = 0; i < i_block_cnt; i++ )
         {
             p_iov[i].iov_base = p_output->pp_blocks[i]->p_ts;
             p_iov[i].iov_len = TS_SIZE;
@@ -168,11 +178,11 @@ static void output_Flush( output_t *p_output )
 
     if ( writev( p_output->i_handle, p_iov, i_outblocks ) < 0 )
     {
-        msg_Err( NULL, "couldn't writev to %s:%u (%s)", inet_ntoa( p_output->maddr.sin_addr ),
-                 p_output->maddr.sin_port, strerror(errno) );
+        msg_Err( NULL, "couldn't writev to %s (%s)", 
+                 p_output->psz_displayname, strerror(errno) );
     }
 
-    for ( i = 0; i < NB_BLOCKS; i++ )
+    for ( i = 0; i < i_block_cnt; i++ )
     {
         p_output->pp_blocks[i]->i_refcount--;
         if ( !p_output->pp_blocks[i]->i_refcount )
@@ -191,7 +201,10 @@ void output_Put( output_t *p_output, block_t *p_block )
     p_output->pp_blocks[p_output->i_depth] = p_block;
     p_output->i_depth++;
 
-    if ( p_output->i_depth >= NB_BLOCKS )
+    if ( ( ( p_output->p_addr->ss_family == AF_INET6 ) && 
+           ( p_output->i_depth >= NB_BLOCKS_IPV6 ) )   ||
+         ( ( p_output->p_addr->ss_family == AF_INET )  &&
+           ( p_output->i_depth >= NB_BLOCKS ) ) )
         output_Flush( p_output );
 }
 
@@ -200,21 +213,42 @@ void output_Put( output_t *p_output, block_t *p_block )
  *****************************************************************************/
 static int net_Open( output_t *p_output )
 {
-    int i_handle = socket( AF_INET, SOCK_DGRAM, 0 );
+    int i_handle = socket( p_output->p_addr->ss_family, SOCK_DGRAM, IPPROTO_UDP );
 
-    if ( connect( i_handle, (struct sockaddr *)&p_output->maddr, sizeof( p_output->maddr ) ) < 0 )
+    if ( i_handle < 0 )
     {
-        msg_Err( NULL, "couldn't connect to %s:%u (%s)", inet_ntoa( p_output->maddr.sin_addr ),
-                 p_output->maddr.sin_port, strerror(errno) );
-        close( i_handle );
-        return -1;
+        msg_Err( NULL, "couldn't create socket for %s (%s)",
+                 p_output->psz_displayname, strerror(errno) );
+        return -errno;
     }
 
-    if ( IN_MULTICAST( ntohl(p_output->maddr.sin_addr.s_addr ) ) )
+    if ( p_output->p_addr->ss_family == AF_INET6 )
     {
-        int i = i_ttl;
-        setsockopt( i_handle, IPPROTO_IP, IP_MULTICAST_TTL,
-                    (void *)&i, sizeof(i) );
+        struct sockaddr_in6 *addr = (struct sockaddr_in6 *)p_output->p_addr;
+        if ( IN6_IS_ADDR_MULTICAST( addr->sin6_addr.s6_addr ) )
+        {
+            int i = i_ttl;
+            setsockopt( i_handle, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+                        (void *)&i, sizeof(i) );
+        } 
+    }
+    else if ( p_output->p_addr->ss_family == AF_INET )
+    {
+        struct sockaddr_in *addr = (struct sockaddr_in *)p_output->p_addr;
+        if ( IN_MULTICAST( ntohl( addr->sin_addr.s_addr ) ) )
+        {
+            int i = i_ttl;
+            setsockopt( i_handle, IPPROTO_IP, IP_MULTICAST_TTL,
+                        (void *)&i, sizeof(i) );
+        }
+    }
+
+    if ( connect( i_handle, (struct sockaddr *)p_output->p_addr, p_output->i_addrlen ) < 0 )
+    {
+        msg_Err( NULL, "couldn't connect socket to %s (%s)",
+                 p_output->psz_displayname, strerror(errno) );
+        close( i_handle );
+        return -errno;
     }
 
     return i_handle;

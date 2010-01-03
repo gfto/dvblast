@@ -6,7 +6,7 @@
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
- *          Marian Ďurkovič <md@bts.sk>
+ *          Marian Durkovic <md@bts.sk>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -280,8 +280,8 @@ static void demux_Handle( block_t *p_ts )
                         pp_outputs[j]->i_nb_errors = 0;
 
                     msg_Warn( NULL,
-                             "too many errors for stream %s:%d, resetting",
-                             inet_ntoa( p_output->maddr.sin_addr ), p_output->maddr.sin_port );
+                             "too many errors for stream %s, resetting",
+                             p_output->psz_displayname );
                     en50221_Reset();
                 }
             }

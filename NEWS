@@ -1,5 +1,12 @@
 $Id$
 
+Changes between 1.1 and 1.2-svn:
+--------------------------------
+  * Support for IPv6 output and duplicate
+  * Support input from ASI card
+  * Support input from (IPv4) RTP / UDP stream
+  * Miscellaneous CAM and demux fixes
+
 Changes between 1.0 and 1.1:
 ----------------------------
 

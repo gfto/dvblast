@@ -40,6 +40,17 @@ For instance :
 The configuration file can be reloaded by sending "HUP" to the program, or
 via the dvblastctl program.
 
+IPv6 is supported, the destination address must be specified in the format 
+described by RFC2732.  When using link-local scope addresses, it is
+mandatory to include the interface name in the address, as shown in the 
+example below.  If you do not include the interface name, you will see an
+"invalid argument" error.  The interface name is optional for site-local and 
+global scope addresses.
+
+For example :
+[ff12::1%eth0]:1234		1	10750
+[ff15::abcd]:1234		1	10750
+
 The "always on" flag tells DVBlast whether the channel is expected to
 be on at all times or if it may break. If set to "1", then DVBlast will
 regularly reset the CAM module if it fails to descramble the service,
@@ -114,12 +125,18 @@ Advanced features
 =================
 
 DVBlast may handle several DVB adapters in the same machine with the -a switch:
--a 3 will use /dev/dvb/adapter3.
+-a 3 will use /dev/dvb/adapter3.  Additionally, selecting between frontends on
+a single card is supported with the -n switch.  This is useful for hybrid 
+DVB/S + DVB/T cards.
 
 For better latency, run DVBlast in real-time priority (-i 1).
 
-DVBlast can also stream the entire transponder to an address :
+DVBlast can also stream the entire transponder to an IPv4 or IPv6 address :
 dvblast -u -d 172.16.42.42:1235 -f 11570000 -s 27500000 -v 18
+dvblast -u -d [fe80::0ca:feff:fec0:ffee]:1235 -f 11570000 -s 27500000 -v 18
+
+Note that IPv6 addresses specified on command line may need to have the square
+brackets escaped (\[ and \]), depending on your shell.
 
 The -u switch disables the PID filters, so that all PIDs, even the
 unused ones, can be output. With -e, dvblast also streams EIT and SDT packets
