@@ -7,7 +7,7 @@
 # The fields are: name (N), email (E), web-address (W), CVS account login (C),
 # PGP key ID and fingerprint (P), description (D), and snail-mail address (S).
 
-N: Marian Durkovic
+N: Marian Ďurkovič
 E: md AT bts DOT sk
 C: md
 D: numerous bug fixes
