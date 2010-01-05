@@ -101,7 +101,7 @@ static void ReadConfiguration( char *psz_file )
         char *psz_parser, *psz_token, *psz_token2, *psz_token3;
         struct addrinfo *p_addr;
         struct addrinfo ai_hints;
-        char sz_port[5];
+        char sz_port[6];
         char *psz_displayname;
         uint16_t i_sid = 0;
         uint16_t *pi_pids = NULL;
@@ -456,7 +456,7 @@ int main( int i_argc, char **pp_argv )
         case 'd':
         {
             char *psz_token, *psz_displayname;
-            char sz_port[5];
+            char sz_port[6];
             struct addrinfo *p_daddr;
             struct addrinfo ai_hints;
             int i_dup_config = 0;
