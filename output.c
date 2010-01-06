@@ -108,7 +108,7 @@ int output_Init( output_t *p_output, uint8_t i_config, char *psz_displayname, vo
     struct addrinfo *p_ai = (struct addrinfo *)p_init_data;
     p_output->i_addrlen = p_ai->ai_addrlen;
     p_output->p_addr = malloc( p_output->i_addrlen );
-    memcpy( p_output->p_addr, p_ai->ai_addr, 
+    memcpy( p_output->p_addr, p_ai->ai_addr,
             p_output->i_addrlen );
 
     if ( ( p_output->i_handle = net_Open( p_output ) ) < 0 )
@@ -178,7 +178,7 @@ static void output_Flush( output_t *p_output )
 
     if ( writev( p_output->i_handle, p_iov, i_outblocks ) < 0 )
     {
-        msg_Err( NULL, "couldn't writev to %s (%s)", 
+        msg_Err( NULL, "couldn't writev to %s (%s)",
                  p_output->psz_displayname, strerror(errno) );
     }
 
@@ -201,7 +201,7 @@ void output_Put( output_t *p_output, block_t *p_block )
     p_output->pp_blocks[p_output->i_depth] = p_block;
     p_output->i_depth++;
 
-    if ( ( ( p_output->p_addr->ss_family == AF_INET6 ) && 
+    if ( ( ( p_output->p_addr->ss_family == AF_INET6 ) &&
            ( p_output->i_depth >= NB_BLOCKS_IPV6 ) )   ||
          ( ( p_output->p_addr->ss_family == AF_INET )  &&
            ( p_output->i_depth >= NB_BLOCKS ) ) )
@@ -230,7 +230,7 @@ static int net_Open( output_t *p_output )
             int i = i_ttl;
             setsockopt( i_handle, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
                         (void *)&i, sizeof(i) );
-        } 
+        }
     }
     else if ( p_output->p_addr->ss_family == AF_INET )
     {

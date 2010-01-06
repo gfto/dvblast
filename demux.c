@@ -256,7 +256,7 @@ static void demux_Handle( block_t *p_ts )
         if ( p_output != NULL )
         {
             if ( i_ca_handle && (p_output->i_config & OUTPUT_WATCH) &&
-                 block_UnitStart( p_ts ) ) 
+                 block_UnitStart( p_ts ) )
             {
                 uint8_t *p_payload;
 

@@ -145,7 +145,7 @@ static void ReadConfiguration( char *psz_file )
             ai_hints.ai_socktype = SOCK_DGRAM;
             ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
             ai_hints.ai_family   = AF_INET6;
-  
+
             int i_ai = getaddrinfo( psz_maddr, sz_port, &ai_hints, &p_addr );
             if ( i_ai != 0 )
             {
@@ -473,23 +473,22 @@ int main( int i_argc, char **pp_argv )
                     msg_Err(NULL, "Invalid target address for -d switch");
                     break;
                 }
-    
+
                 char *psz_maddr = malloc( psz_token - optarg );
                 memset( psz_maddr, '\0', ( psz_token - optarg ) );
                 strncpy( psz_maddr, optarg + 1, ( psz_token - optarg - 1 ));
-    
+
                 if ( (psz_token = strchr( psz_token, ':' )) != NULL )
                 {
                     *psz_token = '\0';
                     snprintf( sz_port, sizeof( sz_port ), "%d", atoi( psz_token + 1 ) );
                 }
-    
-    
+
                 memset( &ai_hints, 0, sizeof( ai_hints ) );
                 ai_hints.ai_socktype = SOCK_DGRAM;
                 ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
                 ai_hints.ai_family   = AF_INET6;
-    
+
                 int i_ai = getaddrinfo( psz_maddr, sz_port, &ai_hints, &p_daddr );
                 if ( i_ai != 0 )
                 {
@@ -503,7 +502,7 @@ int main( int i_argc, char **pp_argv )
                           "duplicate ([%s]:%s)", psz_maddr, sz_port );
 
                 i_dup_config |= OUTPUT_VALID;
-    
+
                 free( psz_maddr );
             }
             else
@@ -528,7 +527,7 @@ int main( int i_argc, char **pp_argv )
                 }
 
                 psz_displayname = malloc( INET_ADDRSTRLEN + 18 );
-                snprintf( psz_displayname, ( INET6_ADDRSTRLEN + 18 ),
+                snprintf( psz_displayname, ( INET_ADDRSTRLEN + 18 ),
                           "duplicate (%s:%s)", optarg, sz_port );
 
                 i_dup_config |= OUTPUT_VALID;

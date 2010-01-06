@@ -53,7 +53,7 @@
 #define OUTPUT_STILL_PRESENT 0x02
 #define OUTPUT_VALID         0x04
 #define OUTPUT_UDP           0x08
-#define OUTPUT_FILE	     0x10
+#define OUTPUT_FILE          0x10
 
 typedef int64_t mtime_t;
 
@@ -69,7 +69,7 @@ typedef struct output_t
     /* address information, protocol agnostic */
     struct sockaddr_storage *p_addr;
     socklen_t i_addrlen;
-   
+
     /* display string */
     char *psz_displayname;
 
