@@ -276,7 +276,7 @@ static void ReadConfiguration( char *psz_file )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) && 
+        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) &&
             !( pp_outputs[i]->i_config & OUTPUT_STILL_PRESENT ) )
         {
             msg_Dbg( NULL, "closing %s", pp_outputs[i]->psz_displayname );
@@ -608,7 +608,7 @@ int main( int i_argc, char **pp_argv )
             usage();
         }
     }
-    if ( optind < i_argc )
+    if ( optind < i_argc || pf_Open == NULL )
         usage();
 
     msg_Warn( NULL, "restarting" );
