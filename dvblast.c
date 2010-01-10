@@ -33,6 +33,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <getopt.h>
 
 #include "dvblast.h"
 #include "version.h"
@@ -342,7 +343,36 @@ int main( int i_argc, char **pp_argv )
     if ( i_argc == 1 )
         usage();
 
-    while ( ( c = getopt(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:D:A:ehV")) != -1 )
+    static const struct option long_options[] =
+    {
+        { "config-file",     required_argument, NULL, 'c' },
+        { "remote-socket",   required_argument, NULL, 'r' },
+        { "ttl",             required_argument, NULL, 't' },
+        { "rtp-output",      required_argument, NULL, 'o' },
+        { "priority",        required_argument, NULL, 'i' },
+        { "adapter",         required_argument, NULL, 'a' },
+        { "frontend-number", required_argument, NULL, 'n' },
+        { "frequency",       required_argument, NULL, 'f' },
+        { "symbol-rate",     required_argument, NULL, 's' },
+        { "diseqc",          required_argument, NULL, 'S' },
+        { "voltage",         required_argument, NULL, 'v' },
+        { "force-pulse",     no_argument,       NULL, 'p' },
+        { "bandwith",        required_argument, NULL, 'b' },
+        { "modulation",      required_argument, NULL, 'm' },
+        { "budget-mode",     no_argument,       NULL, 'u' },
+        { "slow-cam",        no_argument,       NULL, 'W' },
+        { "use-udp",         no_argument,       NULL, 'U' },
+        { "unique-ts-id",    no_argument,       NULL, 'T' },
+        { "duplicate",       required_argument, NULL, 'd' },
+        { "rtp-input",       required_argument, NULL, 'D' },
+        { "asi-adapter",     required_argument, NULL, 'A' },
+        { "epg-passthrough", no_argument,       NULL, 'e' },
+        { "help",            no_argument,       NULL, 'h' },
+        { "version",         no_argument,       NULL, 'V' },
+        { 0, 0, 0, 0}
+    }; 
+
+    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:D:A:ehV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {

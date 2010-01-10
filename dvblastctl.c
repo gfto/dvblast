@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 #include <sys/un.h>
 #include <errno.h>
+#include <getopt.h>
 
 #include "dvblast.h"
 #include "en50221.h"
@@ -63,7 +64,14 @@ int main( int i_argc, char **ppsz_argv )
     {
         int c;
 
-        if ( (c = getopt(i_argc, ppsz_argv, "r:h")) == -1 )
+        static const struct option long_options[] =
+        {
+            {"remote-socket", required_argument, NULL, 'r'},
+            {"help", no_argument, NULL, 'h'},
+            {0, 0, 0, 0}
+        };
+
+        if ( (c = getopt_long(i_argc, ppsz_argv, "r:h", long_options, NULL)) == -1 )
             break;
 
         switch ( c )
