@@ -357,7 +357,7 @@ int main( int i_argc, char **pp_argv )
         { "diseqc",          required_argument, NULL, 'S' },
         { "voltage",         required_argument, NULL, 'v' },
         { "force-pulse",     no_argument,       NULL, 'p' },
-        { "bandwith",        required_argument, NULL, 'b' },
+        { "bandwidth",       required_argument, NULL, 'b' },
         { "modulation",      required_argument, NULL, 'm' },
         { "budget-mode",     no_argument,       NULL, 'u' },
         { "slow-cam",        no_argument,       NULL, 'W' },
