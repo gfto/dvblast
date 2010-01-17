@@ -1,0 +1,91 @@
+.TH DVBLAST "1" "January 2010" "DVBlast 1.1" "User Commands"
+.SH NAME
+DVBlast \- Simple and powerfull dvb streaming application
+.SH SYNOPSIS
+.B dvblast
+[\fI-q\fR] \fI-c <config_file>\fR [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR] [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend number>\fR] [\fI-S <diseqc>\fR] \fI-f <frequency> [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation\fR] [\fI-u\fR] [\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-e\fR] [\fI-T\fR]
+.SH DESCRIPTION
+ DVBlast is a simple and powerful streaming application based on the linux-dvb API.
+It opens a DVB device, tunes it, places PID filters, configures a CAM module, and demultiplexes the packets to several RTP outputs.
+
+DVBlast is designed to be the core of a custom IRD or CID, based on a PC with Linux-supported DVB cards.
+
+DVBlast does not do any kind of processing on the elementary streams, such as transcoding, PID remapping or remultiplexing. it does not stream from plain files, only DVB devices. If you were looking for these features, switch to VLC.
+.SH OPTIONS
+.PP
+.TP
+\fB\-a\fR <adapter>
+Adress of the adapter
+.TP
+\fB\-b\fR <bandwidth>
+Bandwidth
+.TP
+\fB\-c\fR <config file>
+Use the given configuration file
+.TP
+\fB\-d\fR <dest IP:port>
+Duplicate all received packets to a given destination
+.TP
+\fB\-e\fR
+Enable EPG pass through (EIT data)
+.TP
+\fB\-f\fR <frequency>
+Frequency
+.TP
+\fB\-h\fR
+Print the help message
+.TP
+\fB\-i\fR <RT priority>
+Priority
+.TP
+\fB\-m\fR
+Modulation
+.br
+DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)
+.br
+DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)
+.br
+DVB-S2 qpsk|psk_8 (default legacy DVB-S)
+.TP
+\fB\-n\fR <frontend number>
+THe frontend number
+.TP
+\fB\-o\fR <SSRC IP>
+RTP output IP
+.TP
+\fB\-p\fR
+force 22kHz pulses for high-band selection (DVB-S)
+.TP
+\fB\-q\fR
+be quiet (less verbosity, repeat or use number for even quieter)
+.TP
+\fB\-r\fR <remote socket>
+Remote socket to use
+.TP
+\fB\-s\fR <symbol rate>
+Symbole rate
+.TP
+\fB\-S\fR <diseqc>
+Satellite number for diseqc (0: no diseqc, 1\-4, A or B)
+.TP
+\fB\-t\fR <ttl>
+Time-To-Live of the multicast stream
+.TP
+\fB\-T\fR
+Generate unique TS ID for each program
+.TP
+\fB\-u\fR
+Turn on budget mode (no hardware PID filtering)
+.TP
+\fB\-U\fR
+Use raw UDP rather than RTP (required by some IPTV set top boxes)
+.TP
+\fB\-v\fR <0|13|18>
+Voltage to apply to the LNB (QPSK)
+.TP
+\fB\-W\fR
+Add extra delays for slow CAMs
+.SH AUTHORS
+Writen by Marian Ďurkovič, Andy Gatward and Christophe Massiot
+.SH LICENCE
+This program is free software; you can redistribute it and/or modify it under the terms of version 2 of the GNU General Public License as published by the Free Software Foundation.
