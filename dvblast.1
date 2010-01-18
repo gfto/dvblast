@@ -1,9 +1,9 @@
 .TH DVBLAST "1" "January 2010" "DVBlast 1.1" "User Commands"
 .SH NAME
-DVBlast \- Simple and powerfull dvb streaming application
+DVBlast \- Simple and powerful dvb streaming application
 .SH SYNOPSIS
 .B dvblast
-[\fI-q\fR] \fI-c <config_file>\fR [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR] [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend number>\fR] [\fI-S <diseqc>\fR] \fI-f <frequency> [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation\fR] [\fI-u\fR] [\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-e\fR] [\fI-T\fR]
+[\fI-q\fR] \fI-c <config_file>\fR [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR] [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend number>\fR] [\fI-S <diseqc>\fR] \fI-f <frequency>\fR [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation\fR] [\fI-u\fR] [\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-e\fR] [\fI-T\fR]
 .SH DESCRIPTION
  DVBlast is a simple and powerful streaming application based on the linux-dvb API.
 It opens a DVB device, tunes it, places PID filters, configures a CAM module, and demultiplexes the packets to several RTP outputs.
@@ -15,7 +15,7 @@ DVBlast does not do any kind of processing on the elementary streams, such as tr
 .PP
 .TP
 \fB\-a\fR <adapter>
-Adress of the adapter
+Address of the adapter
 .TP
 \fB\-b\fR <bandwidth>
 Bandwidth
