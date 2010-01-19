@@ -10,6 +10,8 @@ LDFLAGS_DVBLAST += -ldvbpsi -lpthread
 OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm.o
 OBJ_DVBLASTCTL = util.o dvblastctl.o
 
+BIN = $(DESTDIR)/usr/bin
+
 all: dvblast dvblastctl
 
 $(OBJ_DVBLAST) $(OBJ_DVBLASTCTL): Makefile dvblast.h en50221.h comm.h version.h asi.h
@@ -20,4 +22,11 @@ dvblast: $(OBJ_DVBLAST)
 dvblastctl: $(OBJ_DVBLASTCTL)
 
 clean:
-	-rm -f dvblast dvblastctl $(OBJ_DVBLAST) $(OBJ_DVBLASTCTL)
+	@rm -f dvblast dvblastctl $(OBJ_DVBLAST) $(OBJ_DVBLASTCTL)
+
+install: all
+	@install -d $(BIN)
+	@install dvblast dvblastctl $(BIN)
+
+unistall:
+	@rm $(BIN)/dvblast $(BIN)/dvblastctl
