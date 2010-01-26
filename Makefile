@@ -28,5 +28,5 @@ install: all
 	@install -d $(BIN)
 	@install dvblast dvblastctl $(BIN)
 
-unistall:
+uninstall:
 	@rm $(BIN)/dvblast $(BIN)/dvblastctl
