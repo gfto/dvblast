@@ -1812,7 +1812,7 @@ static void MMIOpen( access_t *p_access, int i_session_id )
 /*****************************************************************************
  * InitSlot: Open the transport layer
  *****************************************************************************/
-#define MAX_TC_RETRIES 20
+#define MAX_TC_RETRIES 5
 
 static int InitSlot( access_t * p_access, int i_slot )
 {
@@ -1826,7 +1826,7 @@ static int InitSlot( access_t * p_access, int i_slot )
         return -1;
     }
 
-    /* This is out of the spec */
+    /* Wait for T_CTC_REPLY */
     for ( i = 0; i < MAX_TC_RETRIES; i++ )
     {
         uint8_t i_tag;
@@ -1835,15 +1835,6 @@ static int InitSlot( access_t * p_access, int i_slot )
         {
             pb_active_slot[i_slot] = true;
             break;
-        }
-
-        if ( TPDUSend( p_access, i_slot, T_CREATE_TC, NULL, 0 )
-                != 0 )
-        {
-            msg_Err( p_access,
-                     "en50221_Init: couldn't send TPDU on slot %d",
-                     i_slot );
-            continue;
         }
     }
 
