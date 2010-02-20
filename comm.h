@@ -47,6 +47,7 @@
 #define RET_MMI_STATUS 3
 #define RET_MMI_SLOT_STATUS 4
 #define RET_MMI_RECV 5
+#define RET_MMI_WAIT 6
 #define RET_HUH 255
 
 struct ret_frontend_status

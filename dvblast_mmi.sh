@@ -124,6 +124,10 @@ while :; do
 		echo "CAUTION: the password won't be bulleted, be alone"
 		echo -n "Your choice (empty for extra choices) ? "
 		;;
+	252)
+		sleep 1
+		continue
+		;;
 	0)
 		echo -n "Your choice: (B)ack, (C)lose or (R)etry ? "
 		;;

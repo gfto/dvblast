@@ -252,6 +252,10 @@ int main( int i_argc, char **ppsz_argv )
         exit(0);
         break;
 
+    case RET_MMI_WAIT:
+        exit(252);
+        break;
+
     case RET_ERR:
         msg_Err( NULL, "request failed" );
         exit(255);

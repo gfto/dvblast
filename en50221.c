@@ -2374,7 +2374,7 @@ uint8_t en50221_GetMMIObject( uint8_t *p_buffer, ssize_t i_size,
     i_slot = *p_buffer;
 
     if ( pb_slot_mmi_expected[i_slot] == true )
-        return RET_ERR; /* should not happen */
+        return RET_MMI_WAIT; /* data not yet available */
 
     p_ret->object.i_object_type = EN50221_MMI_NONE;
     *pi_size = sizeof(struct ret_mmi_recv);
