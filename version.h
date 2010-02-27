@@ -1,7 +1,7 @@
 /*****************************************************************************
  * version.h
  *****************************************************************************
- * Copyright (C) 2004, 2008-2009 VideoLAN
+ * Copyright (C) 2004, 2008-2010 VideoLAN
  * $Id$
  *
  * Authors: Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -24,4 +24,4 @@
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 2
 #define VERSION_REVISION 0
-#define VERSION_EXTRA "-svn"
+#define VERSION_EXTRA ""

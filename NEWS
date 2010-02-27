@@ -1,9 +1,9 @@
 $Id$
 
-Changes between 1.1 and 1.2-svn:
---------------------------------
+Changes between 1.1 and 1.2:
+----------------------------
   * Support for IPv6 output and duplicate
-  * Support input from ASI card
+  * Support input from Computer Modules ASI card
   * Support input from (IPv4) RTP / UDP stream
   * Miscellaneous CAM and demux fixes
 

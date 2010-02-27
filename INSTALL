@@ -27,6 +27,20 @@ Other rarely used options are available - run dvblast -h for more
 information.
 
 
+Alternative inputs
+==================
+
+If you own a Computer Modules DVB-ASI input card, you can have DVBlast
+filter and demultiplex the inputs. You just need to specify the port number
+with -A.
+
+DVBlast can also read from a UDP or RTP IPv4 source carrying for
+instance a multi-program transport stream. The address is specified with
+-D. See the 'advanced features' section for information on how to create
+such a stream for instance to cross network boundaries between the
+receivers and the target network.
+
+
 Configuring outputs
 ===================
 

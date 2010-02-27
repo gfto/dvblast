@@ -7,6 +7,9 @@ linux-dvb API. It opens a DVB device, tunes it, places PID filters,
 configures a CAM module, and demultiplexes the packets to several RTP
 outputs. It supports the new S2API of linux-dvb (compile option).
 
+DVBlast also supports Computer Modules DVB-ASI input cards and UDP/RTP
+input and pass-through.
+
 Output to UDP rather than RTP is also supported so those IPTV set top
 boxes that don't do RTP over multicast can also use the streams.  
 This functionality is not recommended and should only be used if
@@ -24,7 +27,9 @@ external control program using a Unix domain socket.
 DVBlast is very lightweight and designed to operate in tight
 environments. Its memory and CPU usages are kept to a minimum, and it
 features only one thread of execution. It has very few dependencies
-(libdvbpsi and libc). I intend to keep it that way.
+(libdvbpsi and libc). We intend to keep it that way.
+
+Detailed documentation is available in the INSTALL file.
 
 -- 
 Meuuh 2009-05-11
