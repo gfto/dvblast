@@ -26,7 +26,7 @@ clean:
 
 install: all
 	@install -d $(BIN)
-	@install dvblast dvblastctl $(BIN)
+	@install dvblast dvblastctl dvblast_mmi.sh $(BIN)
 
 uninstall:
-	@rm $(BIN)/dvblast $(BIN)/dvblastctl
+	@rm $(BIN)/dvblast $(BIN)/dvblastctl $(BIN)/dvblast_mmi.sh
