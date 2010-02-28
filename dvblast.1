@@ -5,7 +5,7 @@ DVBlast \- Simple and powerful dvb streaming application
 .B dvblast
 [\fI-q\fR] \fI-c <config_file>\fR [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR] [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend number>\fR] [\fI-S <diseqc>\fR] \fI-f <frequency>\fR [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation\fR] [\fI-u\fR] [\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-e\fR] [\fI-T\fR]
 .SH DESCRIPTION
- DVBlast is a simple and powerful streaming application based on the linux-dvb API.
+DVBlast is a simple and powerful streaming application based on the linux-dvb API.
 It opens a DVB device, tunes it, places PID filters, configures a CAM module, and demultiplexes the packets to several RTP outputs.
 
 DVBlast is designed to be the core of a custom IRD or CID, based on a PC with Linux-supported DVB cards.
@@ -14,31 +14,37 @@ DVBlast does not do any kind of processing on the elementary streams, such as tr
 .SH OPTIONS
 .PP
 .TP
-\fB\-a\fR <adapter>
+\fB\-a\fR, \fB\-\-adapter\fR <adapter>
 Address of the adapter
 .TP
-\fB\-b\fR <bandwidth>
-Bandwidth
+\fB\-A\fR, \fB\-\-asi\-adapter\fR
+Read packets from an ASI adapter (0-n)
 .TP
-\fB\-c\fR <config file>
+\fB\-b\fR, \fB\-\-bandwidth\fR <bandwidth>
+Frontend bandwidth
+.TP
+\fB\-c\fR, \fB\-\-config\-file\fR <config file>
 Use the given configuration file
 .TP
-\fB\-d\fR <dest IP:port>
+\fB\-d\fR, \fB\-\-duplicate\fR <dest IP:port>
 Duplicate all received packets to a given destination
 .TP
-\fB\-e\fR
+\fB\-D\fR, \fB\-\-rtp\-input\fR
+Read packets from a multicast address instead of a DVB card
+.TP
+\fB\-e\fR, \fB\-\-epg\-passthrough\fR
 Enable EPG pass through (EIT data)
 .TP
-\fB\-f\fR <frequency>
-Frequency
+\fB\-f\fR, \fB\-\-frequency\fR <frequency>
+Frontend frequency
 .TP
-\fB\-h\fR
+\fB\-h\fR, \fB\-\-help\fR
 Print the help message
 .TP
-\fB\-i\fR <RT priority>
-Priority
+\fB\-i\fR, \fB\-\-priority\fR <RT priority>
+Real time priority
 .TP
-\fB\-m\fR
+\fB\-m\fR, \fB\-\-modulation\fR
 Modulation
 .br
 DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)
@@ -47,43 +53,46 @@ DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)
 .br
 DVB-S2 qpsk|psk_8 (default legacy DVB-S)
 .TP
-\fB\-n\fR <frontend number>
+\fB\-n\fR, \fB\-\-frontend\-number\fR <frontend number>
 THe frontend number
 .TP
-\fB\-o\fR <SSRC IP>
+\fB\-o\fR, \fB\-\-rtp-output\fR <SSRC IP>
 RTP output IP
 .TP
-\fB\-p\fR
-force 22kHz pulses for high-band selection (DVB-S)
+\fB\-p\fR, \fB\-\-force\-pulse\fR
+Force 22kHz pulses for high-band selection (DVB-S)
 .TP
 \fB\-q\fR
-be quiet (less verbosity, repeat or use number for even quieter)
+Be quiet (less verbosity, repeat or use number for even quieter)
 .TP
-\fB\-r\fR <remote socket>
+\fB\-r\fR, \fB\-\-remote\-socket\fR <remote socket>
 Remote socket to use
 .TP
-\fB\-s\fR <symbol rate>
+\fB\-s\fR, \fB\-\-symbole\-rate\fR <symbol rate>
 Symbole rate
 .TP
-\fB\-S\fR <diseqc>
+\fB\-S\fR, \fB\-\-diseqc\fR <diseqc>
 Satellite number for diseqc (0: no diseqc, 1\-4, A or B)
 .TP
-\fB\-t\fR <ttl>
+\fB\-t\fR, \fB\-\-ttl\fR <ttl>
 Time-To-Live of the multicast stream
 .TP
-\fB\-T\fR
+\fB\-T\fR, \fB\-\-unique\-ts\-id\fR
 Generate unique TS ID for each program
 .TP
-\fB\-u\fR
+\fB\-u\fR, \fB\-\-budget\-mode\fR
 Turn on budget mode (no hardware PID filtering)
 .TP
-\fB\-U\fR
+\fB\-U\fR, \fB\-\-use\-udp\fR
 Use raw UDP rather than RTP (required by some IPTV set top boxes)
 .TP
-\fB\-v\fR <0|13|18>
+\fB\-v\fR, \fB\-\-voltage\fR <0|13|18>
 Voltage to apply to the LNB (QPSK)
 .TP
-\fB\-W\fR
+\fB\-V\fR, \fB\-\-version\fR
+Only display the version
+.TP
+\fB\-W\fR, \fB\-\-slow\-cam\fR
 Add extra delays for slow CAMs
 .SH AUTHORS
 Writen by Marian Ďurkovič, Andy Gatward and Christophe Massiot
