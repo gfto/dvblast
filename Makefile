@@ -11,6 +11,7 @@ OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm
 OBJ_DVBLASTCTL = util.o dvblastctl.o
 
 BIN = $(DESTDIR)/usr/bin
+MAN = $(DESTDIR)/usr/share/man/man1
 
 all: dvblast dvblastctl
 
@@ -26,7 +27,9 @@ clean:
 
 install: all
 	@install -d $(BIN)
+	@install -d $(MAN)
 	@install dvblast dvblastctl dvblast_mmi.sh $(BIN)
+	@install dvblast.1 $(MAN)
 
 uninstall:
-	@rm $(BIN)/dvblast $(BIN)/dvblastctl $(BIN)/dvblast_mmi.sh
+	@rm $(BIN)/dvblast $(BIN)/dvblastctl $(BIN)/dvblast_mmi.sh $(MAN)/dvblast.1
