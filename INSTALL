@@ -7,4 +7,4 @@ No autotools yet... You have to tweak the Makefile by hand, especially
 if your kernel is S2API-enabled but not your distribution (indicate the
 path of your kernel where appropriate). Compile the program with `make`
 and install with `make install`. It requires the installation of libdvbpsi
-and libdvbpsi-devel (depending on your distribution).
+0.1.6 or later and libdvbpsi-devel (depending on your distribution).
