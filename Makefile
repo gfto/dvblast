@@ -10,8 +10,9 @@ LDFLAGS_DVBLAST += -ldvbpsi -lpthread
 OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm.o
 OBJ_DVBLASTCTL = util.o dvblastctl.o
 
-BIN = $(DESTDIR)/usr/bin
-MAN = $(DESTDIR)/usr/share/man/man1
+PREFIX ?= /usr/local
+BIN = $(DESTDIR)/$(PREFIX)/bin
+MAN = $(DESTDIR)/$(PREFIX)/share/man/man1
 
 all: dvblast dvblastctl
 
