@@ -269,6 +269,7 @@ static void ReadConfiguration( char *psz_file )
             p_output->i_config |= OUTPUT_STILL_PRESENT;
         }
 
+        free( psz_displayname );
         free( pi_pids );
         freeaddrinfo( p_addr );
     }
@@ -586,6 +587,7 @@ int main( int i_argc, char **pp_argv )
             else
               msg_Err( NULL, "Invalid configuration for -d switch: %s" , optarg);
 
+            free( psz_displayname );
             freeaddrinfo( p_daddr );
             break;
         }

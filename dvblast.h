@@ -169,8 +169,8 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
 void demux_ResendCAPMTs( void );
 int PIDIsSelected( uint16_t i_pid );
 
-output_t *output_Create( uint8_t i_config, char *psz_displayname, void *p_init_data );
-int output_Init( output_t *p_output, uint8_t i_config, char *psz_displayname, void *p_init_data );
+output_t *output_Create( uint8_t i_config, const char *psz_displayname, void *p_init_data );
+int output_Init( output_t *p_output, uint8_t i_config, const char *psz_displayname, void *p_init_data );
 void output_Close( output_t *p_output );
 void output_Put( output_t *p_output, block_t *p_block );
 

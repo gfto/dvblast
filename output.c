@@ -46,7 +46,7 @@ static void rtp_SetHdr( output_t *p_output, uint8_t *p_hdr );
 /*****************************************************************************
  * output_Create : called from main thread
  *****************************************************************************/
-output_t *output_Create( uint8_t i_config, char *psz_displayname, void *p_init_data )
+output_t *output_Create( uint8_t i_config, const char *psz_displayname, void *p_init_data )
 {
     int i;
     output_t *p_output = NULL;
@@ -78,7 +78,7 @@ output_t *output_Create( uint8_t i_config, char *psz_displayname, void *p_init_d
 /*****************************************************************************
  * output_Init
  *****************************************************************************/
-int output_Init( output_t *p_output, uint8_t i_config, char *psz_displayname, void *p_init_data )
+int output_Init( output_t *p_output, uint8_t i_config, const char *psz_displayname, void *p_init_data )
 {
     p_output->i_sid = 0;
     p_output->i_depth = 0;
@@ -103,7 +103,7 @@ int output_Init( output_t *p_output, uint8_t i_config, char *psz_displayname, vo
     p_output->i_ref_wallclock = 0;
 
     p_output->i_config = i_config;
-    p_output->psz_displayname = psz_displayname;
+    p_output->psz_displayname = strdup( psz_displayname );
 
     struct addrinfo *p_ai = (struct addrinfo *)p_init_data;
     p_output->i_addrlen = p_ai->ai_addrlen;
@@ -136,6 +136,7 @@ void output_Close( output_t *p_output )
             block_Delete( p_output->pp_blocks[i] );
     }
 
+    free( p_output->psz_displayname );
     p_output->i_depth = 0;
     p_output->i_config &= ~OUTPUT_VALID;
     close( p_output->i_handle );
