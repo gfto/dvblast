@@ -339,7 +339,7 @@ void usage()
     msg_Raw( NULL, "  -d --duplicate        duplicate all received packets to a given destination" );
     msg_Raw( NULL, "  -o --rtp-output <SSRC IP>" );
     msg_Raw( NULL, "  -t --ttl <ttl>        TTL of the output stream" );
-    msg_Raw( NULL, "  -U --use-udp          use raw UDP rather than RTP (required by some IPTV set top boxes)" );
+    msg_Raw( NULL, "  -U --udp              use raw UDP rather than RTP (required by some IPTV set top boxes)" );
 
     msg_Raw( NULL, "Misc:" );
     msg_Raw( NULL, "  -h --help             display this full help" );
@@ -379,7 +379,7 @@ int main( int i_argc, char **pp_argv )
         { "modulation",      required_argument, NULL, 'm' },
         { "budget-mode",     no_argument,       NULL, 'u' },
         { "slow-cam",        no_argument,       NULL, 'W' },
-        { "use-udp",         no_argument,       NULL, 'U' },
+        { "udp",             no_argument,       NULL, 'U' },
         { "unique-ts-id",    no_argument,       NULL, 'T' },
         { "duplicate",       required_argument, NULL, 'd' },
         { "rtp-input",       required_argument, NULL, 'D' },
