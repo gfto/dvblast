@@ -30,7 +30,7 @@ install: all
 	@install -d $(BIN)
 	@install -d $(MAN)
 	@install dvblast dvblastctl dvblast_mmi.sh $(BIN)
-	@install dvblast.1 $(MAN)
+	@install -m 644 dvblast.1 $(MAN)
 
 uninstall:
 	@rm $(BIN)/dvblast $(BIN)/dvblastctl $(BIN)/dvblast_mmi.sh $(MAN)/dvblast.1
