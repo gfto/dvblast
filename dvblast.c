@@ -312,23 +312,40 @@ static void DisplayVersion()
 void usage()
 {
     msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
-    msg_Raw( NULL, "    -q: be quiet (less verbosity, repeat or use number for even quieter)" );
-    msg_Raw( NULL, "    -v: voltage to apply to the LNB (QPSK)" );
-    msg_Raw( NULL, "    -p: force 22kHz pulses for high-band selection (DVB-S)" );
-    msg_Raw( NULL, "    -S: satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
-    msg_Raw( NULL, "    -m: DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
-    msg_Raw( NULL, "        DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
-    msg_Raw( NULL, "        DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
-    msg_Raw( NULL, "    -u: turn on budget mode (no hardware PID filtering)" );
-    msg_Raw( NULL, "    -W: add extra delays for slow CAMs" );
-    msg_Raw( NULL, "    -U: use raw UDP rather than RTP (required by some IPTV set top boxes)" );
-    msg_Raw( NULL, "    -d: duplicate all received packets to a given destination" );
-    msg_Raw( NULL, "    -D: read packets from a multicast address instead of a DVB card" );
-    msg_Raw( NULL, "    -A: read packets from an ASI adapter (0-n)" );
-    msg_Raw( NULL, "    -e: enable EPG pass through (EIT data)" );
-    msg_Raw( NULL, "    -T: generate unique TS ID for each program" );
-    msg_Raw( NULL, "    -h: display this full help" );
-    msg_Raw( NULL, "    -V: only display the version" );
+
+    msg_Raw( NULL, "Input:" );
+    msg_Raw( NULL, "  -a --adapter <adapter>" );
+    msg_Raw( NULL, "  -A --asi-adapter      read packets from an ASI adapter (0-n)" );
+    msg_Raw( NULL, "  -b --bandwidth        frontend bandwith" );
+    msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
+    msg_Raw( NULL, "  -e --epg-passthrough  enable EPG pass through (EIT data)" );
+    msg_Raw( NULL, "  -f --frequency        frontend frequency" );
+    msg_Raw( NULL, "  -m --modulation       Modulation type" );
+    msg_Raw( NULL, "    DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
+    msg_Raw( NULL, "    DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
+    msg_Raw( NULL, "    DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
+    msg_Raw( NULL, "  -n --frontend-number <frontend number>" );
+    msg_Raw( NULL, "  -p --force-pulse      force 22kHz pulses for high-band selection (DVB-S)" );
+    msg_Raw( NULL, "  -s --symbole-rate" );
+    msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
+    msg_Raw( NULL, "  -T --unique-ts-id     generate unique TS ID for each program" );
+    msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
+    msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
+    msg_Raw( NULL, "  -W --slow-cam         add extra delays for slow CAMs" );
+
+    msg_Raw( NULL, "Output:" );
+    msg_Raw( NULL, "  -c --config-file <config file>" );
+    msg_Raw( NULL, "  -d --duplicate        duplicate all received packets to a given destination" );
+    msg_Raw( NULL, "  -o --rtp-output <SSRC IP>" );
+    msg_Raw( NULL, "  -t --ttl <ttl>        TTL of the output stream" );
+    msg_Raw( NULL, "  -U --use-udp          use raw UDP rather than RTP (required by some IPTV set top boxes)" );
+
+    msg_Raw( NULL, "Misc:" );
+    msg_Raw( NULL, "  -h --help             display this full help" );
+    msg_Raw( NULL, "  -i --priority <RT pritority>" );
+    msg_Raw( NULL, "  -q                    be quiet (less verbosity, repeat or use number for even quieter)" );
+    msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
+    msg_Raw( NULL, "  -V --version          only display the version" );
     exit(1);
 }
 
