@@ -113,6 +113,7 @@ extern int i_frequency;
 extern int i_srate;
 extern int i_satnum;
 extern int i_fec;
+extern int i_rolloff;
 extern int i_voltage;
 extern int b_tone;
 extern int i_bandwidth;

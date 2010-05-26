@@ -54,6 +54,7 @@ int i_fenum = 0;
 int i_frequency = 0;
 int i_srate = 27500000;
 int i_fec = 999;
+int i_rolloff = 35;
 int i_satnum = 0;
 int i_voltage = 13;
 int b_tone = 0;
@@ -313,7 +314,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter <adapter>" );
@@ -330,6 +331,8 @@ void usage()
     msg_Raw( NULL, "    DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
     msg_Raw( NULL, "  -n --frontend-number <frontend number>" );
     msg_Raw( NULL, "  -p --force-pulse      force 22kHz pulses for high-band selection (DVB-S)" );
+    msg_Raw( NULL, "  -R --rolloff          DVB-S2 Rolloff value" );
+    msg_Raw( NULL, "    DVB-S2 35=0.35|25=0.25|20=0.20|0=AUTO (default: 35)" );
     msg_Raw( NULL, "  -s --symbole-rate" );
     msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
     msg_Raw( NULL, "  -T --unique-ts-id     generate unique TS ID for each program" );
@@ -375,6 +378,7 @@ int main( int i_argc, char **pp_argv )
         { "frontend-number", required_argument, NULL, 'n' },
         { "frequency",       required_argument, NULL, 'f' },
         { "fec-inner",       required_argument, NULL, 'F' },
+        { "rolloff",         required_argument, NULL, 'R' },
         { "symbol-rate",     required_argument, NULL, 's' },
         { "diseqc",          required_argument, NULL, 'S' },
         { "voltage",         required_argument, NULL, 'v' },
@@ -394,7 +398,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0}
     }; 
 
-    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:s:S:v:pb:m:uWUTd:D:A:ehV", long_options, NULL)) != -1 )
+    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uWUTd:D:A:ehV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -471,6 +475,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'F':
             i_fec = strtol( optarg, NULL, 0 );
+            break;
+
+        case 'R':
+            i_rolloff = strtol( optarg, NULL, 0 );
             break;
 
         case 's':

@@ -530,6 +530,18 @@ static fe_code_rate_t GetFECInner(fe_caps_t fe_caps)
     exit(1);
 }
 
+static fe_rolloff_t GetRollOff(int rolloff)
+{
+    switch( rolloff )
+    {
+        case 0:  return ROLLOFF_AUTO;
+        case 20: return ROLLOFF_20;
+        case 25: return ROLLOFF_25;
+        default:
+        case 35: return ROLLOFF_35;
+    }
+}
+
 /*****************************************************************************
  * FrontendInfo : Print frontend info
  *****************************************************************************/
@@ -663,6 +675,7 @@ static struct dtv_properties dvbt_cmdseq = {
 #define SYMBOL_RATE 3
 #define BANDWIDTH 3
 #define FEC_INNER 4
+#define ROLLOFF 7
 
 static void FrontendSet( void )
 {
@@ -708,6 +721,7 @@ static void FrontendSet( void )
         {
             p = &dvbs2_cmdseq;
             p->props[MODULATION].u.data = GetModulation();
+            p->props[ROLLOFF].u.data = GetRollOff(i_rolloff);
         }
         else
             p = &dvbs_cmdseq;
@@ -716,8 +730,8 @@ static void FrontendSet( void )
         p->props[FEC_INNER].u.data = GetFECInner(info.caps);
         p->props[FREQUENCY].u.data = FrontendDoDiseqc();
 
-        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d fec=%d modulation=%s",
-                 i_frequency, i_srate, i_fec,
+        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d fec=%d rolloff=%d modulation=%s",
+                 i_frequency, i_srate, i_fec, i_rolloff,
                  psz_modulation == NULL ? "legacy" : psz_modulation );
         break;
 
@@ -854,6 +868,7 @@ uint8_t dvb_FrontendStatus( uint8_t *p_answer, ssize_t *pi_size )
         msg_Err( NULL, "ioctl FE_GET_INFO failed (%s)", strerror(errno) );
         return RET_ERR;
     }
+
     if ( ioctl( i_frontend, FE_READ_STATUS, &p_ret->i_status ) < 0 )
     {
         msg_Err( NULL, "ioctl FE_READ_STATUS failed (%s)", strerror(errno) );
