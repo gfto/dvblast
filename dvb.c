@@ -493,12 +493,10 @@ static fe_modulation_t GetModulation(void)
     GET_MODULATION(QAM_AUTO);
     GET_MODULATION(VSB_8);
     GET_MODULATION(VSB_16);
-#if DVB_API_VERSION >= 5
     GET_MODULATION(PSK_8);
     GET_MODULATION(APSK_16);
     GET_MODULATION(APSK_32);
     GET_MODULATION(DQPSK);
-#endif
 
 #undef GET_MODULATION
     msg_Err( NULL, "invalid modulation %s", psz_modulation );
