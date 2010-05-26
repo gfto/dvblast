@@ -531,6 +531,68 @@ static fe_code_rate_t GetFECInner(fe_caps_t fe_caps)
 }
 
 /*****************************************************************************
+ * FrontendInfo : Print frontend info
+ *****************************************************************************/
+static const char *GetFrontendTypeName( fe_type_t type )
+{
+    switch(type)
+    {
+        case FE_QPSK: return "QPSK (DVB-S/S2)";
+        case FE_QAM:  return "QAM  (DVB-C)";
+        case FE_OFDM: return "OFDM (DVB-T)";
+        case FE_ATSC: return "ATSC";
+        default: return "unknown";
+    }
+}
+
+static void FrontendInfo( struct dvb_frontend_info info )
+{
+    msg_Dbg( NULL, "Frontend \"%s\" type \"%s\" supports:",
+             info.name, GetFrontendTypeName(info.type) );
+    msg_Dbg( NULL, "\tfrequency min: %d, max: %d, stepsize: %d, tolerance: %d",
+             info.frequency_min, info.frequency_max,
+             info.frequency_stepsize, info.frequency_tolerance );
+    msg_Dbg( NULL, "\tsymbolrate min: %d, max: %d, tolerance: %d",
+             info.symbol_rate_min, info.symbol_rate_max, info.symbol_rate_tolerance);
+    msg_Dbg( NULL, "\tcapabilities:" );
+
+#define FRONTEND_INFO(caps,val,msg)                                             \
+    if ( caps & val )                                                       \
+        msg_Dbg( NULL, "\t\t%s", msg );
+
+    FRONTEND_INFO( info.caps, FE_IS_STUPID, "FE_IS_STUPID" )
+    FRONTEND_INFO( info.caps, FE_CAN_INVERSION_AUTO, "INVERSION_AUTO" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_1_2, "FEC_1_2" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_2_3, "FEC_2_3" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_3_4, "FEC_3_4" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_4_5, "FEC_4_5" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_5_6, "FEC_5_6" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_6_7, "FEC_6_7" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_7_8, "FEC_7_8" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_8_9, "FEC_8_9" )
+    FRONTEND_INFO( info.caps, FE_CAN_FEC_AUTO,"FEC_AUTO")
+    FRONTEND_INFO( info.caps, FE_CAN_QPSK,   "QPSK" )
+    FRONTEND_INFO( info.caps, FE_CAN_QAM_16, "QAM_16" )
+    FRONTEND_INFO( info.caps, FE_CAN_QAM_32, "QAM_32" )
+    FRONTEND_INFO( info.caps, FE_CAN_QAM_64, "QAM_64" )
+    FRONTEND_INFO( info.caps, FE_CAN_QAM_128,"QAM_128")
+    FRONTEND_INFO( info.caps, FE_CAN_QAM_256,"QAM_256")
+    FRONTEND_INFO( info.caps, FE_CAN_QAM_AUTO,"QAM_AUTO" )
+    FRONTEND_INFO( info.caps, FE_CAN_TRANSMISSION_MODE_AUTO, "TRANSMISSION_MODE_AUTO" )
+    FRONTEND_INFO( info.caps, FE_CAN_BANDWIDTH_AUTO, "BANDWIDTH_AUTO" )
+    FRONTEND_INFO( info.caps, FE_CAN_GUARD_INTERVAL_AUTO, "GUARD_INTERVAL_AUTO" )
+    FRONTEND_INFO( info.caps, FE_CAN_HIERARCHY_AUTO, "HIERARCHY_AUTO" )
+    FRONTEND_INFO( info.caps, FE_CAN_8VSB, "8VSB" )
+    FRONTEND_INFO( info.caps, FE_CAN_16VSB,"16VSB" )
+    FRONTEND_INFO( info.caps, FE_HAS_EXTENDED_CAPS, "EXTENDED_CAPS" )
+    FRONTEND_INFO( info.caps, FE_CAN_2G_MODULATION, "2G_MODULATION" )
+    FRONTEND_INFO( info.caps, FE_NEEDS_BENDING, "NEEDS_BENDING" )
+    FRONTEND_INFO( info.caps, FE_CAN_RECOVER, "FE_CAN_RECOVER" )
+    FRONTEND_INFO( info.caps, FE_CAN_MUTE_TS, "FE_CAN_MUTE_TS" )
+#undef FRONTEND_INFO
+}
+
+/*****************************************************************************
  * FrontendSet
  *****************************************************************************/
 /* S2API */
@@ -612,6 +674,8 @@ static void FrontendSet( void )
         msg_Err( NULL, "FE_GET_INFO failed (%s)", strerror(errno) );
         exit(1);
     }
+
+    FrontendInfo( info );
 
     switch ( info.type )
     {
