@@ -677,6 +677,15 @@ static struct dtv_properties dvbt_cmdseq = {
 #define FEC_INNER 4
 #define ROLLOFF 7
 
+struct dtv_property pclear[] = {
+    { .cmd = DTV_CLEAR },
+};
+
+struct dtv_properties cmdclear = {
+    .num = 1,
+    .props = pclear
+};
+
 static void FrontendSet( void )
 {
     struct dvb_frontend_info info;
@@ -689,6 +698,13 @@ static void FrontendSet( void )
     }
 
     FrontendInfo( info );
+
+    /* Clear frontend commands */
+    if ( ioctl( i_frontend, FE_SET_PROPERTY, &cmdclear ) < 0 )
+    {
+        msg_Err( NULL, "Unable to clear frontend" );
+        exit(1);
+    }
 
     switch ( info.type )
     {
