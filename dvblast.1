@@ -3,7 +3,7 @@
 DVBlast \- Simple and powerful dvb streaming application
 .SH SYNOPSIS
 .B dvblast
-[\fI-q\fR] \fI-c <config_file>\fR [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR] [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend number>\fR] [\fI-S <diseqc>\fR] \fI-f <frequency>\fR [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation\fR] [\fI-u\fR] [\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-e\fR] [\fI-T\fR]
+[\fI-q\fR] \fI-c <config_file>\fR [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR] [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend number>\fR] [\fI-S <diseqc>\fR] \fI-f <frequency>\fR [\fI-F <fec inner>\fR] [\fI-R <rolloff>\fR] ] [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation\fR] [\fI-u\fR] [\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-e\fR] [\fI-T\fR]
 .SH DESCRIPTION
 DVBlast is a simple and powerful streaming application based on the linux-dvb API.
 It opens a DVB device, tunes it, places PID filters, configures a CAM module, and demultiplexes the packets to several RTP outputs.
@@ -38,6 +38,11 @@ Enable EPG pass through (EIT data)
 \fB\-f\fR, \fB\-\-frequency\fR <frequency>
 Frontend frequency
 .TP
+\fB\-F\fr, \fB\-\-fec\-inner\fR
+Forward Error Correction used by satellite (FEC Inner)
+.br
+DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print the help message
 .TP
@@ -54,7 +59,7 @@ DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)
 DVB-S2 qpsk|psk_8 (default legacy DVB-S)
 .TP
 \fB\-n\fR, \fB\-\-frontend\-number\fR <frontend number>
-THe frontend number
+The frontend number
 .TP
 \fB\-o\fR, \fB\-\-rtp-output\fR <SSRC IP>
 RTP output IP
@@ -67,6 +72,11 @@ Be quiet (less verbosity, repeat or use number for even quieter)
 .TP
 \fB\-r\fR, \fB\-\-remote\-socket\fR <remote socket>
 Remote socket to use
+.TP
+\fB\-R\fR, \fB\-\-rolloff\fR <rolloff>
+Rolloff value to use
+.br
+DVB-S2 35=0.35|25=0.25|20=0.20|0=AUTO (default: 35)
 .TP
 \fB\-s\fR, \fB\-\-symbole\-rate\fR <symbol rate>
 Symbole rate
