@@ -505,6 +505,33 @@ static fe_modulation_t GetModulation(void)
     exit(1);
 }
 
+static fe_code_rate_t GetFECInner(fe_caps_t fe_caps)
+{
+#define GET_FEC_INNER(fec,val)                                                    \
+    if ( (fe_caps & FE_CAN_##fec) && (i_fec == val) )                             \
+       return fec;
+
+    GET_FEC_INNER(FEC_AUTO,999);
+    if (i_fec == 0)
+        return FEC_NONE;
+    GET_FEC_INNER(FEC_1_2, 12);
+    GET_FEC_INNER(FEC_2_3, 23);
+    GET_FEC_INNER(FEC_3_4, 34);
+    if (i_fec == 35)
+        return FEC_3_5;
+    GET_FEC_INNER(FEC_4_5, 45);
+    GET_FEC_INNER(FEC_5_6, 56);
+    GET_FEC_INNER(FEC_6_7, 67);
+    GET_FEC_INNER(FEC_7_8, 78);
+    GET_FEC_INNER(FEC_8_9, 89);
+    if (i_fec == 910)
+        return FEC_9_10;
+
+#undef GET_FEC_INNER
+    msg_Err( NULL, "invalid fec-inner %d", i_fec );
+    exit(1);
+}
+
 /*****************************************************************************
  * FrontendSet
  *****************************************************************************/
@@ -575,6 +602,7 @@ static struct dtv_properties dvbt_cmdseq = {
 #define INVERSION 2
 #define SYMBOL_RATE 3
 #define BANDWIDTH 3
+#define FEC_INNER 4
 
 static void FrontendSet( void )
 {
@@ -623,10 +651,11 @@ static void FrontendSet( void )
             p = &dvbs_cmdseq;
 
         p->props[SYMBOL_RATE].u.data = i_srate;
+        p->props[FEC_INNER].u.data = GetFECInner(info.caps);
         p->props[FREQUENCY].u.data = FrontendDoDiseqc();
 
-        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d modulation=%s",
-                 i_frequency, i_srate,
+        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d fec=%d modulation=%s",
+                 i_frequency, i_srate, i_fec,
                  psz_modulation == NULL ? "legacy" : psz_modulation );
         break;
 
@@ -700,8 +729,8 @@ static void FrontendSet( void )
         fep.u.qam.fec_inner = FEC_AUTO;
         fep.u.qam.modulation = QAM_AUTO;
 
-        msg_Dbg( NULL, "tuning QAM frontend to f=%d, srate=%d", i_frequency,
-                 i_srate );
+        msg_Dbg( NULL, "tuning QAM frontend to f=%d, srate=%d",
+                 i_frequency, i_srate );
         break;
 
     case FE_QPSK:

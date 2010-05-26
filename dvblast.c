@@ -53,6 +53,7 @@ int i_adapter = 0;
 int i_fenum = 0;
 int i_frequency = 0;
 int i_srate = 27500000;
+int i_fec = 999;
 int i_satnum = 0;
 int i_voltage = 13;
 int b_tone = 0;
@@ -312,7 +313,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter <adapter>" );
@@ -321,6 +322,8 @@ void usage()
     msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
     msg_Raw( NULL, "  -e --epg-passthrough  enable EPG pass through (EIT data)" );
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
+    msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
+    msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
     msg_Raw( NULL, "  -m --modulation       Modulation type" );
     msg_Raw( NULL, "    DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
     msg_Raw( NULL, "    DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
@@ -371,6 +374,7 @@ int main( int i_argc, char **pp_argv )
         { "adapter",         required_argument, NULL, 'a' },
         { "frontend-number", required_argument, NULL, 'n' },
         { "frequency",       required_argument, NULL, 'f' },
+        { "fec-inner",       required_argument, NULL, 'F' },
         { "symbol-rate",     required_argument, NULL, 's' },
         { "diseqc",          required_argument, NULL, 'S' },
         { "voltage",         required_argument, NULL, 'v' },
@@ -390,7 +394,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0}
     }; 
 
-    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:s:S:v:pb:m:uWUTd:D:A:ehV", long_options, NULL)) != -1 )
+    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:s:S:v:pb:m:uWUTd:D:A:ehV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -463,6 +467,10 @@ int main( int i_argc, char **pp_argv )
             pf_Read = dvb_Read;
             pf_SetFilter = dvb_SetFilter;
             pf_UnsetFilter = dvb_UnsetFilter;
+            break;
+
+        case 'F':
+            i_fec = strtol( optarg, NULL, 0 );
             break;
 
         case 's':
