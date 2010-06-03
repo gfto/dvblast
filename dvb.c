@@ -476,7 +476,7 @@ static int FrontendDoDiseqc(void)
 #if DVB_API_VERSION >= 5
 
 /*****************************************************************************
- * GetModulation : helper function for both APIs
+ * GetModulation : helper functions for S2API
  *****************************************************************************/
 static fe_modulation_t GetModulation(void)
 {
@@ -597,7 +597,9 @@ static void FrontendInfo( struct dvb_frontend_info info )
     FRONTEND_INFO( info.caps, FE_CAN_8VSB, "8VSB" )
     FRONTEND_INFO( info.caps, FE_CAN_16VSB,"16VSB" )
     FRONTEND_INFO( info.caps, FE_HAS_EXTENDED_CAPS, "EXTENDED_CAPS" )
+#if DVBAPI_VERSION >= 501
     FRONTEND_INFO( info.caps, FE_CAN_2G_MODULATION, "2G_MODULATION" )
+#endif
     FRONTEND_INFO( info.caps, FE_NEEDS_BENDING, "NEEDS_BENDING" )
     FRONTEND_INFO( info.caps, FE_CAN_RECOVER, "FE_CAN_RECOVER" )
     FRONTEND_INFO( info.caps, FE_CAN_MUTE_TS, "FE_CAN_MUTE_TS" )
