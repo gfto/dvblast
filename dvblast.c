@@ -195,10 +195,10 @@ static void ReadConfiguration( char *psz_file )
         psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
         if ( psz_token == NULL )
             continue;
-        if( atoi( psz_token ) )
-          i_config |= OUTPUT_WATCH;
+        if( atoi( psz_token ) == 1 )
+            i_config |= OUTPUT_WATCH;
         else
-          i_config &= ~OUTPUT_WATCH;
+            i_config &= ~OUTPUT_WATCH;
 
         psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
         if ( psz_token == NULL )
