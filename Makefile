@@ -1,6 +1,9 @@
 # DVBlast Makefile
 # Customise the path of your kernel
 
+VERSION = 1.2.0
+TOPDIR = `basename ${PWD}`
+
 CFLAGS += -Wall -O3 -fomit-frame-pointer
 CFLAGS += -g
 CFLAGS += -I/usr/src/kernel/linux-2.6.29.1/include
@@ -34,3 +37,8 @@ install: all
 
 uninstall:
 	@rm $(BIN)/dvblast $(BIN)/dvblastctl $(BIN)/dvblast_mmi.sh $(MAN)/dvblast.1
+
+dist:
+	( cd ../ && \
+	  tar -cj --exclude-vcs --exclude $(TOPDIR)/*.tar.bz2 $(TOPDIR)/ > $(TOPDIR)/dvblast-$(VERSION).tar.bz2 )
+
