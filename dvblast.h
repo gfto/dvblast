@@ -158,6 +158,7 @@ void msleep( mtime_t delay );
 void hexDump( uint8_t *p_data, uint32_t i_len );
 
 void dvb_Open( void );
+void dvb_Reset( void );
 block_t * dvb_Read( void );
 int dvb_SetFilter( uint16_t i_pid );
 void dvb_UnsetFilter( int i_fd, uint16_t i_pid );

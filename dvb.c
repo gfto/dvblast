@@ -51,12 +51,14 @@
  * Local declarations
  *****************************************************************************/
 #define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
+#define DVR_READ_TIMEOUT 30000000 /* 30 s */
 #define MAX_READ_ONCE 50
 #define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
 
 static int i_frontend, i_dvr;
 static fe_status_t i_last_status;
 static mtime_t i_frontend_timeout;
+static mtime_t i_last_packet;
 static mtime_t i_ca_next_event = 0;
 static block_t *p_freelist = NULL;
 mtime_t i_ca_timeout = 0;
@@ -107,12 +109,22 @@ void dvb_Open( void )
 }
 
 /*****************************************************************************
+ * dvb_Reset
+ *****************************************************************************/
+void dvb_Reset( void )
+{
+    FrontendSet();
+}
+
+/*****************************************************************************
  * dvb_Read
  *****************************************************************************/
 block_t *dvb_Read( void )
 {
     struct pollfd ufds[3];
     int i_ret, i_nb_fd = 2;
+    mtime_t i_wallclock;
+    block_t *p_blocks = NULL;
 
     memset( ufds, 0, sizeof(ufds) );
     ufds[0].fd = i_dvr;
@@ -135,17 +147,31 @@ block_t *dvb_Read( void )
         return NULL;
     }
 
+    if ( ufds[0].revents )
+        p_blocks = DVRRead();
+
+    i_wallclock = mdate();
+    if ( p_blocks != NULL )
+        i_last_packet = i_wallclock;
+    else if ( !i_frontend_timeout
+               && i_wallclock > i_last_packet + DVR_READ_TIMEOUT )
+    {
+        msg_Warn( NULL, "no DVR output, tuning again" );
+        FrontendSet();
+    }
+
     if ( i_ca_handle && i_ca_type == CA_CI_LINK
-          && mdate() > i_ca_next_event )
+          && i_wallclock > i_ca_next_event )
     {
         en50221_Poll();
-        i_ca_next_event = mdate() + i_ca_timeout;
+        i_wallclock = mdate();
+        i_ca_next_event = i_wallclock + i_ca_timeout;
     }
 
     if ( ufds[1].revents )
         FrontendPoll();
 
-    if ( i_frontend_timeout && mdate() > i_frontend_timeout )
+    if ( i_frontend_timeout && i_wallclock > i_frontend_timeout )
     {
         msg_Warn( NULL, "no lock, tuning again" );
         FrontendSet();
@@ -154,10 +180,7 @@ block_t *dvb_Read( void )
     if ( i_comm_fd != -1 && ufds[2].revents )
         comm_Read();
 
-    if ( ufds[0].revents )
-        return DVRRead();
-
-    return NULL;
+    return p_blocks;
 }
 
 /*****************************************************************************
@@ -315,6 +338,7 @@ static void FrontendPoll( void )
                 int32_t i_value = 0;
                 msg_Dbg( NULL, "frontend has acquired lock" );
                 i_frontend_timeout = 0;
+                i_last_packet = mdate();
 
                 /* Read some statistics */
                 if( ioctl( i_frontend, FE_READ_BER, &i_value ) >= 0 )
@@ -561,16 +585,16 @@ static void FrontendInfo( struct dvb_frontend_info info )
 {
     msg_Dbg( NULL, "Frontend \"%s\" type \"%s\" supports:",
              info.name, GetFrontendTypeName(info.type) );
-    msg_Dbg( NULL, "\tfrequency min: %d, max: %d, stepsize: %d, tolerance: %d",
+    msg_Dbg( NULL, " frequency min: %d, max: %d, stepsize: %d, tolerance: %d",
              info.frequency_min, info.frequency_max,
              info.frequency_stepsize, info.frequency_tolerance );
-    msg_Dbg( NULL, "\tsymbolrate min: %d, max: %d, tolerance: %d",
+    msg_Dbg( NULL, " symbolrate min: %d, max: %d, tolerance: %d",
              info.symbol_rate_min, info.symbol_rate_max, info.symbol_rate_tolerance);
-    msg_Dbg( NULL, "\tcapabilities:" );
+    msg_Dbg( NULL, " capabilities:" );
 
 #define FRONTEND_INFO(caps,val,msg)                                             \
     if ( caps & val )                                                       \
-        msg_Dbg( NULL, "\t\t%s", msg );
+        msg_Dbg( NULL, "  %s", msg );
 
     FRONTEND_INFO( info.caps, FE_IS_STUPID, "FE_IS_STUPID" )
     FRONTEND_INFO( info.caps, FE_CAN_INVERSION_AUTO, "INVERSION_AUTO" )

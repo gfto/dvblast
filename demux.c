@@ -77,6 +77,8 @@ static dvbpsi_handle p_eit_dvbpsi_handle;
 static dvbpsi_pat_t *p_current_pat = NULL;
 static dvbpsi_sdt_t *p_current_sdt = NULL;
 static int i_demux_fd;
+static int i_nb_errors = 0;
+static mtime_t i_last_error = 0;
 
 /*****************************************************************************
  * Local prototypes
@@ -183,7 +185,21 @@ static void demux_Handle( block_t *p_ts )
     p_pids[i_pid].i_last_cc = i_cc;
 
     if ( block_HasTransportError( p_ts ) )
+    {
         msg_Warn( NULL, "transport_error_indicator" );
+        i_nb_errors++;
+        i_last_error = i_wallclock;
+    }
+    else if ( i_wallclock > i_last_error + WATCHDOG_WAIT )
+        i_nb_errors = 0;
+
+    if ( i_nb_errors > MAX_ERRORS )
+    {
+        i_nb_errors = 0;
+        msg_Warn( NULL,
+                 "too many transport errors, tuning again" );
+        dvb_Reset();
+    }
 
     if ( p_pids[i_pid].i_refcount )
     {
@@ -1301,9 +1317,21 @@ static void PMTCallback( void *_unused, dvbpsi_pmt_t *p_pmt )
     if ( p_current_pmt != NULL )
     {
         if ( p_current_pmt->i_pcr_pid != p_pmt->i_pcr_pid
-              && p_current_pmt->i_pcr_pid != PADDING_PID
-              && p_current_pmt->i_pcr_pid != pp_sids[i_pmt]->i_pmt_pid )
-            UnselectPID( p_pmt->i_program_number, p_current_pmt->i_pcr_pid );
+              && p_current_pmt->i_pcr_pid != PADDING_PID )
+        {
+            for( p_es = p_pmt->p_first_es; p_es != NULL;
+                 p_es = p_es->p_next )
+                if ( p_es->i_pid == p_current_pmt->i_pcr_pid )
+                    break;
+
+            if ( p_es == NULL )
+            {
+                msg_Dbg( NULL, "  * removed pcr pid=%d",
+                         p_current_pmt->i_pcr_pid );
+                UnselectPID( p_pmt->i_program_number,
+                             p_current_pmt->i_pcr_pid );
+            }
+        }
 
         for( p_current_es = p_current_pmt->p_first_es; p_current_es != NULL;
              p_current_es = p_current_es->p_next )
