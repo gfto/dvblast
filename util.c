@@ -32,6 +32,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include "dvblast.h"
 
@@ -46,6 +47,24 @@
 #define VERB_WARN 1
 
 /*****************************************************************************
+ * msg_Connect
+ *****************************************************************************/
+void msg_Connect( const char *ident )
+{
+    i_syslog = 1;
+    openlog( ident, LOG_NDELAY | LOG_PID, LOG_USER );
+}
+
+/*****************************************************************************
+ * msg_Disconnect
+ *****************************************************************************/
+void msg_Disconnect( void )
+{
+    i_syslog = 0;
+    closelog();
+}
+
+/*****************************************************************************
  * msg_Info
  *****************************************************************************/
 void msg_Info( void *_unused, const char *psz_format, ... )
@@ -57,7 +76,10 @@ void msg_Info( void *_unused, const char *psz_format, ... )
         va_start( args, psz_format );
 
         snprintf( psz_fmt, MAX_MSG, "info: %s\n", psz_format );
-        vfprintf( stderr, psz_fmt, args );
+        if ( i_syslog )
+            vsyslog( LOG_INFO, psz_fmt, args );
+        else
+            vfprintf( stderr, psz_fmt, args );
     }
 }
 
@@ -71,7 +93,10 @@ void msg_Err( void *_unused, const char *psz_format, ... )
     va_start( args, psz_format );
 
     snprintf( psz_fmt, MAX_MSG, "error: %s\n", psz_format );
-    vfprintf( stderr, psz_fmt, args );
+    if ( i_syslog )
+        vsyslog( LOG_ERR, psz_fmt, args );
+    else
+        vfprintf( stderr, psz_fmt, args );
 }
 
 /*****************************************************************************
@@ -86,7 +111,10 @@ void msg_Warn( void *_unused, const char *psz_format, ... )
         va_start( args, psz_format );
 
         snprintf( psz_fmt, MAX_MSG, "warning: %s\n", psz_format );
-        vfprintf( stderr, psz_fmt, args );
+        if ( i_syslog )
+            vsyslog( LOG_WARNING, psz_fmt, args );
+        else
+            vfprintf( stderr, psz_fmt, args );
     }
 }
 
@@ -102,7 +130,10 @@ void msg_Dbg( void *_unused, const char *psz_format, ... )
         va_start( args, psz_format );
 
         snprintf( psz_fmt, MAX_MSG, "debug: %s\n", psz_format );
-        vfprintf( stderr, psz_fmt, args );
+        if ( i_syslog )
+            vsyslog( LOG_DEBUG, psz_fmt, args );
+        else
+            vfprintf( stderr, psz_fmt, args );
     }
 }
 
@@ -116,7 +147,10 @@ void msg_Raw( void *_unused, const char *psz_format, ... )
     va_start( args, psz_format );
 
     snprintf( psz_fmt, MAX_MSG, "%s\n", psz_format );
-    vfprintf( stderr, psz_fmt, args );
+    if ( i_syslog )
+        vsyslog( LOG_NOTICE, psz_fmt, args );
+    else
+        vfprintf( stderr, psz_fmt, args );
 }
 
 /*****************************************************************************

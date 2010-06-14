@@ -41,6 +41,7 @@
 #include "version.h"
 
 int i_verbose = 3;
+int i_syslog = 0;
 
 void usage()
 {

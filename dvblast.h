@@ -100,6 +100,7 @@ typedef struct output_t
     uint8_t i_config;
 } output_t;
 
+extern int i_syslog;
 extern int i_verbose;
 extern output_t **pp_outputs;
 extern int i_nb_outputs;
@@ -139,11 +140,19 @@ extern void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid );
 /*****************************************************************************
  * Prototypes
  *****************************************************************************/
+
+/* Connect/Disconnect from syslogd */
+void msg_Connect( const char *ident );
+void msg_Disconnect( void );
+
+/* */
 void msg_Info( void *_unused, const char *psz_format, ... );
 void msg_Err( void *_unused, const char *psz_format, ... );
 void msg_Warn( void *_unused, const char *psz_format, ... );
 void msg_Dbg( void *_unused, const char *psz_format, ... );
 void msg_Raw( void *_unused, const char *psz_format, ... );
+
+/* */
 mtime_t mdate( void );
 void msleep( mtime_t delay );
 void hexDump( uint8_t *p_data, uint32_t i_len );

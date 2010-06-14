@@ -67,6 +67,7 @@ int b_enable_epg = 0;
 int b_unique_tsid = 0;
 volatile int b_hup_received = 0;
 int i_verbose = DEFAULT_VERBOSITY;
+int i_syslog = 0;
 uint16_t i_src_port = DEFAULT_PORT;
 in_addr_t i_src_addr = { 0 };
 int b_src_rawudp = 0;
@@ -351,6 +352,7 @@ void usage()
     msg_Raw( NULL, "  -h --help             display this full help" );
     msg_Raw( NULL, "  -i --priority <RT pritority>" );
     msg_Raw( NULL, "  -q                    be quiet (less verbosity, repeat or use number for even quieter)" );
+    msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
     msg_Raw( NULL, "  -V --version          only display the version" );
     exit(1);
@@ -361,6 +363,8 @@ int main( int i_argc, char **pp_argv )
     struct sched_param param;
     int i_error;
     int c;
+
+    int b_enable_syslog = 0;
 
     DisplayVersion();
 
@@ -393,12 +397,13 @@ int main( int i_argc, char **pp_argv )
         { "rtp-input",       required_argument, NULL, 'D' },
         { "asi-adapter",     required_argument, NULL, 'A' },
         { "epg-passthrough", no_argument,       NULL, 'e' },
+        { "logger",          no_argument,       NULL, 'l' },
         { "help",            no_argument,       NULL, 'h' },
         { "version",         no_argument,       NULL, 'V' },
         { 0, 0, 0, 0}
     }; 
 
-    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uWUTd:D:A:ehV", long_options, NULL)) != -1 )
+    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uWUTd:D:A:lehV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -660,6 +665,10 @@ int main( int i_argc, char **pp_argv )
             b_enable_epg = 1;
             break;
 
+        case 'l':
+            b_enable_syslog = 1;
+            break;
+
         case 'T':
             b_unique_tsid = 1;
             break;
@@ -675,6 +684,9 @@ int main( int i_argc, char **pp_argv )
     }
     if ( optind < i_argc || pf_Open == NULL )
         usage();
+
+    if ( b_enable_syslog )
+        msg_Connect( pp_argv[0] );
 
     msg_Warn( NULL, "restarting" );
 
@@ -717,4 +729,7 @@ int main( int i_argc, char **pp_argv )
 
         demux_Run();
     }
+
+    if ( b_enable_syslog )
+        msg_Disconnect();
 }
