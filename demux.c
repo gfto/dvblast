@@ -217,7 +217,13 @@ static void demux_Handle( block_t *p_ts )
         {
             dvbpsi_PushPacket( p_sdt_dvbpsi_handle, p_ts->p_ts );
             if ( block_UnitStart( p_ts ) )
-                SendSDT();
+            {   
+                uint8_t *p_payload = block_GetPayload( p_ts );
+
+                if ( p_payload && *(p_payload + *p_payload + 1) == 0x42 )
+                    SendSDT();
+            }
+
         }
         else if ( b_enable_epg && i_pid == TDT_PID )
         {
