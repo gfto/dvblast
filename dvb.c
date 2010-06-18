@@ -23,7 +23,9 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -51,14 +53,12 @@
  * Local declarations
  *****************************************************************************/
 #define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
-#define DVR_READ_TIMEOUT 30000000 /* 30 s */
 #define MAX_READ_ONCE 50
 #define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
 
 static int i_frontend, i_dvr;
 static fe_status_t i_last_status;
 static mtime_t i_frontend_timeout;
-static mtime_t i_last_packet;
 static mtime_t i_ca_next_event = 0;
 static block_t *p_freelist = NULL;
 mtime_t i_ca_timeout = 0;
@@ -68,7 +68,7 @@ mtime_t i_ca_timeout = 0;
  *****************************************************************************/
 static block_t *DVRRead( void );
 static void FrontendPoll( void );
-static void FrontendSet( void );
+static void FrontendSet( bool b_reset );
 
 /*****************************************************************************
  * dvb_Open
@@ -87,7 +87,7 @@ void dvb_Open( void )
         exit(1);
     }
 
-    FrontendSet();
+    FrontendSet(true);
 
     sprintf( psz_tmp, "/dev/dvb/adapter%d/dvr%d", i_adapter, i_fenum );
 
@@ -113,7 +113,7 @@ void dvb_Open( void )
  *****************************************************************************/
 void dvb_Reset( void )
 {
-    FrontendSet();
+    FrontendSet(true);
 }
 
 /*****************************************************************************
@@ -151,15 +151,6 @@ block_t *dvb_Read( void )
         p_blocks = DVRRead();
 
     i_wallclock = mdate();
-    if ( p_blocks != NULL )
-        i_last_packet = i_wallclock;
-    else if ( !i_frontend_timeout
-               && i_wallclock > i_last_packet + DVR_READ_TIMEOUT )
-    {
-        msg_Warn( NULL, "no DVR output, tuning again" );
-        FrontendSet();
-    }
-
     if ( i_ca_handle && i_ca_type == CA_CI_LINK
           && i_wallclock > i_ca_next_event )
     {
@@ -174,7 +165,9 @@ block_t *dvb_Read( void )
     if ( i_frontend_timeout && i_wallclock > i_frontend_timeout )
     {
         msg_Warn( NULL, "no lock, tuning again" );
-        FrontendSet();
+        /* Do not reset the frontend because the previous parameters were
+         * correct, and some transponders take a long time to lock. */
+        FrontendSet(false);
     }
 
     if ( i_comm_fd != -1 && ufds[2].revents )
@@ -338,7 +331,6 @@ static void FrontendPoll( void )
                 int32_t i_value = 0;
                 msg_Dbg( NULL, "frontend has acquired lock" );
                 i_frontend_timeout = 0;
-                i_last_packet = mdate();
 
                 /* Read some statistics */
                 if( ioctl( i_frontend, FE_READ_BER, &i_value ) >= 0 )
@@ -358,7 +350,7 @@ static void FrontendPoll( void )
             {
                 /* The frontend was reinited. */
                 msg_Warn( NULL, "reiniting frontend");
-                FrontendSet();
+                FrontendSet(true);
             }
         }
 #undef IF_UP
@@ -712,7 +704,7 @@ struct dtv_properties cmdclear = {
     .props = pclear
 };
 
-static void FrontendSet( void )
+static void FrontendSet( bool b_init )
 {
     struct dvb_frontend_info info;
     struct dtv_properties *p;
@@ -723,13 +715,16 @@ static void FrontendSet( void )
         exit(1);
     }
 
-    FrontendInfo( info );
-
-    /* Clear frontend commands */
-    if ( ioctl( i_frontend, FE_SET_PROPERTY, &cmdclear ) < 0 )
+    if ( b_init )
     {
-        msg_Err( NULL, "Unable to clear frontend" );
-        exit(1);
+        FrontendInfo( info );
+
+        /* Clear frontend commands */
+        if ( ioctl( i_frontend, FE_SET_PROPERTY, &cmdclear ) < 0 )
+        {
+            msg_Err( NULL, "Unable to clear frontend" );
+            exit(1);
+        }
     }
 
     switch ( info.type )
@@ -804,7 +799,7 @@ static void FrontendSet( void )
 
 #else /* !S2API */
 
-static void FrontendSet( void )
+static void FrontendSet( bool b_init )
 {
     struct dvb_frontend_info info;
     struct dvb_frontend_parameters fep;
