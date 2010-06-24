@@ -53,6 +53,7 @@
  * Local declarations
  *****************************************************************************/
 #define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
+#define CA_POLL_PERIOD 100000 /* 100 ms */
 #define MAX_READ_ONCE 50
 #define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
 
@@ -61,7 +62,6 @@ static fe_status_t i_last_status;
 static mtime_t i_frontend_timeout;
 static mtime_t i_ca_next_event = 0;
 static block_t *p_freelist = NULL;
-mtime_t i_ca_timeout = 0;
 
 /*****************************************************************************
  * Local prototypes
@@ -105,7 +105,7 @@ void dvb_Open( void )
     }
 
     en50221_Init();
-    i_ca_next_event = mdate() + i_ca_timeout;
+    i_ca_next_event = mdate() + CA_POLL_PERIOD;
 }
 
 /*****************************************************************************
@@ -121,7 +121,7 @@ void dvb_Reset( void )
  *****************************************************************************/
 block_t *dvb_Read( void )
 {
-    struct pollfd ufds[3];
+    struct pollfd ufds[4];
     int i_ret, i_nb_fd = 2;
     mtime_t i_wallclock;
     block_t *p_blocks = NULL;
@@ -133,9 +133,15 @@ block_t *dvb_Read( void )
     ufds[1].events = POLLERR | POLLPRI;
     if ( i_comm_fd != -1 )
     {
-        ufds[2].fd = i_comm_fd;
-        ufds[2].events = POLLIN;
-        i_nb_fd = 3;
+        ufds[i_nb_fd].fd = i_comm_fd;
+        ufds[i_nb_fd].events = POLLIN;
+        i_nb_fd++;
+    }
+    if ( i_ca_handle && i_ca_type == CA_CI_LINK )
+    {
+        ufds[i_nb_fd].fd = i_ca_handle;
+        ufds[i_nb_fd].events = POLLIN;
+        i_nb_fd++;
     }
 
     i_ret = poll( ufds, i_nb_fd, 100 );
@@ -151,12 +157,18 @@ block_t *dvb_Read( void )
         p_blocks = DVRRead();
 
     i_wallclock = mdate();
-    if ( i_ca_handle && i_ca_type == CA_CI_LINK
-          && i_wallclock > i_ca_next_event )
+    if ( i_ca_handle && i_ca_type == CA_CI_LINK )
     {
-        en50221_Poll();
-        i_wallclock = mdate();
-        i_ca_next_event = i_wallclock + i_ca_timeout;
+        if ( ufds[i_nb_fd - 1].revents )
+        {
+            en50221_Read();
+            i_ca_next_event = i_wallclock + CA_POLL_PERIOD;
+        }
+        else if ( i_wallclock > i_ca_next_event )
+        {
+            en50221_Poll();
+            i_ca_next_event = i_wallclock + CA_POLL_PERIOD;
+        }
     }
 
     if ( ufds[1].revents )
@@ -165,8 +177,6 @@ block_t *dvb_Read( void )
     if ( i_frontend_timeout && i_wallclock > i_frontend_timeout )
     {
         msg_Warn( NULL, "no lock, tuning again" );
-        /* Do not reset the frontend because the previous parameters were
-         * correct, and some transponders take a long time to lock. */
         FrontendSet(false);
     }
 
@@ -716,15 +726,13 @@ static void FrontendSet( bool b_init )
     }
 
     if ( b_init )
-    {
         FrontendInfo( info );
 
-        /* Clear frontend commands */
-        if ( ioctl( i_frontend, FE_SET_PROPERTY, &cmdclear ) < 0 )
-        {
-            msg_Err( NULL, "Unable to clear frontend" );
-            exit(1);
-        }
+    /* Clear frontend commands */
+    if ( ioctl( i_frontend, FE_SET_PROPERTY, &cmdclear ) < 0 )
+    {
+        msg_Err( NULL, "Unable to clear frontend" );
+        exit(1);
     }
 
     switch ( info.type )

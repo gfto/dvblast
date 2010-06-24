@@ -125,7 +125,6 @@ extern int b_output_udp;
 extern int b_enable_epg;
 extern int b_unique_tsid;
 extern volatile int b_hup_received;
-extern mtime_t i_ca_timeout;
 extern int i_comm_fd;
 extern uint16_t i_src_port;
 extern in_addr_t i_src_addr;

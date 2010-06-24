@@ -79,6 +79,7 @@ extern int i_ca_type;
  *****************************************************************************/
 void en50221_Init( void );
 void en50221_Reset( void );
+void en50221_Read( void );
 void en50221_Poll( void );
 void en50221_AddPMT( dvbpsi_pmt_t *p_pmt );
 void en50221_UpdatePMT( dvbpsi_pmt_t *p_pmt );

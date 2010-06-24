@@ -66,9 +66,17 @@
  * Local declarations
  *****************************************************************************/
 #undef DEBUG_TPDU
+#define CAM_INIT_TIMEOUT 15000000 /* 15 s */
 #define HLCI_WAIT_CAM_READY 0
 #define CAM_PROG_MAX MAX_PROGRAMS
 #define CAPMT_WAIT 100 /* ms */
+
+typedef struct en50221_msg_t
+{
+    uint8_t *p_data;
+    int i_size;
+    struct en50221_msg_t *p_next;
+} en50221_msg_t;
 
 typedef struct en50221_session_t
 {
@@ -80,18 +88,44 @@ typedef struct en50221_session_t
     void *p_sys;
 } en50221_session_t;
 
+typedef struct ci_slot_t
+{
+    bool b_active;
+    bool b_expect_answer;
+    bool b_has_data;
+    bool b_mmi_expected;
+    bool b_mmi_undisplayed;
+
+    /* TPDU reception */
+    en50221_msg_t *p_recv;
+
+    /* TPDU emission */
+    en50221_msg_t *p_send;
+    en50221_msg_t **pp_send_last;
+    uint8_t *p;
+
+    /* InitSlot callback, if not 0 */
+    mtime_t i_init_timeout;
+
+    /* SPDUSend callback, if p_spdu is not NULL */
+    /* SessionOpen callback, if not 0 */
+    int i_pending_session_id;
+} ci_slot_t;
+
 int i_ca_handle = 0;
 int i_ca_type = -1;
+
 static int i_nb_slots = 0;
-static bool pb_active_slot[MAX_CI_SLOTS];
-static bool pb_tc_has_data[MAX_CI_SLOTS];
-static bool pb_slot_mmi_expected[MAX_CI_SLOTS];
-static bool pb_slot_mmi_undisplayed[MAX_CI_SLOTS];
+static ci_slot_t p_slots[MAX_CI_SLOTS];
 static en50221_session_t p_sessions[MAX_SESSIONS];
 
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
+static void SessionOpenCb( access_t *p_access, uint8_t i_slot );
+static void SPDUHandle( access_t * p_access, uint8_t i_slot,
+                        uint8_t *p_spdu, int i_size );
+
 static void ResourceManagerOpen( access_t * p_access, int i_session_id );
 static void ApplicationInformationOpen( access_t * p_access, int i_session_id );
 static void ConditionalAccessOpen( access_t * p_access, int i_session_id );
@@ -193,13 +227,54 @@ static void Dump( bool b_outgoing, uint8_t *p_data, int i_size )
 }
 
 /*****************************************************************************
+ * TPDUWrite
+ *****************************************************************************/
+static int TPDUWrite( access_t * p_access, uint8_t i_slot )
+{
+    ci_slot_t *p_slot = &p_slots[i_slot];
+    en50221_msg_t *p_send = p_slot->p_send;
+
+    if ( p_slot->b_expect_answer )
+        msg_Warn( p_access,
+                  "en50221: writing while expecting an answer on slot %u",
+                  i_slot );
+    if ( p_send == NULL )
+    {
+        msg_Warn( p_access, "en50221: no data to write on slot %u !", i_slot );
+        return -1;
+    }
+    p_slot->p_send = p_send->p_next;
+    if ( p_slot->p_send == NULL )
+        p_slot->pp_send_last = &p_slot->p_send;
+
+    Dump( true, p_send->p_data, p_send->i_size );
+
+    if ( write( i_ca_handle, p_send->p_data, p_send->i_size )
+          != p_send->i_size )
+    {
+        msg_Err( p_access, "en50221: cannot write to CAM device (%m)" );
+        free( p_send->p_data );
+        free( p_send );
+        return -1;
+    }
+
+    free( p_send->p_data );
+    free( p_send );
+    p_slot->b_expect_answer = true;
+
+    return 0;
+}
+
+/*****************************************************************************
  * TPDUSend
  *****************************************************************************/
 static int TPDUSend( access_t * p_access, uint8_t i_slot, uint8_t i_tag,
                      const uint8_t *p_content, int i_length )
 {
+    ci_slot_t *p_slot = &p_slots[i_slot];
     uint8_t i_tcid = i_slot + 1;
-    uint8_t p_data[MAX_TPDU_SIZE];
+    en50221_msg_t *p_send = malloc( sizeof(en50221_msg_t) );
+    uint8_t *p_data = malloc( MAX_TPDU_SIZE );
     int i_size;
 
     i_size = 0;
@@ -245,13 +320,16 @@ static int TPDUSend( access_t * p_access, uint8_t i_slot, uint8_t i_tag,
     default:
         break;
     }
-    Dump( true, p_data, i_size );
 
-    if ( write( i_ca_handle, p_data, i_size ) != i_size )
-    {
-        msg_Err( p_access, "cannot write to CAM device (%m)" );
-        return -1;
-    }
+    p_send->p_data = p_data;
+    p_send->i_size = i_size;
+    p_send->p_next = NULL;
+
+    *p_slot->pp_send_last = p_send;
+    p_slot->pp_send_last = &p_send->p_next;
+
+    if ( !p_slot->b_expect_answer )
+        return TPDUWrite( p_access, i_slot );
 
     return 0;
 }
@@ -260,66 +338,103 @@ static int TPDUSend( access_t * p_access, uint8_t i_slot, uint8_t i_tag,
 /*****************************************************************************
  * TPDURecv
  *****************************************************************************/
-#define CAM_READ_TIMEOUT  3500 // ms
-
-static int TPDURecv( access_t * p_access, uint8_t i_slot, uint8_t *pi_tag,
-                     uint8_t *p_data, int *pi_size )
+static int TPDURecv( access_t * p_access )
 {
-    uint8_t i_tcid = i_slot + 1;
+    ci_slot_t *p_slot;
+    uint8_t i_tag, i_slot;
+    uint8_t p_data[MAX_TPDU_SIZE];
     int i_size;
-    struct pollfd pfd[1];
+    bool b_last = false;
 
-    pfd[0].fd = i_ca_handle;
-    pfd[0].events = POLLIN;
-    if ( !(poll(pfd, 1, CAM_READ_TIMEOUT) > 0 && (pfd[0].revents & POLLIN)) )
-    {
-        msg_Err( p_access, "cannot poll from CAM device" );
-        return -1;
-    }
-
-    if ( pi_size == NULL )
-    {
-        p_data = malloc( MAX_TPDU_SIZE );
-    }
-
-    for ( ; ; )
+    do
     {
         i_size = read( i_ca_handle, p_data, MAX_TPDU_SIZE );
-
-        if ( i_size >= 0 || errno != EINTR )
-            break;
     }
+    while ( i_size < 0 && errno == EINTR );
 
     if ( i_size < 5 )
     {
-        msg_Err( p_access, "cannot read from CAM device (%d:%m)", i_size );
-        if( pi_size == NULL )
-            free( p_data );
+        msg_Err( p_access, "en50221: cannot read from CAM device (%d:%m)",
+                 i_size );
         return -1;
     }
-
-    if ( p_data[1] != i_tcid )
-    {
-        msg_Err( p_access, "invalid read from CAM device (%d instead of %d)",
-                 p_data[1], i_tcid );
-        if( pi_size == NULL )
-            free( p_data );
-        return -1;
-    }
-
-    *pi_tag = p_data[2];
-    pb_tc_has_data[i_slot] = (i_size >= 4
-                                      && p_data[i_size - 4] == T_SB
-                                      && p_data[i_size - 3] == 2
-                                      && (p_data[i_size - 1] & DATA_INDICATOR))
-                                        ?  true : false;
 
     Dump( false, p_data, i_size );
 
-    if ( pi_size == NULL )
-        free( p_data );
-    else
-        *pi_size = i_size;
+    i_slot = p_data[1] - 1;
+    i_tag = p_data[2];
+
+    if ( i_slot >= i_nb_slots )
+    {
+        msg_Warn( p_access, "en50221: TPDU is from an unknown slot %u",
+                  i_slot );
+        return -1;
+    }
+    p_slot = &p_slots[i_slot];
+
+    p_slot->b_has_data = !!(p_data[i_size - 4] == T_SB
+                             && p_data[i_size - 3] == 2
+                             && (p_data[i_size - 1] & DATA_INDICATOR));
+    p_slot->b_expect_answer = false;
+
+    switch ( i_tag )
+    {
+    case T_CTC_REPLY:
+        p_slot->b_active = true;
+        p_slot->i_init_timeout = 0;
+        msg_Dbg( p_access, "CI slot %d is active", i_slot );
+        break;
+
+    case T_SB:
+        break;
+
+    case T_DATA_LAST:
+        b_last = true;
+        /* intended pass-through */
+    case T_DATA_MORE:
+    {
+        en50221_msg_t *p_recv;
+        int i_session_size;
+        uint8_t *p_session = GetLength( &p_data[3], &i_session_size );
+
+        if ( i_session_size <= 1 )
+            break;
+        p_session++;
+        i_session_size--;
+
+        if ( p_slot->p_recv == NULL )
+        {
+            p_slot->p_recv = malloc( sizeof(en50221_msg_t) );
+            p_slot->p_recv->p_data = NULL;
+            p_slot->p_recv->i_size = 0;
+        }
+
+        p_recv = p_slot->p_recv;
+        p_recv->p_data = realloc( p_recv->p_data,
+                                  p_recv->i_size + i_session_size );
+        memcpy( &p_recv->p_data[ p_recv->i_size ], p_session, i_session_size );
+        p_recv->i_size += i_session_size;
+
+        if ( b_last )
+        {
+            SPDUHandle( p_access, i_slot, p_recv->p_data, p_recv->i_size );
+            free( p_recv->p_data );
+            free( p_recv );
+            p_slot->p_recv = NULL;
+        }
+        break;
+    }
+
+    default:
+        msg_Warn( p_access, "en50221: unhandled R_TPDU tag %u slot %u", i_tag,
+                  i_slot );
+        break;
+    }
+
+    if ( !p_slot->b_expect_answer && p_slot->i_pending_session_id != 0 )
+        SessionOpenCb( p_access, i_slot );
+    if ( !p_slot->b_expect_answer && p_slot->b_has_data )
+        TPDUSend( p_access, i_slot, T_RCV, NULL, 0 );
 
     return 0;
 }
@@ -356,12 +471,11 @@ static int ResourceIdToInt( uint8_t *p_data )
 /*****************************************************************************
  * SPDUSend
  *****************************************************************************/
-static int SPDUSend( access_t * p_access, int i_session_id,
-                     uint8_t *p_data, int i_size )
+static int SPDUSend( access_t *p_access, int i_session_id,
+                      uint8_t *p_data, int i_size )
 {
     uint8_t *p_spdu = malloc( i_size + 4 );
     uint8_t *p = p_spdu;
-    uint8_t i_tag;
     uint8_t i_slot = p_sessions[i_session_id - 1].i_slot;
 
     *p++ = ST_SESSION_NUMBER;
@@ -401,15 +515,6 @@ static int SPDUSend( access_t * p_access, int i_session_id,
             }
             i_size = 0;
         }
-
-        if ( TPDURecv( p_access, i_slot, &i_tag, NULL, NULL ) != 0
-               || i_tag != T_SB )
-        {
-            msg_Err( p_access, "couldn't recv TPDU on session %d",
-                     i_session_id );
-            free( p_spdu );
-            return -1;
-        }
     }
 
     free( p_spdu );
@@ -419,14 +524,42 @@ static int SPDUSend( access_t * p_access, int i_session_id,
 /*****************************************************************************
  * SessionOpen
  *****************************************************************************/
+static void SessionOpenCb( access_t *p_access, uint8_t i_slot )
+{
+    ci_slot_t *p_slot = &p_slots[i_slot];
+    int i_session_id = p_slot->i_pending_session_id;
+    int i_resource_id = p_sessions[i_session_id - 1].i_resource_id;
+
+    p_slot->i_pending_session_id = 0;
+
+    switch ( i_resource_id )
+    {
+    case RI_RESOURCE_MANAGER:
+        ResourceManagerOpen( p_access, i_session_id ); break;
+    case RI_APPLICATION_INFORMATION:
+        ApplicationInformationOpen( p_access, i_session_id ); break;
+    case RI_CONDITIONAL_ACCESS_SUPPORT:
+        ConditionalAccessOpen( p_access, i_session_id ); break;
+    case RI_DATE_TIME:
+        DateTimeOpen( p_access, i_session_id ); break;
+    case RI_MMI:
+        MMIOpen( p_access, i_session_id ); break;
+
+    case RI_HOST_CONTROL:
+    default:
+        msg_Err( p_access, "unknown resource id (0x%x)", i_resource_id );
+        p_sessions[i_session_id - 1].i_resource_id = 0;
+    }
+}
+
 static void SessionOpen( access_t * p_access, uint8_t i_slot,
                          uint8_t *p_spdu, int i_size )
 {
+    ci_slot_t *p_slot = &p_slots[i_slot];
     int i_session_id;
     int i_resource_id = ResourceIdToInt( &p_spdu[2] );
     uint8_t p_response[16];
     int i_status = SS_NOT_ALLOCATED;
-    uint8_t i_tag;
 
     for ( i_session_id = 1; i_session_id <= MAX_SESSIONS; i_session_id++ )
     {
@@ -462,38 +595,17 @@ static void SessionOpen( access_t * p_access, uint8_t i_slot,
     p_response[7] = i_session_id >> 8;
     p_response[8] = i_session_id & 0xff;
 
-    if ( TPDUSend( p_access, i_slot, T_DATA_LAST, p_response, 9 ) !=
-            0 )
+    if ( TPDUSend( p_access, i_slot, T_DATA_LAST, p_response, 9 ) != 0 )
     {
         msg_Err( p_access,
                  "SessionOpen: couldn't send TPDU on slot %d", i_slot );
         return;
     }
-    if ( TPDURecv( p_access, i_slot, &i_tag, NULL, NULL ) != 0 )
-    {
-        msg_Err( p_access,
-                 "SessionOpen: couldn't recv TPDU on slot %d", i_slot );
-        return;
-    }
 
-    switch ( i_resource_id )
-    {
-    case RI_RESOURCE_MANAGER:
-        ResourceManagerOpen( p_access, i_session_id ); break;
-    case RI_APPLICATION_INFORMATION:
-        ApplicationInformationOpen( p_access, i_session_id ); break;
-    case RI_CONDITIONAL_ACCESS_SUPPORT:
-        ConditionalAccessOpen( p_access, i_session_id ); break;
-    case RI_DATE_TIME:
-        DateTimeOpen( p_access, i_session_id ); break;
-    case RI_MMI:
-        MMIOpen( p_access, i_session_id ); break;
-
-    case RI_HOST_CONTROL:
-    default:
-        msg_Err( p_access, "unknown resource id (0x%x)", i_resource_id );
-        p_sessions[i_session_id - 1].i_resource_id = 0;
-    }
+    if ( p_slot->i_pending_session_id != 0 )
+        msg_Warn( p_access, "overwriting pending session %d",
+                  p_slot->i_pending_session_id );
+    p_slot->i_pending_session_id = i_session_id;
 }
 
 #if 0
@@ -537,12 +649,6 @@ static void SessionCreate( access_t * p_access, int i_slot, int i_resource_id )
     {
         msg_Err( p_access,
                  "SessionCreate: couldn't send TPDU on slot %d", i_slot );
-        return;
-    }
-    if ( TPDURecv( p_access, i_slot, &i_tag, NULL, NULL ) != 0 )
-    {
-        msg_Err( p_access,
-                 "SessionCreate: couldn't recv TPDU on slot %d", i_slot );
         return;
     }
 }
@@ -593,7 +699,6 @@ static void SessionCreateResponse( access_t * p_access, uint8_t i_slot,
 static void SessionSendClose( access_t * p_access, int i_session_id )
 {
     uint8_t p_response[16];
-    uint8_t i_tag;
     uint8_t i_slot = p_sessions[i_session_id - 1].i_slot;
 
     p_response[0] = ST_CLOSE_SESSION_REQUEST;
@@ -608,12 +713,6 @@ static void SessionSendClose( access_t * p_access, int i_session_id )
                  "SessionSendClose: couldn't send TPDU on slot %d", i_slot );
         return;
     }
-    if ( TPDURecv( p_access, i_slot, &i_tag, NULL, NULL ) != 0 )
-    {
-        msg_Err( p_access,
-                 "SessionSendClose: couldn't recv TPDU on slot %d", i_slot );
-        return;
-    }
 }
 
 /*****************************************************************************
@@ -622,7 +721,6 @@ static void SessionSendClose( access_t * p_access, int i_session_id )
 static void SessionClose( access_t * p_access, int i_session_id )
 {
     uint8_t p_response[16];
-    uint8_t i_tag;
     uint8_t i_slot = p_sessions[i_session_id - 1].i_slot;
 
     if ( p_sessions[i_session_id - 1].pf_close != NULL )
@@ -640,12 +738,6 @@ static void SessionClose( access_t * p_access, int i_session_id )
     {
         msg_Err( p_access,
                  "SessionClose: couldn't send TPDU on slot %d", i_slot );
-        return;
-    }
-    if ( TPDURecv( p_access, i_slot, &i_tag, NULL, NULL ) != 0 )
-    {
-        msg_Err( p_access,
-                 "SessionClose: couldn't recv TPDU on slot %d", i_slot );
         return;
     }
 }
@@ -793,7 +885,7 @@ static uint8_t *APDUGetLength( uint8_t *p_apdu, int *pi_size )
  * APDUSend
  *****************************************************************************/
 static int APDUSend( access_t * p_access, int i_session_id, int i_tag,
-                     uint8_t *p_data, int i_size )
+                      uint8_t *p_data, int i_size )
 {
     uint8_t *p_apdu = malloc( i_size + 12 );
     uint8_t *p = p_apdu;
@@ -897,7 +989,7 @@ static void ApplicationInformationEnterMenu( access_t * p_access,
 
     msg_Dbg( p_access, "entering MMI menus on session %d", i_session_id );
     APDUSend( p_access, i_session_id, AOT_ENTER_MENU, NULL, 0 );
-    pb_slot_mmi_expected[i_slot] = true;
+    p_slots[i_slot].b_mmi_expected = true;
 }
 
 /*****************************************************************************
@@ -1219,8 +1311,11 @@ static void CAPMTAdd( access_t * p_access, int i_session_id,
         return;
     }
 
+#if 0
+    /* FIXME: how do we implement it with async IO ? */
     if( b_slow_cam )
         msleep( CAPMT_WAIT * 1000 );
+#endif
 
     msg_Dbg( p_access, "adding CAPMT for SID %d on session %d",
              p_pmt->i_program_number, i_session_id );
@@ -1587,7 +1682,7 @@ static void MMISendObject( access_t *p_access, int i_session_id,
     APDUSend( p_access, i_session_id, i_tag, p_data, i_size );
     free( p_data );
 
-    pb_slot_mmi_expected[i_slot] = true;
+    p_slots[i_slot].b_mmi_expected = true;
 }
 
 /*****************************************************************************
@@ -1599,7 +1694,7 @@ static void MMISendClose( access_t *p_access, int i_session_id )
 
     APDUSend( p_access, i_session_id, AOT_CLOSE_MMI, NULL, 0 );
 
-    pb_slot_mmi_expected[i_slot] = true;
+    p_slots[i_slot].b_mmi_expected = true;
 }
 
 /*****************************************************************************
@@ -1667,8 +1762,9 @@ static void MMIHandleEnq( access_t *p_access, int i_session_id,
 
     msg_Dbg( p_access, "MMI enq: %s%s", p_mmi->last_object.u.enq.psz_text,
              p_mmi->last_object.u.enq.b_blind == true ? " (blind)" : "" );
-    pb_slot_mmi_expected[i_slot] = false;
-    pb_slot_mmi_undisplayed[i_slot] = true;
+
+    p_slots[i_slot].b_mmi_expected = false;
+    p_slots[i_slot].b_mmi_undisplayed = true;
 }
 
 /*****************************************************************************
@@ -1715,8 +1811,9 @@ static void MMIHandleMenu( access_t *p_access, int i_session_id, int i_tag,
             msg_Dbg( p_access, "MMI choice: %s", psz_text );
         }
     }
-    pb_slot_mmi_expected[i_slot] = false;
-    pb_slot_mmi_undisplayed[i_slot] = true;
+
+    p_slots[i_slot].b_mmi_expected = false;
+    p_slots[i_slot].b_mmi_undisplayed = true;
 }
 
 /*****************************************************************************
@@ -1784,8 +1881,9 @@ static void MMIClose( access_t *p_access, int i_session_id )
     free( p_sessions[i_session_id - 1].p_sys );
 
     msg_Dbg( p_access, "closing MMI session (%d)", i_session_id );
-    pb_slot_mmi_expected[i_slot] = false;
-    pb_slot_mmi_undisplayed[i_slot] = true;
+
+    p_slots[i_slot].b_mmi_expected = false;
+    p_slots[i_slot].b_mmi_undisplayed = true;
 }
 
 /*****************************************************************************
@@ -1812,39 +1910,13 @@ static void MMIOpen( access_t *p_access, int i_session_id )
 /*****************************************************************************
  * InitSlot: Open the transport layer
  *****************************************************************************/
-#define MAX_TC_RETRIES 5
-
-static int InitSlot( access_t * p_access, int i_slot )
+static void InitSlot( access_t * p_access, int i_slot )
 {
-    int i;
-
-    if ( TPDUSend( p_access, i_slot, T_CREATE_TC, NULL, 0 )
-            != 0 )
-    {
+    if ( TPDUSend( p_access, i_slot, T_CREATE_TC, NULL, 0 ) != 0 )
         msg_Err( p_access, "en50221_Init: couldn't send TPDU on slot %d",
                  i_slot );
-        return -1;
-    }
 
-    /* Wait for T_CTC_REPLY */
-    for ( i = 0; i < MAX_TC_RETRIES; i++ )
-    {
-        uint8_t i_tag;
-        if ( TPDURecv( p_access, i_slot, &i_tag, NULL, NULL ) == 0
-              && i_tag == T_CTC_REPLY )
-        {
-            pb_active_slot[i_slot] = true;
-            break;
-        }
-    }
-
-    if ( pb_active_slot[i_slot] )
-    {
-        i_ca_timeout = 100000;
-        return 0;
-    }
-
-    return -1;
+    p_slots[i_slot].i_init_timeout = mdate() + CAM_INIT_TIMEOUT;
 }
 
 /*****************************************************************************
@@ -1852,12 +1924,29 @@ static int InitSlot( access_t * p_access, int i_slot )
  *****************************************************************************/
 static void ResetSlot( int i_slot )
 {
+    ci_slot_t *p_slot = &p_slots[i_slot];
     int i_session_id;
 
     if ( ioctl( i_ca_handle, CA_RESET, 1 << i_slot ) != 0 )
         msg_Err( NULL, "en50221_Poll: couldn't reset slot %d", i_slot );
-    pb_active_slot[i_slot] = false;
-    pb_tc_has_data[i_slot] = false;
+    p_slot->b_active = false;
+    p_slot->b_expect_answer = false;
+    p_slot->b_mmi_expected = false;
+    p_slot->b_mmi_undisplayed = false;
+    if ( p_slot->p_recv != NULL )
+    {
+        free( p_slot->p_recv->p_data );
+        free( p_slot->p_recv );
+    }
+    p_slot->p_recv = NULL;
+    while ( p_slot->p_send != NULL )
+    {
+        en50221_msg_t *p_next = p_slot->p_send->p_next;
+        free( p_slot->p_send->p_data );
+        free( p_slot->p_send );
+        p_slot->p_send = p_next;
+    }
+    p_slot->pp_send_last = &p_slot->p_send;
 
     /* Close all sessions for this slot. */
     for ( i_session_id = 1; i_session_id <= MAX_SESSIONS; i_session_id++ )
@@ -1872,8 +1961,6 @@ static void ResetSlot( int i_slot )
             p_sessions[i_session_id - 1].i_resource_id = 0;
         }
     }
-
-    i_ca_timeout = 100000;
 }
 
 
@@ -1963,10 +2050,7 @@ void en50221_Init( void )
  *****************************************************************************/
 void en50221_Reset( void )
 {
-    memset( pb_active_slot, 0, sizeof(bool) * MAX_CI_SLOTS );
-    memset( pb_tc_has_data, 0, sizeof(bool) * MAX_CI_SLOTS );
-    memset( pb_slot_mmi_expected, 0, sizeof(bool) * MAX_CI_SLOTS );
-    memset( pb_slot_mmi_undisplayed, 0, sizeof(bool) * MAX_CI_SLOTS );
+    memset( p_slots, 0, sizeof(ci_slot_t) * MAX_CI_SLOTS );
 
     if( i_ca_type & CA_CI_LINK )
     {
@@ -2058,16 +2142,25 @@ void en50221_Reset( void )
 }
 
 /*****************************************************************************
- * en50221_Poll : Poll the CAM for TPDUs
+ * en50221_Read : Read the CAM for a TPDU
+ *****************************************************************************/
+void en50221_Read( void )
+{
+    TPDURecv( NULL );
+}
+
+/*****************************************************************************
+ * en50221_Poll : Send a poll TPDU to the CAM
  *****************************************************************************/
 void en50221_Poll( void )
 {
     int i_slot;
     int i_session_id;
 
+    /* Check module status */
     for ( i_slot = 0; i_slot < i_nb_slots; i_slot++ )
     {
-        uint8_t i_tag;
+        ci_slot_t *p_slot = &p_slots[i_slot];
         ca_slot_info_t sinfo;
 
         sinfo.num = i_slot;
@@ -2080,51 +2173,43 @@ void en50221_Poll( void )
 
         if ( !(sinfo.flags & CA_CI_MODULE_READY) )
         {
-            if ( pb_active_slot[i_slot] )
+            if ( p_slot->b_active )
             {
                 msg_Dbg( NULL, "en50221_Poll: slot %d has been removed",
                          i_slot );
-                pb_active_slot[i_slot] = false;
-                pb_slot_mmi_expected[i_slot] = false;
-                pb_slot_mmi_undisplayed[i_slot] = false;
-
-                /* Close all sessions for this slot. */
-                for ( i_session_id = 1; i_session_id <= MAX_SESSIONS;
-                      i_session_id++ )
-                {
-                    if ( p_sessions[i_session_id - 1].i_resource_id
-                          && p_sessions[i_session_id - 1].i_slot
-                               == i_slot )
-                    {
-                        if ( p_sessions[i_session_id - 1].pf_close
-                              != NULL )
-                        {
-                            p_sessions[i_session_id - 1].pf_close(
-                                                NULL, i_session_id );
-                        }
-                        p_sessions[i_session_id - 1].i_resource_id = 0;
-                    }
-                }
+                ResetSlot( i_slot );
             }
 
             continue;
         }
-        else if ( !pb_active_slot[i_slot] )
+        else if ( !p_slot->b_active )
         {
-            InitSlot( NULL, i_slot );
-
-            if ( !pb_active_slot[i_slot] )
+            if ( !p_slot->i_init_timeout )
+                InitSlot( NULL, i_slot );
+            else if ( p_slot->i_init_timeout < mdate() )
             {
                 msg_Dbg( NULL, "en50221_Poll: resetting slot %d", i_slot );
                 ResetSlot( i_slot );
                 continue;
             }
-
-            msg_Dbg( NULL, "en50221_Poll: slot %d is active",
-                     i_slot );
         }
+    }
 
-        if ( !pb_tc_has_data[i_slot] )
+    /* Check if applications have data to send */
+    for ( i_session_id = 1; i_session_id <= MAX_SESSIONS; i_session_id++ )
+    {
+        en50221_session_t *p_session = &p_sessions[i_session_id - 1];
+        if ( p_session->i_resource_id && p_session->pf_manage != NULL
+              && !p_slots[ p_session->i_slot ].b_expect_answer )
+            p_session->pf_manage( NULL, i_session_id );
+    }
+
+    /* Now send the poll command to inactive slots */
+    for ( i_slot = 0; i_slot < i_nb_slots; i_slot++ )
+    {
+        ci_slot_t *p_slot = &p_slots[i_slot];
+
+        if ( p_slot->b_active && !p_slot->b_expect_answer )
         {
             if ( TPDUSend( NULL, i_slot, T_DATA_LAST, NULL, 0 ) != 0 )
             {
@@ -2132,72 +2217,7 @@ void en50221_Poll( void )
                          "en50221_Poll: couldn't send TPDU on slot %d, resetting",
                          i_slot );
                 ResetSlot( i_slot );
-                continue;
             }
-            if ( TPDURecv( NULL, i_slot, &i_tag, NULL, NULL ) != 0 )
-            {
-                msg_Err( NULL,
-                         "en50221_Poll: couldn't recv TPDU on slot %d, resetting",
-                         i_slot );
-                ResetSlot( i_slot );
-                continue;
-            }
-        }
-
-        while ( pb_tc_has_data[i_slot] )
-        {
-            uint8_t p_tpdu[MAX_TPDU_SIZE];
-            int i_size, i_session_size;
-            uint8_t *p_session;
-
-            if ( TPDUSend( NULL, i_slot, T_RCV, NULL, 0 ) != 0 )
-            {
-                msg_Err( NULL,
-                         "en50221_Poll: couldn't send TPDU on slot %d, resetting",
-                         i_slot );
-                ResetSlot( i_slot );
-                continue;
-            }
-            if ( TPDURecv( NULL, i_slot, &i_tag, p_tpdu, &i_size ) != 0 )
-            {
-                msg_Err( NULL,
-                         "en50221_Poll: couldn't recv TPDU on slot %d, resetting",
-                         i_slot );
-                ResetSlot( i_slot );
-                continue;
-            }
-
-            p_session = GetLength( &p_tpdu[3], &i_session_size );
-            if ( i_session_size <= 1 )
-                continue;
-
-            p_session++;
-            i_session_size--;
-
-            if ( i_tag != T_DATA_LAST )
-            {
-                /* I sometimes see a CAM responding T_SB to our T_RCV.
-                 * It said it had data to send, but does not send it after
-                 * our T_RCV. There is probably something wrong here. I
-                 * experienced that this case happens on start-up, and the
-                 * CAM doesn't open any session at all, so it is quite
-                 * useless. Reset it. */
-                msg_Err( NULL,
-                         "en50221_Poll: invalid TPDU 0x%x, resetting", i_tag );
-                ResetSlot( i_slot );
-                break;
-            }
-
-            SPDUHandle( NULL, i_slot, p_session, i_session_size );
-        }
-    }
-
-    for ( i_session_id = 1; i_session_id <= MAX_SESSIONS; i_session_id++ )
-    {
-        if ( p_sessions[i_session_id - 1].i_resource_id
-              && p_sessions[i_session_id - 1].pf_manage )
-        {
-            p_sessions[i_session_id - 1].pf_manage( NULL, i_session_id );
         }
     }
 }
@@ -2373,7 +2393,7 @@ uint8_t en50221_GetMMIObject( uint8_t *p_buffer, ssize_t i_size,
     if ( i_size != 1 ) return RET_HUH;
     i_slot = *p_buffer;
 
-    if ( pb_slot_mmi_expected[i_slot] == true )
+    if ( p_slots[i_slot].b_mmi_expected )
         return RET_MMI_WAIT; /* data not yet available */
 
     p_ret->object.i_object_type = EN50221_MMI_NONE;
