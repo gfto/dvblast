@@ -431,6 +431,8 @@ static int TPDURecv( access_t * p_access )
         break;
     }
 
+    if ( !p_slot->b_expect_answer && p_slot->p_send != NULL )
+        TPDUWrite( p_access, i_slot );
     if ( !p_slot->b_expect_answer && p_slot->i_pending_session_id != 0 )
         SessionOpenCb( p_access, i_slot );
     if ( !p_slot->b_expect_answer && p_slot->b_has_data )
