@@ -96,52 +96,76 @@ void udp_Open( void )
 /*****************************************************************************
  * udp_Read
  *****************************************************************************/
-block_t *udp_Read( void )
+block_t *udp_Read( mtime_t i_poll_timeout )
 {
-    int i = 0, i_len;
-    struct iovec p_iov[NB_BLOCKS + !b_src_rawudp];
-    block_t *p_ts, **pp_current = &p_ts;
-    uint8_t p_rtp_hdr[RTP_SIZE];
+    struct pollfd pfd;
+    int i_ret;
 
-    if ( !b_src_rawudp )
+    pfd.fd = i_handle;
+    pfd.events = POLLIN;
+
+    i_ret = poll( &pfd, 1, (i_poll_timeout + 999) / 1000 );
+
+    i_wallclock = mdate();
+
+    if ( i_ret < 0 )
     {
-        /* FIXME : this is wrong if RTP header > 12 bytes */
-        p_iov[i].iov_base = p_rtp_hdr;
-        p_iov[i].iov_len = RTP_SIZE;
-        i++;
+        if( errno != EINTR )
+            msg_Err( NULL, "couldn't poll from socket (%s)",
+                     strerror(errno) );
+        return NULL;
     }
 
-    for ( ; i < NB_BLOCKS + !b_src_rawudp; i++ )
+    if ( pfd.revents )
     {
-        *pp_current = block_New();
-        p_iov[i].iov_base = (*pp_current)->p_ts;
-        p_iov[i].iov_len = TS_SIZE;
-        pp_current = &(*pp_current)->p_next;
+        struct iovec p_iov[NB_BLOCKS + !b_src_rawudp];
+        block_t *p_ts, **pp_current = &p_ts;
+        int i = 0, i_len;
+        uint8_t p_rtp_hdr[RTP_SIZE];
+
+        if ( !b_src_rawudp )
+        {
+            /* FIXME : this is wrong if RTP header > 12 bytes */
+            p_iov[i].iov_base = p_rtp_hdr;
+            p_iov[i].iov_len = RTP_SIZE;
+            i++;
+        }
+
+        for ( ; i < NB_BLOCKS + !b_src_rawudp; i++ )
+        {
+            *pp_current = block_New();
+            p_iov[i].iov_base = (*pp_current)->p_ts;
+            p_iov[i].iov_len = TS_SIZE;
+            pp_current = &(*pp_current)->p_next;
+        }
+
+        if ( (i_len = readv( i_handle, p_iov, NB_BLOCKS + !b_src_rawudp )) < 0 )
+        {
+            msg_Err( NULL, "couldn't read from network (%s)",
+                     strerror(errno) );
+            i_len = 0;
+        }
+        if ( !b_src_rawudp )
+            i_len -= RTP_SIZE;
+        i_len /= TS_SIZE;
+
+        pp_current = &p_ts;
+        while ( i_len && *pp_current )
+        {
+            pp_current = &(*pp_current)->p_next;
+            i_len--;
+        }
+
+        i_wallclock = mdate();
+
+        if ( *pp_current )
+            msg_Dbg( NULL, "partial buffer received" );
+        block_DeleteChain( *pp_current );
+        *pp_current = NULL;
+
+        return p_ts;
     }
-
-    if ( (i_len = readv( i_handle, p_iov, NB_BLOCKS + !b_src_rawudp )) < 0 )
-    {
-        msg_Err( NULL, "couldn't read from network (%s)",
-                 strerror(errno) );
-        i_len = 0;
-    }
-    if ( !b_src_rawudp )
-        i_len -= RTP_SIZE;
-    i_len /= TS_SIZE;
-
-    pp_current = &p_ts;
-    while ( i_len && *pp_current )
-    {
-        pp_current = &(*pp_current)->p_next;
-        i_len--;
-    }
-
-    if ( *pp_current )
-        msg_Dbg( NULL, "partial buffer received" );
-    block_DeleteChain( *pp_current );
-    *pp_current = NULL;
-
-    return p_ts;
+    return NULL;
 }
 
 /* From now on these are just stubs */

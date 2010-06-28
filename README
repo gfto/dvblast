@@ -26,7 +26,8 @@ Current features
  - Lightweight program designed for extreme memory and CPU conditions
  - Only one dependancy: libdvbpsi
  - CAM menus (MMI) support via an external application
- - The configuration file describing outputs can be reloaded without losing a single packet
+ - The configuration file describing outputs can be reloaded without losing
+   a single packet
  - Support for the new S2API of linux-dvb
  - IPv6 network support
  - UDP rather than RTP output for IPTV STBs which don't support RTP
@@ -54,6 +55,11 @@ information.
 
 Alternative inputs
 ==================
+
+DVBlast may handle several DVB adapters in the same machine with the -a switch:
+-a 3 will use /dev/dvb/adapter3.  Additionally, selecting between frontends on
+a single card is supported with the -n switch.  This is useful for hybrid 
+DVB/S + DVB/T cards.
 
 If you own a Computer Modules DVB-ASI input card, you can have DVBlast
 filter and demultiplex the inputs. You just need to specify the slot number
@@ -140,6 +146,48 @@ from the command-line :
 dvblast -c /tmp/dvblast.conf
 
 
+Buffering
+=========
+
+DVB cards usually output packets in big chunks. This can be problematic
+with low bitrate multiplexes. By default, DVBlast bufferizes 200 ms
+and tries to smooth the output. It may be desired to change this value
+with the -L option. The appropriate value should be :
+  chunk_size / multiplex_bitrate
+
+The chunk size for saa7146-based cards is 512000 bits ; for cx23885-based
+cards is 192512 bits. The multiplex_bitrate depends on the symbol rate and
+many other factors such as the modulation.
+
+The current default value allows for multiplex_rates as low as 2.56 Mbi/s.
+Smaller multiplexes are rare but exist, so in that case you may want to
+increase the buffer size. A typical DVB multiplex is 30 or 40 Mbi/s, so
+the default introduces a superfluous latency ; the buffer can be lowered
+to 50 ms if latency is an issue.
+
+DVBlast also has another parameter called "max retention time" (-E).
+This controls how TS packets are grouped together in IP datagrams : the
+difference between the theorical output times of the first and the last
+TS packets cannot exceed the maximal retention time.
+
+IP datagrams are normally output at the output time of the earliest TS
+packet ; it implies that the next TS packets are sent too soon and must
+be buffered at the receiver level. ISO/IEC 13818-1 makes no provision for
+this, since IP wasn't in mind when designing TS, so in theory we risk a
+buffer overflow.
+
+However normal IP receivers feature a jitter buffer which can absorb the
+overflow ; DVB recommends a 50 ms buffer. DVBlast's default maximal
+retention time is just below, at 40 ms, which should be fine in most
+situations.
+
+If some anal set-top-box complains about buffer overflows or clock issues,
+you may try to lower the value ; the drawback is that on low bitrate
+streams it will introduce padding. People with low bitrate streams and
+nice receivers with big buffers can raise this value to avoid superfluous
+padding and lower the total bitrate.
+
+
 Monitoring
 ==========
 
@@ -163,11 +211,6 @@ dvblast_mmi.sh -r /tmp/dvblast.sock
 Advanced features
 =================
 
-DVBlast may handle several DVB adapters in the same machine with the -a switch:
--a 3 will use /dev/dvb/adapter3.  Additionally, selecting between frontends on
-a single card is supported with the -n switch.  This is useful for hybrid 
-DVB/S + DVB/T cards.
-
 For better latency, run DVBlast in real-time priority: -i 1 (requires root
 privileges).
 
@@ -183,3 +226,4 @@ unused ones, can be output. With -e, dvblast also streams EIT and SDT packets
 for the related services.
 
 Other options are self-understandable, and are listed in dvblast -h.
+

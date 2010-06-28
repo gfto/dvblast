@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvb.c: linux-dvb input for DVBlast
  *****************************************************************************
- * Copyright (C) 2008-2009 VideoLAN
+ * Copyright (C) 2008-2010 VideoLAN
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
@@ -119,11 +119,10 @@ void dvb_Reset( void )
 /*****************************************************************************
  * dvb_Read
  *****************************************************************************/
-block_t *dvb_Read( void )
+block_t *dvb_Read( mtime_t i_poll_timeout )
 {
     struct pollfd ufds[4];
     int i_ret, i_nb_fd = 2;
-    mtime_t i_wallclock;
     block_t *p_blocks = NULL;
 
     memset( ufds, 0, sizeof(ufds) );
@@ -144,7 +143,9 @@ block_t *dvb_Read( void )
         i_nb_fd++;
     }
 
-    i_ret = poll( ufds, i_nb_fd, 100 );
+    i_ret = poll( ufds, i_nb_fd, (i_poll_timeout + 999) / 1000 );
+
+    i_wallclock = mdate();
 
     if ( i_ret < 0 )
     {
@@ -156,7 +157,6 @@ block_t *dvb_Read( void )
     if ( ufds[0].revents )
         p_blocks = DVRRead();
 
-    i_wallclock = mdate();
     if ( i_ca_handle && i_ca_type == CA_CI_LINK )
     {
         if ( ufds[i_nb_fd - 1].revents )
@@ -353,7 +353,7 @@ static void FrontendPoll( void )
             else
             {
                 msg_Dbg( NULL, "frontend has lost lock" );
-                i_frontend_timeout = mdate() + FRONTEND_LOCK_TIMEOUT;
+                i_frontend_timeout = i_wallclock + FRONTEND_LOCK_TIMEOUT;
             }
 
             IF_UP( FE_REINIT )
@@ -802,7 +802,7 @@ static void FrontendSet( bool b_init )
     }
 
     i_last_status = 0;
-    i_frontend_timeout = mdate() + FRONTEND_LOCK_TIMEOUT;
+    i_frontend_timeout = i_wallclock + FRONTEND_LOCK_TIMEOUT;
 }
 
 #else /* !S2API */
@@ -896,7 +896,7 @@ static void FrontendSet( bool b_init )
     }
 
     i_last_status = 0;
-    i_frontend_timeout = mdate() + FRONTEND_LOCK_TIMEOUT;
+    i_frontend_timeout = i_wallclock + FRONTEND_LOCK_TIMEOUT;
 }
 
 #endif /* S2API */

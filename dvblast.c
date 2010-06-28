@@ -41,6 +41,7 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
+mtime_t i_wallclock = 0;
 output_t **pp_outputs = NULL;
 int i_nb_outputs = 0;
 output_t output_dup = { 0 };
@@ -65,6 +66,8 @@ int b_slow_cam = 0;
 int b_output_udp = 0;
 int b_enable_epg = 0;
 int b_unique_tsid = 0;
+mtime_t i_output_latency = DEFAULT_OUTPUT_LATENCY;
+mtime_t i_max_retention = DEFAULT_MAX_RETENTION;
 volatile int b_hup_received = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
@@ -74,7 +77,7 @@ int b_src_rawudp = 0;
 int i_asi_adapter = 0;
 
 void (*pf_Open)( void ) = NULL;
-block_t * (*pf_Read)( void ) = NULL;
+block_t * (*pf_Read)( mtime_t i_poll_timeout ) = NULL;
 int (*pf_SetFilter)( uint16_t i_pid ) = NULL;
 void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid ) = NULL;
 
@@ -315,7 +318,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-L <latency>] [-E <retention>] [-d <dest IP:port>] [-e] [-T]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter <adapter>" );
@@ -343,6 +346,8 @@ void usage()
 
     msg_Raw( NULL, "Output:" );
     msg_Raw( NULL, "  -c --config-file <config file>" );
+    msg_Raw( NULL, "  -L --latency          maximum latency allowed between input and output (default: 100 ms)" );
+    msg_Raw( NULL, "  -E --retention        maximum retention allowed between input and output (default: 40 ms)" );
     msg_Raw( NULL, "  -d --duplicate        duplicate all received packets to a given destination" );
     msg_Raw( NULL, "  -o --rtp-output <SSRC IP>" );
     msg_Raw( NULL, "  -t --ttl <ttl>        TTL of the output stream" );
@@ -360,6 +365,7 @@ void usage()
 
 int main( int i_argc, char **pp_argv )
 {
+    mtime_t i_poll_timeout = MAX_POLL_TIMEOUT;
     struct sched_param param;
     int i_error;
     int c;
@@ -393,6 +399,8 @@ int main( int i_argc, char **pp_argv )
         { "slow-cam",        no_argument,       NULL, 'W' },
         { "udp",             no_argument,       NULL, 'U' },
         { "unique-ts-id",    no_argument,       NULL, 'T' },
+        { "latency",         required_argument, NULL, 'L' },
+        { "retention",       required_argument, NULL, 'E' },
         { "duplicate",       required_argument, NULL, 'd' },
         { "rtp-input",       required_argument, NULL, 'D' },
         { "asi-adapter",     required_argument, NULL, 'A' },
@@ -401,9 +409,9 @@ int main( int i_argc, char **pp_argv )
         { "help",            no_argument,       NULL, 'h' },
         { "version",         no_argument,       NULL, 'V' },
         { 0, 0, 0, 0}
-    }; 
+    };
 
-    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uWUTd:D:A:lehV", long_options, NULL)) != -1 )
+    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uWUTL:E:d:D:A:lehV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -520,6 +528,14 @@ int main( int i_argc, char **pp_argv )
 
         case 'U':
             b_output_udp = 1;
+            break;
+
+        case 'L':
+            i_output_latency = strtoll( optarg, NULL, 0 ) * 1000;
+            break;
+
+        case 'E':
+            i_max_retention = strtoll( optarg, NULL, 0 ) * 1000;
             break;
 
         case 'd':
@@ -720,6 +736,8 @@ int main( int i_argc, char **pp_argv )
 
     for ( ; ; )
     {
+        block_t *p_ts;
+
         if ( b_hup_received )
         {
             b_hup_received = 0;
@@ -727,7 +745,12 @@ int main( int i_argc, char **pp_argv )
             ReadConfiguration( psz_conf_file );
         }
 
-        demux_Run();
+        p_ts = pf_Read( i_poll_timeout );
+        if ( p_ts != NULL )
+            demux_Run( p_ts );
+        i_poll_timeout = output_Send();
+        if ( i_poll_timeout == -1 || i_poll_timeout > MAX_POLL_TIMEOUT )
+            i_poll_timeout = MAX_POLL_TIMEOUT;
     }
 
     if ( b_enable_syslog )

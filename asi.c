@@ -167,82 +167,86 @@ void asi_Open( void )
 /*****************************************************************************
  * asi_Read : read packets from the device
  *****************************************************************************/
-block_t *asi_Read( void )
+block_t *asi_Read( mtime_t i_poll_timeout )
 {
-    int i, i_len;
-    struct iovec p_iov[i_bufsize / TS_SIZE];
-    block_t *p_ts, **pp_current = &p_ts;
+    struct pollfd pfd;
+    int i_ret;
 
-    for ( ; ; )
+    pfd.fd = i_handle;
+    pfd.events = POLLIN | POLLPRI;
+
+    i_ret = poll( &pfd, 1, (i_poll_timeout + 999) / 1000 );
+
+    i_wallclock = mdate();
+
+    if ( i_ret < 0 )
     {
-        struct pollfd pfd;
-
-        pfd.fd = i_handle;
-        pfd.events = POLLIN | POLLPRI;
-
-        if ( poll(&pfd, 1, -1) < 0 )
-        {
+        if( errno != EINTR )
             msg_Err( NULL, "couldn't poll from device " ASI_DEVICE " (%s)",
                      i_asi_adapter, strerror(errno) );
-            continue;
-        }
+        return NULL;
+    }
 
-        if ( (pfd.revents & POLLPRI) )
+    if ( (pfd.revents & POLLPRI) )
+    {
+        unsigned int i_val;
+
+        if ( ioctl(i_handle, ASI_IOC_RXGETEVENTS, &i_val) < 0 )
+            msg_Err( NULL, "couldn't RXGETEVENTS (%s)", strerror(errno) );
+        else
         {
-            unsigned int i_val;
+            if ( i_val & ASI_EVENT_RX_BUFFER )
+                msg_Warn( NULL, "driver receive buffer queue overrun" );
+            if ( i_val & ASI_EVENT_RX_FIFO )
+                msg_Warn( NULL, "onboard receive FIFO overrun" );
+            if ( i_val & ASI_EVENT_RX_CARRIER )
+                msg_Warn( NULL, "carrier status change" );
+            if ( i_val & ASI_EVENT_RX_LOS )
+                msg_Warn( NULL, "loss of packet synchronization" );
+            if ( i_val & ASI_EVENT_RX_AOS )
+                msg_Warn( NULL, "acquisition of packet synchronization" );
+            if ( i_val & ASI_EVENT_RX_DATA )
+                msg_Warn( NULL, "receive data status change" );
+        }
+    }
 
-            if ( ioctl(i_handle, ASI_IOC_RXGETEVENTS, &i_val) < 0 )
-                msg_Err( NULL, "couldn't RXGETEVENTS (%s)", strerror(errno) );
-            else
-            {
-                if ( i_val & ASI_EVENT_RX_BUFFER )
-                    msg_Warn( NULL, "driver receive buffer queue overrun" );
-                if ( i_val & ASI_EVENT_RX_FIFO )
-                    msg_Warn( NULL, "onboard receive FIFO overrun" );
-                if ( i_val & ASI_EVENT_RX_CARRIER )
-                    msg_Warn( NULL, "carrier status change" );
-                if ( i_val & ASI_EVENT_RX_LOS )
-                    msg_Warn( NULL, "loss of packet synchronization" );
-                if ( i_val & ASI_EVENT_RX_AOS )
-                    msg_Warn( NULL, "acquisition of packet synchronization" );
-                if ( i_val & ASI_EVENT_RX_DATA )
-                    msg_Warn( NULL, "receive data status change" );
-            }
+    if ( (pfd.revents & POLLIN) )
+    {
+        struct iovec p_iov[i_bufsize / TS_SIZE];
+        block_t *p_ts, **pp_current = &p_ts;
+        int i, i_len;
+
+        for ( i = 0; i < i_bufsize / TS_SIZE; i++ )
+        {
+            *pp_current = block_New();
+            p_iov[i].iov_base = (*pp_current)->p_ts;
+            p_iov[i].iov_len = TS_SIZE;
+            pp_current = &(*pp_current)->p_next;
         }
 
-        if ( (pfd.revents & POLLIN) )
-            break;
+        if ( (i_len = readv(i_handle, p_iov, i_bufsize / TS_SIZE)) < 0 )
+        {
+            msg_Err( NULL, "couldn't read from device " ASI_DEVICE " (%s)",
+                     i_asi_adapter, strerror(errno) );
+            i_len = 0;
+        }
+        i_len /= TS_SIZE;
+
+        pp_current = &p_ts;
+        while ( i_len && *pp_current )
+        {
+            pp_current = &(*pp_current)->p_next;
+            i_len--;
+        }
+
+        if ( *pp_current )
+            msg_Dbg( NULL, "partial buffer received" );
+        block_DeleteChain( *pp_current );
+        *pp_current = NULL;
+
+        return p_ts;
     }
-
-    for ( i = 0; i < i_bufsize / TS_SIZE; i++ )
-    {
-        *pp_current = block_New();
-        p_iov[i].iov_base = (*pp_current)->p_ts;
-        p_iov[i].iov_len = TS_SIZE;
-        pp_current = &(*pp_current)->p_next;
-    }
-
-    if ( (i_len = readv(i_handle, p_iov, i_bufsize / TS_SIZE)) < 0 )
-    {
-        msg_Err( NULL, "couldn't read from device " ASI_DEVICE " (%s)",
-                 i_asi_adapter, strerror(errno) );
-        i_len = 0;
-    }
-    i_len /= TS_SIZE;
-
-    pp_current = &p_ts;
-    while ( i_len && *pp_current )
-    {
-        pp_current = &(*pp_current)->p_next;
-        i_len--;
-    }
-
-    if ( *pp_current )
-        msg_Dbg( NULL, "partial buffer received" );
-    block_DeleteChain( *pp_current );
-    *pp_current = NULL;
-
-    return p_ts;
+    return NULL;
 }
 
 /*****************************************************************************
@@ -251,7 +255,7 @@ block_t *asi_Read( void )
 int asi_SetFilter( uint16_t i_pid )
 {
 #ifdef USE_HARDWARE_FILTERING
-    p_pid_filter[ i_pid / 8 ] |= (0x01 << (i_pid % 8)); 
+    p_pid_filter[ i_pid / 8 ] |= (0x01 << (i_pid % 8));
     if ( ioctl( i_handle, ASI_IOC_RXSETPF, p_pid_filter ) < 0 )
         msg_Warn( NULL, "couldn't add filter on PID %u", i_pid );
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
  * output.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2009 VideoLAN
+ * Copyright (C) 2004, 2008-2010 VideoLAN
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
@@ -40,13 +40,42 @@
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
+struct packet_t
+{
+    block_t *pp_blocks[NB_BLOCKS];
+    int i_depth;
+    mtime_t i_dts;
+    struct packet_t *p_next;
+};
+
+static uint8_t p_pad_ts[TS_SIZE] = {
+    0x47, 0x1f, 0xff, 0x10, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+};
+
 static int net_Open( output_t *p_output );
-static void rtp_SetHdr( output_t *p_output, uint8_t *p_hdr );
+static void rtp_SetHdr( output_t *p_output, packet_t *p_packet,
+                        uint8_t *p_hdr );
 
 /*****************************************************************************
  * output_Create : called from main thread
  *****************************************************************************/
-output_t *output_Create( uint8_t i_config, const char *psz_displayname, void *p_init_data )
+output_t *output_Create( uint8_t i_config, const char *psz_displayname,
+                         void *p_init_data )
 {
     int i;
     output_t *p_output = NULL;
@@ -78,10 +107,11 @@ output_t *output_Create( uint8_t i_config, const char *psz_displayname, void *p_
 /*****************************************************************************
  * output_Init
  *****************************************************************************/
-int output_Init( output_t *p_output, uint8_t i_config, const char *psz_displayname, void *p_init_data )
+int output_Init( output_t *p_output, uint8_t i_config,
+                 const char *psz_displayname, void *p_init_data )
 {
     p_output->i_sid = 0;
-    p_output->i_depth = 0;
+    p_output->p_packets = p_output->p_last_packet = NULL;
     p_output->pi_pids = NULL;
     p_output->i_nb_pids = 0;
 
@@ -127,17 +157,21 @@ int output_Init( output_t *p_output, uint8_t i_config, const char *psz_displayna
  *****************************************************************************/
 void output_Close( output_t *p_output )
 {
-    int i;
-
-    for ( i = 0; i < p_output->i_depth; i++ )
+    packet_t *p_packet = p_output->p_packets;
+    while ( p_packet != NULL )
     {
-        p_output->pp_blocks[i]->i_refcount--;
-        if ( !p_output->pp_blocks[i]->i_refcount )
-            block_Delete( p_output->pp_blocks[i] );
+        int i;
+
+        for ( i = 0; i < p_packet->i_depth; i++ )
+        {
+            p_packet->pp_blocks[i]->i_refcount--;
+            if ( !p_packet->pp_blocks[i]->i_refcount )
+                block_Delete( p_packet->pp_blocks[i] );
+        }
     }
 
+    p_output->p_packets = p_output->p_last_packet = NULL;
     free( p_output->psz_displayname );
-    p_output->i_depth = 0;
     p_output->i_config &= ~OUTPUT_VALID;
     close( p_output->i_handle );
 }
@@ -147,49 +181,55 @@ void output_Close( output_t *p_output )
  *****************************************************************************/
 static void output_Flush( output_t *p_output )
 {
+    packet_t *p_packet = p_output->p_packets;
     struct iovec p_iov[NB_BLOCKS + 1];
     uint8_t p_rtp_hdr[RTP_SIZE];
-    int i;
-
-    int i_block_cnt = ( p_output->p_addr->ss_family == AF_INET6 ) ? NB_BLOCKS_IPV6 : NB_BLOCKS;
-    int i_outblocks = i_block_cnt;
+    int i_block_cnt = ( p_output->p_addr->ss_family == AF_INET6 ) ?
+                      NB_BLOCKS_IPV6 : NB_BLOCKS;
+    int i_iov, i_block;
 
     if ( !b_output_udp && !(p_output->i_config & OUTPUT_UDP) )
     {
         p_iov[0].iov_base = p_rtp_hdr;
         p_iov[0].iov_len = sizeof(p_rtp_hdr);
-        rtp_SetHdr( p_output, p_rtp_hdr );
-
-        for ( i = 1; i < i_block_cnt + 1; i++ )
-        {
-            p_iov[i].iov_base = p_output->pp_blocks[i - 1]->p_ts;
-            p_iov[i].iov_len = TS_SIZE;
-        }
-
-        i_outblocks += 1;
+        rtp_SetHdr( p_output, p_packet, p_rtp_hdr );
+        i_iov = 1;
     }
     else
+        i_iov = 0;
+
+    for ( i_block = 0; i_block < p_packet->i_depth; i_block++ )
     {
-        for ( i = 0; i < i_block_cnt; i++ )
-        {
-            p_iov[i].iov_base = p_output->pp_blocks[i]->p_ts;
-            p_iov[i].iov_len = TS_SIZE;
-        }
+        p_iov[i_iov].iov_base = p_packet->pp_blocks[i_block]->p_ts;
+        p_iov[i_iov].iov_len = TS_SIZE;
+        i_iov++;
     }
 
-    if ( writev( p_output->i_handle, p_iov, i_outblocks ) < 0 )
+    for ( ; i_block < i_block_cnt; i_block++ )
+    {
+        p_iov[i_iov].iov_base = p_pad_ts;
+        p_iov[i_iov].iov_len = TS_SIZE;
+        i_iov++;
+    }
+
+    if ( writev( p_output->i_handle, p_iov, i_iov ) < 0 )
     {
         msg_Err( NULL, "couldn't writev to %s (%s)",
                  p_output->psz_displayname, strerror(errno) );
     }
+    /* Update the wallclock because writev() can take some time. */
+    i_wallclock = mdate();
 
-    for ( i = 0; i < i_block_cnt; i++ )
+    for ( i_block = 0; i_block < p_packet->i_depth; i_block++ )
     {
-        p_output->pp_blocks[i]->i_refcount--;
-        if ( !p_output->pp_blocks[i]->i_refcount )
-            block_Delete( p_output->pp_blocks[i] );
+        p_packet->pp_blocks[i_block]->i_refcount--;
+        if ( !p_packet->pp_blocks[i_block]->i_refcount )
+            block_Delete( p_packet->pp_blocks[i_block] );
     }
-    p_output->i_depth = 0;
+    p_output->p_packets = p_packet->p_next;
+    free( p_packet );
+    if ( p_output->p_packets == NULL )
+        p_output->p_last_packet = NULL;
 }
 
 /*****************************************************************************
@@ -197,16 +237,64 @@ static void output_Flush( output_t *p_output )
  *****************************************************************************/
 void output_Put( output_t *p_output, block_t *p_block )
 {
+    int i_block_cnt = ( p_output->p_addr->ss_family == AF_INET6 ) ?
+                      NB_BLOCKS_IPV6 : NB_BLOCKS;
+    packet_t *p_packet;
+
     p_block->i_refcount++;
 
-    p_output->pp_blocks[p_output->i_depth] = p_block;
-    p_output->i_depth++;
+    if ( p_output->p_last_packet != NULL
+          && p_output->p_last_packet->i_depth < i_block_cnt
+          && p_output->p_last_packet->i_dts + i_max_retention > p_block->i_dts )
+    {
+        p_packet = p_output->p_last_packet;
+        if ( block_HasPCR( p_block ) )
+            p_packet->i_dts = p_block->i_dts;
+    }
+    else
+    {
+        p_packet = malloc( sizeof(packet_t) );
+        p_packet->i_depth = 0;
+        p_packet->p_next = NULL;
+        p_packet->i_dts = p_block->i_dts;
+        if ( p_output->p_last_packet != NULL )
+            p_output->p_last_packet->p_next = p_packet;
+        else
+            p_output->p_packets = p_packet;
+        p_output->p_last_packet = p_packet;
+    }
 
-    if ( ( ( p_output->p_addr->ss_family == AF_INET6 ) &&
-           ( p_output->i_depth >= NB_BLOCKS_IPV6 ) )   ||
-         ( ( p_output->p_addr->ss_family == AF_INET )  &&
-           ( p_output->i_depth >= NB_BLOCKS ) ) )
-        output_Flush( p_output );
+    p_packet->pp_blocks[p_packet->i_depth] = p_block;
+    p_packet->i_depth++;
+}
+
+/*****************************************************************************
+ * output_Send : called from main to flush the queues when needed
+ *****************************************************************************/
+mtime_t output_Send( void )
+{
+    mtime_t i_earliest_dts = -1;
+    int i;
+
+    for ( i = 0; i < i_nb_outputs; i++ )
+    {
+        output_t *p_output = pp_outputs[i];
+        if ( !( p_output->i_config & OUTPUT_VALID ) )
+            continue;
+
+        while ( p_output->p_packets != NULL
+                 && p_output->p_packets->i_dts + i_output_latency
+                     <= i_wallclock )
+            output_Flush( p_output );
+
+        if ( p_output->p_packets != NULL
+              && (p_output->p_packets->i_dts < i_earliest_dts
+                   || i_earliest_dts == -1) )
+            i_earliest_dts = p_output->p_packets->i_dts;
+    }
+
+    return i_earliest_dts == -1 ? -1 :
+           i_earliest_dts + i_output_latency - i_wallclock;
 }
 
 /*****************************************************************************
@@ -244,7 +332,8 @@ static int net_Open( output_t *p_output )
         }
     }
 
-    if ( connect( i_handle, (struct sockaddr *)p_output->p_addr, p_output->i_addrlen ) < 0 )
+    if ( connect( i_handle, (struct sockaddr *)p_output->p_addr,
+                  p_output->i_addrlen ) < 0 )
     {
         msg_Err( NULL, "couldn't connect socket to %s (%s)",
                  p_output->psz_displayname, strerror(errno) );
@@ -274,20 +363,12 @@ static int net_Open( output_t *p_output )
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  */
 
-static void rtp_SetHdr( output_t *p_output, uint8_t *p_hdr )
+static void rtp_SetHdr( output_t *p_output, packet_t *p_packet, uint8_t *p_hdr )
 {
     mtime_t i_timestamp;
 
-    if (!p_output->i_ref_wallclock)
-    {
-        i_timestamp = p_output->i_ref_timestamp;
-        p_output->i_ref_wallclock = mdate();
-    }
-    else
-    {
-        i_timestamp = p_output->i_ref_timestamp
-                    + (mdate() - p_output->i_ref_wallclock) * 9 / 100;
-    }
+    i_timestamp = p_output->i_ref_timestamp
+                   + (p_packet->i_dts - p_output->i_ref_wallclock) * 9 / 100;
 
     p_hdr[0] = 0x80;
     p_hdr[1] = 33;

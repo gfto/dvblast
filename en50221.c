@@ -1492,7 +1492,7 @@ static void DateTimeSend( access_t * p_access, int i_session_id )
 
         APDUSend( p_access, i_session_id, AOT_DATE_TIME, p_response, 7 );
 
-        p_date->i_last = mdate();
+        p_date->i_last = i_wallclock;
     }
 }
 
@@ -1540,7 +1540,7 @@ static void DateTimeManage( access_t * p_access, int i_session_id )
         (date_time_t *)p_sessions[i_session_id - 1].p_sys;
 
     if ( p_date->i_interval
-          && mdate() > p_date->i_last + (mtime_t)p_date->i_interval * 1000000 )
+          && i_wallclock > p_date->i_last + (mtime_t)p_date->i_interval * 1000000 )
     {
         DateTimeSend( p_access, i_session_id );
     }
@@ -2188,7 +2188,7 @@ void en50221_Poll( void )
         {
             if ( !p_slot->i_init_timeout )
                 InitSlot( NULL, i_slot );
-            else if ( p_slot->i_init_timeout < mdate() )
+            else if ( p_slot->i_init_timeout < i_wallclock )
             {
                 msg_Dbg( NULL, "en50221_Poll: resetting slot %d", i_slot );
                 ResetSlot( i_slot );

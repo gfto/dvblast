@@ -1,7 +1,7 @@
 /*****************************************************************************
  * demux.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2009 VideoLAN
+ * Copyright (C) 2004, 2008-2010 VideoLAN
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
@@ -76,6 +76,7 @@ static dvbpsi_handle p_sdt_dvbpsi_handle;
 static dvbpsi_handle p_eit_dvbpsi_handle;
 static dvbpsi_pat_t *p_current_pat = NULL;
 static dvbpsi_sdt_t *p_current_sdt = NULL;
+static mtime_t i_last_dts = -1;
 static int i_demux_fd;
 static int i_nb_errors = 0;
 static mtime_t i_last_error = 0;
@@ -84,6 +85,7 @@ static mtime_t i_last_error = 0;
  * Local prototypes
  *****************************************************************************/
 static void demux_Handle( block_t *p_ts );
+static void SetDTS( block_t *p_list );
 static void SetPID( uint16_t i_pid );
 static void UnsetPID( uint16_t i_pid );
 static void StartPID( output_t *p_output, uint16_t i_pid );
@@ -98,9 +100,9 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
 static int SIDIsSelected( uint16_t i_sid );
 int PIDWouldBeSelected( dvbpsi_pmt_es_t *p_es );
 static int PMTNeedsDescrambling( dvbpsi_pmt_t *p_pmt );
-static void SendPAT( void );
-static void SendSDT( void );
-static void SendPMT( sid_t *p_sid );
+static void SendPAT( mtime_t i_dts );
+static void SendSDT( mtime_t i_dts );
+static void SendPMT( sid_t *p_sid, mtime_t i_dts );
 static void NewPAT( output_t *p_output );
 static void NewSDT( output_t *p_output );
 static void NewPMT( output_t *p_output );
@@ -148,9 +150,9 @@ void demux_Open( void )
 /*****************************************************************************
  * demux_Run
  *****************************************************************************/
-void demux_Run( void )
+void demux_Run( block_t *p_ts )
 {
-    block_t *p_ts = pf_Read();
+    SetDTS( p_ts );
 
     while ( p_ts != NULL )
     {
@@ -207,7 +209,7 @@ static void demux_Handle( block_t *p_ts )
         {
             dvbpsi_PushPacket( p_pat_dvbpsi_handle, p_ts->p_ts );
             if ( block_UnitStart( p_ts ) )
-                SendPAT();
+                SendPAT( p_ts->i_dts );
         }
         else if ( b_enable_epg && i_pid == EIT_PID )
         {
@@ -217,11 +219,11 @@ static void demux_Handle( block_t *p_ts )
         {
             dvbpsi_PushPacket( p_sdt_dvbpsi_handle, p_ts->p_ts );
             if ( block_UnitStart( p_ts ) )
-            {   
+            {
                 uint8_t *p_payload = block_GetPayload( p_ts );
 
                 if ( p_payload && *(p_payload + *p_payload + 1) == 0x42 )
-                    SendSDT();
+                    SendSDT( p_ts->i_dts );
             }
 
         }
@@ -242,7 +244,7 @@ static void demux_Handle( block_t *p_ts )
                     dvbpsi_PushPacket( pp_sids[i]->p_dvbpsi_handle,
                                        p_ts->p_ts );
                     if ( block_UnitStart( p_ts ) )
-                        SendPMT( pp_sids[i] );
+                        SendPMT( pp_sids[i], p_ts->i_dts );
                 }
             }
         }
@@ -265,7 +267,7 @@ static void demux_Handle( block_t *p_ts )
                     if ( pp_outputs[j]->i_sid == i_sid )
                     {
                         pp_outputs[j]->i_ref_timestamp = i_timestamp;
-                        pp_outputs[j]->i_ref_wallclock = 0;
+                        pp_outputs[j]->i_ref_wallclock = p_ts->i_dts;
                     }
                 }
             }
@@ -430,7 +432,7 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
         {
             if ( pp_sids[i]->i_sid == i_sid )
             {
-                if ( pp_sids[i]->p_current_pmt != NULL 
+                if ( pp_sids[i]->p_current_pmt != NULL
                       && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
                     en50221_UpdatePMT( pp_sids[i]->p_current_pmt );
                 break;
@@ -452,6 +454,40 @@ void demux_Change( output_t *p_output, uint16_t i_sid,
     }
     else if ( pid_change )
         NewPMT( p_output );
+}
+
+/*****************************************************************************
+ * SetDTS
+ *****************************************************************************/
+static void SetDTS( block_t *p_list )
+{
+    int i_nb_ts = 0, i;
+    mtime_t i_duration;
+    block_t *p_ts = p_list;
+
+    while ( p_ts != NULL )
+    {
+        i_nb_ts++;
+        p_ts = p_ts->p_next;
+    }
+
+    /* We suppose the stream is CBR, at least between two consecutive read().
+     * This is especially true in budget mode */
+    if ( i_last_dts == -1 )
+        i_duration = 0;
+    else
+        i_duration = i_wallclock - i_last_dts;
+
+    p_ts = p_list;
+    i = i_nb_ts - 1;
+    while ( p_ts != NULL )
+    {
+        p_ts->i_dts = i_wallclock - i_duration * i / i_nb_ts;
+        i--;
+        p_ts = p_ts->p_next;
+    }
+
+    i_last_dts = i_wallclock;
 }
 
 /*****************************************************************************
@@ -630,7 +666,8 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
  * WritePSISection
  *****************************************************************************/
 static block_t *WritePSISection( dvbpsi_psi_section_t *p_section,
-                                 uint16_t i_pid, uint8_t *pi_cc )
+                                 uint16_t i_pid, uint8_t *pi_cc,
+                                 mtime_t i_dts )
 {
     block_t *p_block, **pp_last = &p_block;
     uint32_t i_length;
@@ -678,6 +715,8 @@ static block_t *WritePSISection( dvbpsi_psi_section_t *p_section,
         for( i = 4 + b_first + i_copy; i < 188; i++ )
             p_ts->p_ts[i] = 0xff;
 
+        p_ts->i_dts = i_dts;
+
         b_first = 0;
         i_length -= i_copy;
         p_data += i_copy;
@@ -690,7 +729,7 @@ static block_t *WritePSISection( dvbpsi_psi_section_t *p_section,
 /*****************************************************************************
  * SendPAT
  *****************************************************************************/
-static void SendPAT( void )
+static void SendPAT( mtime_t i_dts )
 {
     int i;
 
@@ -720,7 +759,7 @@ static void SendPAT( void )
             block_t *p_block;
 
             p_block = WritePSISection( pp_outputs[i]->p_pat_section, PAT_PID,
-                                       &pp_outputs[i]->i_pat_cc );
+                                       &pp_outputs[i]->i_pat_cc, i_dts );
             while ( p_block != NULL )
             {
                 block_t *p_next = p_block->p_next;
@@ -735,7 +774,7 @@ static void SendPAT( void )
 /*****************************************************************************
  * SendSDT
  *****************************************************************************/
-static void SendSDT( void )
+static void SendSDT( mtime_t i_dts )
 {
     int i;
 
@@ -746,7 +785,7 @@ static void SendSDT( void )
             block_t *p_block;
 
             p_block = WritePSISection( pp_outputs[i]->p_sdt_section, SDT_PID,
-                                       &pp_outputs[i]->i_sdt_cc );
+                                       &pp_outputs[i]->i_sdt_cc, i_dts );
             while ( p_block != NULL )
             {
                 block_t *p_next = p_block->p_next;
@@ -761,7 +800,7 @@ static void SendSDT( void )
 /*****************************************************************************
  * SendPMT
  *****************************************************************************/
-static void SendPMT( sid_t *p_sid )
+static void SendPMT( sid_t *p_sid, mtime_t i_dts )
 {
     int i;
 
@@ -775,7 +814,7 @@ static void SendPMT( sid_t *p_sid )
 
                 p_block = WritePSISection( pp_outputs[i]->p_pmt_section,
                                            p_sid->i_pmt_pid,
-                                           &pp_outputs[i]->i_pmt_cc );
+                                           &pp_outputs[i]->i_pmt_cc, i_dts );
                 while ( p_block != NULL )
                 {
                     block_t *p_next = p_block->p_next;
@@ -812,7 +851,7 @@ static void SendEIT( dvbpsi_psi_section_t *p_section, uint16_t i_sid,
 
             p_block = WritePSISection( p_section,
                                        EIT_PID,
-                                       &pp_outputs[i]->i_eit_cc );
+                                       &pp_outputs[i]->i_eit_cc, i_wallclock );
             while ( p_block != NULL )
             {
                 block_t *p_next = p_block->p_next;

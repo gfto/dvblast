@@ -39,6 +39,9 @@
 #define WATCHDOG_WAIT 10000000LL
 #define MAX_ERRORS 1000
 #define DEFAULT_VERBOSITY 3
+#define MAX_POLL_TIMEOUT 100000 /* 100 ms */
+#define DEFAULT_OUTPUT_LATENCY 200000 /* 200 ms */
+#define DEFAULT_MAX_RETENTION 40000 /* 40 ms */
 
 /*****************************************************************************
  * Output configuration flags (for output_t -> i_config) - bit values
@@ -61,8 +64,11 @@ typedef struct block_t
 {
     uint8_t p_ts[TS_SIZE];
     int i_refcount;
+    mtime_t i_dts;
     struct block_t *p_next;
 } block_t;
+
+typedef struct packet_t packet_t;
 
 typedef struct output_t
 {
@@ -75,8 +81,7 @@ typedef struct output_t
 
     /* output */
     int i_handle;
-    block_t *pp_blocks[NB_BLOCKS];
-    int i_depth;
+    packet_t *p_packets, *p_last_packet;
     uint16_t i_cc;
     mtime_t i_ref_timestamp;
     mtime_t i_ref_wallclock;
@@ -124,6 +129,9 @@ extern int b_slow_cam;
 extern int b_output_udp;
 extern int b_enable_epg;
 extern int b_unique_tsid;
+extern mtime_t i_output_latency;
+extern mtime_t i_max_retention;
+extern mtime_t i_wallclock;
 extern volatile int b_hup_received;
 extern int i_comm_fd;
 extern uint16_t i_src_port;
@@ -132,7 +140,7 @@ extern int b_src_rawudp;
 extern int i_asi_adapter;
 
 extern void (*pf_Open)( void );
-extern block_t * (*pf_Read)( void );
+extern block_t * (*pf_Read)( mtime_t i_poll_timeout );
 extern int (*pf_SetFilter)( uint16_t i_pid );
 extern void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid );
 
@@ -158,32 +166,35 @@ void hexDump( uint8_t *p_data, uint32_t i_len );
 
 void dvb_Open( void );
 void dvb_Reset( void );
-block_t * dvb_Read( void );
+block_t * dvb_Read( mtime_t i_poll_timeout );
 int dvb_SetFilter( uint16_t i_pid );
 void dvb_UnsetFilter( int i_fd, uint16_t i_pid );
 uint8_t dvb_FrontendStatus( uint8_t *p_answer, ssize_t *pi_size );
 
 void udp_Open( void );
-block_t * udp_Read( void );
+block_t * udp_Read( mtime_t i_poll_timeout );
 int udp_SetFilter( uint16_t i_pid );
 void udp_UnsetFilter( int i_fd, uint16_t i_pid );
 
 void asi_Open( void );
-block_t * asi_Read( void );
+block_t * asi_Read( mtime_t i_poll_timeout );
 int asi_SetFilter( uint16_t i_pid );
 void asi_UnsetFilter( int i_fd, uint16_t i_pid );
 
 void demux_Open( void );
-void demux_Run( void );
+void demux_Run( block_t *p_ts );
 void demux_Change( output_t *p_output, uint16_t i_sid,
                    uint16_t *pi_pids, int i_nb_pids );
 void demux_ResendCAPMTs( void );
 int PIDIsSelected( uint16_t i_pid );
 
-output_t *output_Create( uint8_t i_config, const char *psz_displayname, void *p_init_data );
-int output_Init( output_t *p_output, uint8_t i_config, const char *psz_displayname, void *p_init_data );
+output_t *output_Create( uint8_t i_config, const char *psz_displayname,
+                         void *p_init_data );
+int output_Init( output_t *p_output, uint8_t i_config,
+                 const char *psz_displayname, void *p_init_data );
 void output_Close( output_t *p_output );
 void output_Put( output_t *p_output, block_t *p_block );
+mtime_t output_Send( void );
 
 void comm_Open( void );
 void comm_Read( void );
@@ -302,4 +313,3 @@ static inline uint8_t *block_GetPayload( block_t *p_block )
         return &p_block->p_ts[4];
     return &p_block->p_ts[ 5 + p_block->p_ts[4] ];
 }
-
