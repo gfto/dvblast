@@ -1,0 +1,11 @@
+--- linux/drivers/media/dvb/ttpci/budget-core.c.orig	2010-06-09 08:54:16.000000000 +0200
++++ linux/drivers/media/dvb/ttpci/budget-core.c	2010-06-09 08:28:23.000000000 +0200
+@@ -145,7 +145,7 @@
+ 		saa7146_write(dev, BASE_EVEN3, 0);
+ 	}
+ 	saa7146_write(dev, PROT_ADDR3, budget->buffer_size);
+-	saa7146_write(dev, BASE_PAGE3, budget->pt.dma | ME1 | 0x90);
++	saa7146_write(dev, BASE_PAGE3, budget->pt.dma | ME1 | 0x60);
+ 
+ 	saa7146_write(dev, PITCH3, budget->buffer_width);
+ 	saa7146_write(dev, NUM_LINE_BYTE3,

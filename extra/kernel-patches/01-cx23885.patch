@@ -1,0 +1,11 @@
+--- linux/drivers/media/video/cx23885/cx23885-dvb.c.orig	2010-06-29 15:32:09.000000000 +0200
++++ linux/drivers/media/video/cx23885/cx23885-dvb.c	2010-06-29 15:32:16.000000000 +0200
+@@ -83,7 +83,7 @@
+ 	struct cx23885_tsport *port = q->priv_data;
+ 
+ 	port->ts_packet_size  = 188 * 4;
+-	port->ts_packet_count = 32;
++	port->ts_packet_count = 4;
+ 
+ 	*size  = port->ts_packet_size * port->ts_packet_count;
+ 	*count = 32;

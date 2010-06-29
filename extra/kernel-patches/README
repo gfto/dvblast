@@ -1,0 +1,9 @@
+About DVBlast kernel patches
+============================
+
+These kernel patches are designed to dramatically improve the latency
+between the DVB card and DVBlast's output, especially on low symbol rate
+transponders, at the expense of a slightly higher CPU consumption.
+
+Basically they decrease the size of the transmission buffers from the card,
+so that TS packets are handled more frequently.

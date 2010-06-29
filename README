@@ -152,12 +152,13 @@ Buffering
 DVB cards usually output packets in big chunks. This can be problematic
 with low bitrate multiplexes. By default, DVBlast bufferizes 200 ms
 and tries to smooth the output. It may be desired to change this value
-with the -L option. The appropriate value should be :
+with the -L option. The appropriate value for the output latency should be :
   chunk_size / multiplex_bitrate
 
-The chunk size for saa7146-based cards is 512000 bits ; for cx23885-based
-cards is 192512 bits. The multiplex_bitrate depends on the symbol rate and
-many other factors such as the modulation.
+The chunk size for saa7146-based cards is 512000 bits ; for
+cx23885-based cards is 192512 bits. The chunk size can be modified with
+an appropriate kernel patch (see extra/). The multiplex_bitrate depends
+on the symbol rate and many other factors such as the modulation.
 
 The current default value allows for multiplex_rates as low as 2.56 Mbi/s.
 Smaller multiplexes are rare but exist, so in that case you may want to
@@ -186,6 +187,9 @@ you may try to lower the value ; the drawback is that on low bitrate
 streams it will introduce padding. People with low bitrate streams and
 nice receivers with big buffers can raise this value to avoid superfluous
 padding and lower the total bitrate.
+
+Please bear in mind though that setting a value for max retention time
+greater than the output latency has no effect.
 
 
 Monitoring
