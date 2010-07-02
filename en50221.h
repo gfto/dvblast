@@ -69,7 +69,6 @@ typedef struct en50221_mmi_object_t
 
 #define MAX_CI_SLOTS 16
 #define MAX_SESSIONS 32
-#define MAX_PROGRAMS 24
 
 extern int i_ca_handle;
 extern int i_ca_type;

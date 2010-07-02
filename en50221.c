@@ -67,8 +67,7 @@
  *****************************************************************************/
 #undef DEBUG_TPDU
 #define CAM_INIT_TIMEOUT 15000000 /* 15 s */
-#define HLCI_WAIT_CAM_READY 0
-#define CAM_PROG_MAX MAX_PROGRAMS
+#undef HLCI_WAIT_CAM_READY
 #define CAPMT_WAIT 100 /* ms */
 
 typedef struct en50221_msg_t
@@ -1048,11 +1047,10 @@ static void ApplicationInformationOpen( access_t * p_access, int i_session_id )
  * Conditional Access
  */
 
-#define MAX_CASYSTEM_IDS 64
-
 typedef struct
 {
-    uint16_t pi_system_ids[MAX_CASYSTEM_IDS + 1];
+    int i_nb_system_ids;
+    uint16_t *pi_system_ids;
 
     int i_selected_programs;
     int b_high_level;
@@ -1060,11 +1058,11 @@ typedef struct
 
 static bool CheckSystemID( system_ids_t *p_ids, uint16_t i_id )
 {
-    int i = 0;
-    if( !p_ids ) return false;
+    int i;
+    if( p_ids == NULL ) return false;
     if( p_ids->b_high_level ) return true;
 
-    while ( p_ids->pi_system_ids[i] )
+    for ( i = 0; i < p_ids->i_nb_system_ids; i++ )
     {
         if ( p_ids->pi_system_ids[i] == i_id )
             return true;
@@ -1300,24 +1298,12 @@ static void CAPMTAdd( access_t * p_access, int i_session_id,
     uint8_t *p_capmt;
     int i_capmt_size;
 
-    if( p_ids->i_selected_programs >= CAM_PROG_MAX )
-    {
-        msg_Warn( p_access, "Not adding CAPMT for SID %d, too many programs",
-                  p_pmt->i_program_number );
-        return;
-    }
     p_ids->i_selected_programs++;
     if( p_ids->i_selected_programs == 1 )
     {
         CAPMTFirst( p_access, i_session_id, p_pmt );
         return;
     }
-
-#if 0
-    /* FIXME: how do we implement it with async IO ? */
-    if( b_slow_cam )
-        msleep( CAPMT_WAIT * 1000 );
-#endif
 
     msg_Dbg( p_access, "adding CAPMT for SID %d on session %d",
              p_pmt->i_program_number, i_session_id );
@@ -1401,13 +1387,18 @@ static void ConditionalAccessHandle( access_t * p_access, int i_session_id,
         uint8_t *d = APDUGetLength( p_apdu, &l );
         msg_Dbg( p_access, "CA system IDs supported by the application :" );
 
-        for ( i = 0; i < l / 2; i++ )
+        if ( p_ids->i_nb_system_ids )
+            free( p_ids->pi_system_ids );
+        p_ids->i_nb_system_ids = l / 2;
+        p_ids->pi_system_ids = malloc( p_ids->i_nb_system_ids
+                                        * sizeof(uint16_t) );
+
+        for ( i = 0; i < p_ids->i_nb_system_ids; i++ )
         {
             p_ids->pi_system_ids[i] = ((uint16_t)d[0] << 8) | d[1];
             d += 2;
             msg_Dbg( p_access, "- 0x%x", p_ids->pi_system_ids[i] );
         }
-        p_ids->pi_system_ids[i] = 0;
 
         demux_ResendCAPMTs();
         break;
@@ -2109,7 +2100,7 @@ void en50221_Reset( void )
             return;
         }
 
-#if HLCI_WAIT_CAM_READY
+#ifdef HLCI_WAIT_CAM_READY
         while( ca_msg.msg[8] == 0xff && ca_msg.msg[9] == 0xff )
         {
             msleep(1);

@@ -125,7 +125,6 @@ extern int b_tone;
 extern int i_bandwidth;
 extern char *psz_modulation;
 extern int b_budget_mode;
-extern int b_slow_cam;
 extern int b_output_udp;
 extern int b_enable_epg;
 extern int b_unique_tsid;

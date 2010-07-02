@@ -62,7 +62,6 @@ int b_tone = 0;
 int i_bandwidth = 8;
 char *psz_modulation = NULL;
 int b_budget_mode = 0;
-int b_slow_cam = 0;
 int b_output_udp = 0;
 int b_enable_epg = 0;
 int b_unique_tsid = 0;
@@ -318,7 +317,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-W] [-U] [-L <latency>] [-E <retention>] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP:port>] [-e] [-T]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter <adapter>" );
@@ -342,7 +341,6 @@ void usage()
     msg_Raw( NULL, "  -T --unique-ts-id     generate unique TS ID for each program" );
     msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
-    msg_Raw( NULL, "  -W --slow-cam         add extra delays for slow CAMs" );
 
     msg_Raw( NULL, "Output:" );
     msg_Raw( NULL, "  -c --config-file <config file>" );
@@ -396,7 +394,6 @@ int main( int i_argc, char **pp_argv )
         { "bandwidth",       required_argument, NULL, 'b' },
         { "modulation",      required_argument, NULL, 'm' },
         { "budget-mode",     no_argument,       NULL, 'u' },
-        { "slow-cam",        no_argument,       NULL, 'W' },
         { "udp",             no_argument,       NULL, 'U' },
         { "unique-ts-id",    no_argument,       NULL, 'T' },
         { "latency",         required_argument, NULL, 'L' },
@@ -411,7 +408,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0}
     };
 
-    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uWUTL:E:d:D:A:lehV", long_options, NULL)) != -1 )
+    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uUTL:E:d:D:A:lehV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -520,10 +517,6 @@ int main( int i_argc, char **pp_argv )
 
         case 'u':
             b_budget_mode = 1;
-            break;
-
-        case 'W':
-            b_slow_cam = 1;
             break;
 
         case 'U':
