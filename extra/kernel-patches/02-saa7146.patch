@@ -5,7 +5,7 @@
  	}
  	saa7146_write(dev, PROT_ADDR3, budget->buffer_size);
 -	saa7146_write(dev, BASE_PAGE3, budget->pt.dma | ME1 | 0x90);
-+	saa7146_write(dev, BASE_PAGE3, budget->pt.dma | ME1 | 0x60);
++	saa7146_write(dev, BASE_PAGE3, budget->pt.dma | ME1 | 0x50);
  
  	saa7146_write(dev, PITCH3, budget->buffer_width);
  	saa7146_write(dev, NUM_LINE_BYTE3,

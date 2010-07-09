@@ -5,7 +5,7 @@
  
  	port->ts_packet_size  = 188 * 4;
 -	port->ts_packet_count = 32;
-+	port->ts_packet_count = 4;
++	port->ts_packet_count = 5;
  
  	*size  = port->ts_packet_size * port->ts_packet_count;
  	*count = 32;

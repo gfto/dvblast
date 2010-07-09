@@ -1,0 +1,11 @@
+--- linux/drivers/media/video/cx88/cx88-dvb.c.orig	2010-02-22 14:58:43.000000000 +0100
++++ linux/drivers/media/video/cx88/cx88-dvb.c	2010-07-09 11:15:12.000000000 +0200
+@@ -80,7 +80,7 @@
+ 	struct cx8802_dev *dev = q->priv_data;
+ 
+ 	dev->ts_packet_size  = 188 * 4;
+-	dev->ts_packet_count = 32;
++	dev->ts_packet_count = 5;
+ 
+ 	*size  = dev->ts_packet_size * dev->ts_packet_count;
+ 	*count = 32;
