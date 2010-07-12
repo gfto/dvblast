@@ -1063,11 +1063,8 @@ static bool CheckSystemID( system_ids_t *p_ids, uint16_t i_id )
     if( p_ids->b_high_level ) return true;
 
     for ( i = 0; i < p_ids->i_nb_system_ids; i++ )
-    {
         if ( p_ids->pi_system_ids[i] == i_id )
             return true;
-        i++;
-    }
 
     return false;
 }
