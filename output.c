@@ -168,6 +168,9 @@ void output_Close( output_t *p_output )
             if ( !p_packet->pp_blocks[i]->i_refcount )
                 block_Delete( p_packet->pp_blocks[i] );
         }
+        p_output->p_packets = p_packet->p_next;
+        free( p_packet );
+        p_packet = p_output->p_packets;
     }
 
     p_output->p_packets = p_output->p_last_packet = NULL;
