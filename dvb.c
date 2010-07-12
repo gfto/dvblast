@@ -53,6 +53,7 @@
  * Local declarations
  *****************************************************************************/
 #define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
+#define DVR_READ_TIMEOUT 30000000 /* 30 s */
 #define CA_POLL_PERIOD 100000 /* 100 ms */
 #define MAX_READ_ONCE 50
 #define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
@@ -60,6 +61,7 @@
 static int i_frontend, i_dvr;
 static fe_status_t i_last_status;
 static mtime_t i_frontend_timeout;
+static mtime_t i_last_packet = 0;
 static mtime_t i_ca_next_event = 0;
 static block_t *p_freelist = NULL;
 
@@ -78,6 +80,8 @@ void dvb_Open( void )
     char psz_tmp[128];
 
     msg_Dbg( NULL, "using linux-dvb API version %d", DVB_API_VERSION );
+
+    i_wallclock = mdate();
 
     sprintf( psz_tmp, "/dev/dvb/adapter%d/frontend%d", i_adapter, i_fenum );
     if( (i_frontend = open(psz_tmp, O_RDWR | O_NONBLOCK)) < 0 )
@@ -155,7 +159,20 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
     }
 
     if ( ufds[0].revents )
+    {
         p_blocks = DVRRead();
+        i_wallclock = mdate();
+    }
+
+    if ( p_blocks != NULL )
+        i_last_packet = i_wallclock;
+    else if ( !i_frontend_timeout
+                && i_wallclock > i_last_packet + DVR_READ_TIMEOUT )
+    {
+        msg_Warn( NULL, "no DVR output, resetting" );
+        FrontendSet(false);
+        en50221_Reset();
+    }
 
     if ( i_ca_handle && i_ca_type == CA_CI_LINK )
     {
@@ -341,6 +358,7 @@ static void FrontendPoll( void )
                 int32_t i_value = 0;
                 msg_Dbg( NULL, "frontend has acquired lock" );
                 i_frontend_timeout = 0;
+                i_last_packet = i_wallclock;
 
                 /* Read some statistics */
                 if( ioctl( i_frontend, FE_READ_BER, &i_value ) >= 0 )
