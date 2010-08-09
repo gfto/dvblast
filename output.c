@@ -279,6 +279,17 @@ mtime_t output_Send( void )
     mtime_t i_earliest_dts = -1;
     int i;
 
+    if ( output_dup.i_config & OUTPUT_VALID )
+    {
+        while ( output_dup.p_packets != NULL
+                 && output_dup.p_packets->i_dts + i_output_latency
+                     <= i_wallclock )
+            output_Flush( &output_dup );
+
+        if ( output_dup.p_packets != NULL )
+            i_earliest_dts = output_dup.p_packets->i_dts;
+    }
+
     for ( i = 0; i < i_nb_outputs; i++ )
     {
         output_t *p_output = pp_outputs[i];
