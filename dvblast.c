@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
 #include <netdb.h>
@@ -63,8 +64,11 @@ int i_bandwidth = 8;
 char *psz_modulation = NULL;
 int b_budget_mode = 0;
 int b_output_udp = 0;
+int b_dvb_compliance = 0;
 int b_enable_epg = 0;
 int b_unique_tsid = 0;
+uint16_t i_network_id = 0xffff;
+const char *psz_network_name = "DVBlast - http://www.videolan.org/projects/dvblast.html";
 mtime_t i_output_latency = DEFAULT_OUTPUT_LATENCY;
 mtime_t i_max_retention = DEFAULT_MAX_RETENTION;
 volatile int b_hup_received = 0;
@@ -317,14 +321,13 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP:port>] [-e] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP:port>] [-C [-e] [-M <network name] [-N <network ID>]] [-T]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter <adapter>" );
     msg_Raw( NULL, "  -A --asi-adapter      read packets from an ASI adapter (0-n)" );
     msg_Raw( NULL, "  -b --bandwidth        frontend bandwith" );
     msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
-    msg_Raw( NULL, "  -e --epg-passthrough  enable EPG pass through (EIT data)" );
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
     msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
@@ -338,25 +341,29 @@ void usage()
     msg_Raw( NULL, "    DVB-S2 35=0.35|25=0.25|20=0.20|0=AUTO (default: 35)" );
     msg_Raw( NULL, "  -s --symbole-rate" );
     msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
-    msg_Raw( NULL, "  -T --unique-ts-id     generate unique TS ID for each program" );
     msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
 
     msg_Raw( NULL, "Output:" );
     msg_Raw( NULL, "  -c --config-file <config file>" );
-    msg_Raw( NULL, "  -L --latency          maximum latency allowed between input and output (default: 100 ms)" );
-    msg_Raw( NULL, "  -E --retention        maximum retention allowed between input and output (default: 40 ms)" );
+    msg_Raw( NULL, "  -C --dvb-compliance   pass through or build the mandatory DVB tables" );
     msg_Raw( NULL, "  -d --duplicate        duplicate all received packets to a given destination" );
+    msg_Raw( NULL, "  -e --epg-passthrough  pass through DVB EIT schedule tables" );
+    msg_Raw( NULL, "  -E --retention        maximum retention allowed between input and output (default: 40 ms)" );
+    msg_Raw( NULL, "  -L --latency          maximum latency allowed between input and output (default: 100 ms)" );
+    msg_Raw( NULL, "  -M --network-name     DVB network name to declare in the NIT" );
+    msg_Raw( NULL, "  -N --network-id       DVB network ID to declare in the NIT" );
     msg_Raw( NULL, "  -o --rtp-output <SSRC IP>" );
     msg_Raw( NULL, "  -t --ttl <ttl>        TTL of the output stream" );
+    msg_Raw( NULL, "  -T --unique-ts-id     generate random unique TS ID for each output" );
     msg_Raw( NULL, "  -U --udp              use raw UDP rather than RTP (required by some IPTV set top boxes)" );
 
     msg_Raw( NULL, "Misc:" );
     msg_Raw( NULL, "  -h --help             display this full help" );
     msg_Raw( NULL, "  -i --priority <RT pritority>" );
     msg_Raw( NULL, "  -q                    be quiet (less verbosity, repeat or use number for even quieter)" );
-    msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
+    msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
     msg_Raw( NULL, "  -V --version          only display the version" );
     exit(1);
 }
@@ -401,14 +408,17 @@ int main( int i_argc, char **pp_argv )
         { "duplicate",       required_argument, NULL, 'd' },
         { "rtp-input",       required_argument, NULL, 'D' },
         { "asi-adapter",     required_argument, NULL, 'A' },
+        { "dvb-compliance",  no_argument,       NULL, 'C' },
         { "epg-passthrough", no_argument,       NULL, 'e' },
+        { "network-name",    no_argument,       NULL, 'M' },
+        { "network-id",      no_argument,       NULL, 'N' },
         { "logger",          no_argument,       NULL, 'l' },
         { "help",            no_argument,       NULL, 'h' },
         { "version",         no_argument,       NULL, 'V' },
         { 0, 0, 0, 0}
     };
 
-    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uUTL:E:d:D:A:lehV", long_options, NULL)) != -1 )
+    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uUTL:E:d:D:A:lCeM:N:hV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -670,8 +680,20 @@ int main( int i_argc, char **pp_argv )
             pf_UnsetFilter = asi_UnsetFilter;
             break;
 
+        case 'C':
+            b_dvb_compliance = 1;
+            break;
+
         case 'e':
             b_enable_epg = 1;
+            break;
+
+        case 'M':
+            psz_network_name = optarg;
+            break;
+
+        case 'N':
+            i_network_id = strtoul( optarg, NULL, 0 );
             break;
 
         case 'l':
@@ -703,6 +725,12 @@ int main( int i_argc, char **pp_argv )
     {
         msg_Warn( NULL, "raw UDP output is deprecated.  Please consider using RTP." );
         msg_Warn( NULL, "for DVB-IP compliance you should use RTP." );
+    }
+
+    if ( b_enable_epg && !b_dvb_compliance )
+    {
+        msg_Dbg( NULL, "turning on DVB compliance, required by EPG information" );
+        b_dvb_compliance = 1;
     }
 
     signal( SIGHUP, SigHandler );

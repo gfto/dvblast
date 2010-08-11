@@ -2,7 +2,7 @@
  * en50221.c : implementation of the transport, session and applications
  * layers of EN 50 221
  *****************************************************************************
- * Copyright (C) 2004-2005 VideoLAN
+ * Copyright (C) 2004-2005, 2010 VideoLAN
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
@@ -45,6 +45,9 @@
 #include <linux/dvb/dmx.h>
 #include <linux/dvb/frontend.h>
 #include <linux/dvb/ca.h>
+
+#include <bitstream/mpeg/psi.h>
+#include <bitstream/dvb/ci.h>
 
 #include "dvblast.h"
 #include "en50221.h"
@@ -820,6 +823,7 @@ static void SPDUHandle( access_t * p_access, uint8_t i_slot,
 #define AOT_CA_INFO                 0x9F8031
 #define AOT_CA_PMT                  0x9F8032
 #define AOT_CA_PMT_REPLY            0x9F8033
+#define AOT_CA_UPDATE               0x9F8034
 #define AOT_TUNE                    0x9F8400
 #define AOT_REPLACE                 0x9F8401
 #define AOT_CLEAR_REPLACE           0x9F8402
@@ -1010,7 +1014,6 @@ static void ApplicationInformationHandle( access_t * p_access, int i_session_id,
         uint8_t *d = APDUGetLength( p_apdu, &l );
 
         if ( l < 4 ) break;
-        p_apdu[l + 4] = '\0';
 
         i_type = *d++;
         i_manufacturer = ((int)d[0] << 8) | d[1];
@@ -1018,9 +1021,14 @@ static void ApplicationInformationHandle( access_t * p_access, int i_session_id,
         i_code = ((int)d[0] << 8) | d[1];
         d += 2;
         d = GetLength( d, &l );
-        d[l] = '\0';
-        msg_Info( p_access, "CAM: %s, %02X, %04X, %04X",
-                  d, i_type, i_manufacturer, i_code );
+
+        {
+            char psz_name[l + 1];
+            memcpy( psz_name, d, l );
+            psz_name[l] = '\0';
+            msg_Info( p_access, "CAM: %s, %02X, %04X, %04X",
+                      psz_name, i_type, i_manufacturer, i_code );
+        }
         break;
     }
     default:
@@ -1072,191 +1080,130 @@ static bool CheckSystemID( system_ids_t *p_ids, uint16_t i_id )
 /*****************************************************************************
  * CAPMTBuild
  *****************************************************************************/
-static int GetCADSize( system_ids_t *p_ids, dvbpsi_descriptor_t *p_dr )
+static bool HasCADescriptors( system_ids_t *p_ids, uint8_t *p_descs )
 {
-    int i_cad_size = 0;
+    const uint8_t *p_desc;
+    uint16_t j = 0;
 
-    while ( p_dr != NULL )
+    while ( (p_desc = descs_get_desc( p_descs, j )) != NULL )
     {
-        if( p_dr->i_tag == 0x9 )
-        {
-            uint16_t i_sysid = ((uint16_t)p_dr->p_data[0] << 8)
-                                    | p_dr->p_data[1];
-            if ( CheckSystemID( p_ids, i_sysid ) )
-                i_cad_size += p_dr->i_length + 2;
-        }
-        p_dr = p_dr->p_next;
+        uint8_t i_tag = desc_get_tag( p_desc );
+        j++;
+
+        if ( i_tag == 0x9
+              && CheckSystemID( p_ids, desc09_get_sysid( p_desc ) ) )
+            return true;
     }
 
-    return i_cad_size;
+    return false;
 }
 
-static uint8_t *CAPMTHeader( system_ids_t *p_ids, uint8_t i_list_mgt,
-                             uint16_t i_program_number, uint8_t i_version,
-                             int i_size, dvbpsi_descriptor_t *p_dr,
-                             uint8_t i_cmd )
+static void CopyCADescriptors( system_ids_t *p_ids, uint8_t i_cmd,
+                               uint8_t *p_infos, uint8_t *p_descs )
 {
-    uint8_t *p_data;
+    const uint8_t *p_desc;
+    uint16_t j = 0, k = 0;
 
-    if ( i_size )
-        p_data = malloc( 7 + i_size );
-    else
-        p_data = malloc( 6 );
+    capmti_init( p_infos );
+    capmti_set_length( p_infos, 0xfff );
+    capmti_set_cmd( p_infos, i_cmd );
 
-    p_data[0] = i_list_mgt;
-    p_data[1] = i_program_number >> 8;
-    p_data[2] = i_program_number & 0xff;
-    p_data[3] = ((i_version & 0x1f) << 1) | 0x1;
-
-    if ( i_size )
+    while ( (p_desc = descs_get_desc( p_descs, j )) != NULL )
     {
-        int i;
+        uint8_t i_tag = desc_get_tag( p_desc );
+        j++;
 
-        p_data[4] = (i_size + 1) >> 8;
-        p_data[5] = (i_size + 1) & 0xff;
-        p_data[6] = i_cmd;
-        i = 7;
-
-        while ( p_dr != NULL )
+        if ( i_tag == 0x9
+              && CheckSystemID( p_ids, desc09_get_sysid( p_desc ) ) )
         {
-            if( p_dr->i_tag == 0x9 )
-            {
-                uint16_t i_sysid = ((uint16_t)p_dr->p_data[0] << 8)
-                                    | p_dr->p_data[1];
-                if ( CheckSystemID( p_ids, i_sysid ) )
-                {
-                    p_data[i] = 0x9;
-                    p_data[i + 1] = p_dr->i_length;
-                    memcpy( &p_data[i + 2], p_dr->p_data, p_dr->i_length );
-//                    p_data[i+4] &= 0x1f;
-                    i += p_dr->i_length + 2;
-                }
-            }
-            p_dr = p_dr->p_next;
+            uint8_t *p_info = capmti_get_info( p_infos, k );
+            k++;
+            memcpy( p_info, p_desc,
+                    DESC_HEADER_SIZE + desc_get_length( p_desc ) );
         }
     }
-    else
+
+    if ( k )
     {
-        p_data[4] = 0;
-        p_data[5] = 0;
-    }
-
-    return p_data;
-}
-
-static uint8_t *CAPMTES( system_ids_t *p_ids, uint8_t *p_capmt,
-                         int i_capmt_size, uint8_t i_type, uint16_t i_pid,
-                         int i_size, dvbpsi_descriptor_t *p_dr,
-                         uint8_t i_cmd )
-{
-    uint8_t *p_data;
-    int i;
-
-    if ( i_size )
-        p_data = realloc( p_capmt, i_capmt_size + 6 + i_size );
-    else
-        p_data = realloc( p_capmt, i_capmt_size + 5 );
-
-    i = i_capmt_size;
-
-    p_data[i] = i_type;
-    p_data[i + 1] = i_pid >> 8;
-    p_data[i + 2] = i_pid & 0xff;
-
-    if ( i_size )
-    {
-        p_data[i + 3] = (i_size + 1) >> 8;
-        p_data[i + 4] = (i_size + 1) & 0xff;
-        p_data[i + 5] = i_cmd;
-        i += 6;
-
-        while ( p_dr != NULL )
-        {
-            if( p_dr->i_tag == 0x9 )
-            {
-                uint16_t i_sysid = ((uint16_t)p_dr->p_data[0] << 8)
-                                    | p_dr->p_data[1];
-                if ( CheckSystemID( p_ids, i_sysid ) )
-                {
-                    p_data[i] = 0x9;
-                    p_data[i + 1] = p_dr->i_length;
-                    memcpy( &p_data[i + 2], p_dr->p_data, p_dr->i_length );
-                    i += p_dr->i_length + 2;
-                }
-            }
-            p_dr = p_dr->p_next;
-        }
+        uint8_t *p_info = capmti_get_info( p_infos, k );
+        capmti_set_length( p_infos, p_info - p_infos - DESCS_HEADER_SIZE );
     }
     else
-    {
-        p_data[i + 3] = 0;
-        p_data[i + 4] = 0;
-    }
-
-    return p_data;
+        capmti_set_length( p_infos, 0 );
 }
 
 static uint8_t *CAPMTBuild( access_t * p_access, int i_session_id,
-                            dvbpsi_pmt_t *p_pmt, uint8_t i_list_mgt,
+                            uint8_t *p_pmt, uint8_t i_list_mgt,
                             uint8_t i_cmd, int *pi_capmt_size )
 {
     system_ids_t *p_ids =
         (system_ids_t *)p_sessions[i_session_id - 1].p_sys;
-    dvbpsi_pmt_es_t *p_es;
-    int i_cad_size, i_cad_program_size;
-    uint8_t *p_capmt;
+    uint8_t *p_es;
+    uint8_t *p_capmt, *p_capmt_n;
+    uint16_t j, k;
+    bool b_has_ca = HasCADescriptors( p_ids, pmt_get_descs( p_pmt ) );
+    bool b_has_es = false;
 
-    i_cad_size = i_cad_program_size =
-            GetCADSize( p_ids, p_pmt->p_first_descriptor );
-    for( p_es = p_pmt->p_first_es; p_es != NULL; p_es = p_es->p_next )
+    j = 0;
+    while ( (p_es = pmt_get_es( p_pmt, j )) != NULL )
     {
-        i_cad_size += GetCADSize( p_ids, p_es->p_first_descriptor );
-    }
+        uint16_t i_pid = pmtn_get_pid( p_es );
+        j++;
 
-    if ( !i_cad_size )
-    {
-        msg_Warn( p_access,
-                  "no compatible scrambling system for SID %d on session %d",
-                  p_pmt->i_program_number, i_session_id );
-        *pi_capmt_size = 0;
-        return NULL;
-    }
-
-    p_capmt = CAPMTHeader( p_ids, i_list_mgt, p_pmt->i_program_number,
-                           p_pmt->i_version, i_cad_program_size,
-                           p_pmt->p_first_descriptor, i_cmd );
-
-    if ( i_cad_program_size )
-        *pi_capmt_size = 7 + i_cad_program_size;
-    else
-        *pi_capmt_size = 6;
-
-    for( p_es = p_pmt->p_first_es; p_es != NULL; p_es = p_es->p_next )
-    {
-        if ( !PIDIsSelected( p_es->i_pid ) )
-            continue;
-
-        i_cad_size = GetCADSize( p_ids, p_es->p_first_descriptor );
-
-        if ( i_cad_size || i_cad_program_size )
+        if ( demux_PIDIsSelected( i_pid ) )
         {
-            p_capmt = CAPMTES( p_ids, p_capmt, *pi_capmt_size, p_es->i_type,
-                               p_es->i_pid, i_cad_size,
-                               p_es->p_first_descriptor, i_cmd );
-            if ( i_cad_size )
-                *pi_capmt_size += 6 + i_cad_size;
-            else
-                *pi_capmt_size += 5;
+            b_has_es = true;
+            b_has_ca = b_has_ca
+                        || HasCADescriptors( p_ids, pmtn_get_descs( p_es ) );
         }
     }
 
-    if ( *pi_capmt_size <= 7 + i_cad_program_size )
+    if ( !b_has_es )
     {
-        msg_Dbg( p_access, "CAPMT not needed, no ES selected" );
-        free( p_capmt );
         *pi_capmt_size = 0;
         return NULL;
     }
+
+    if ( !b_has_ca )
+    {
+        msg_Warn( p_access,
+                  "no compatible scrambling system for SID %d on session %d",
+                  pmt_get_program( p_pmt ), i_session_id );
+        *pi_capmt_size = 0;
+        return NULL;
+    }
+
+    p_capmt = capmt_allocate();
+    capmt_init( p_capmt );
+    capmt_set_listmanagement( p_capmt, i_list_mgt );
+    capmt_set_program( p_capmt, pmt_get_program( p_pmt ) );
+    capmt_set_version( p_capmt, psi_get_version( p_pmt ) );
+
+    CopyCADescriptors( p_ids, i_cmd, capmt_get_infos( p_capmt ),
+                       pmt_get_descs( p_pmt ) );
+
+    j = 0; k = 0;
+    while ( (p_es = pmt_get_es( p_pmt, j )) != NULL )
+    {
+        uint16_t i_pid = pmtn_get_pid( p_es );
+        j++;
+
+        if ( !demux_PIDIsSelected( i_pid ) )
+            continue;
+
+        p_capmt_n = capmt_get_es( p_capmt, k );
+        k++;
+
+        capmtn_init( p_capmt_n );
+        capmtn_set_streamtype( p_capmt_n, pmtn_get_streamtype( p_es ) );
+        capmtn_set_pid( p_capmt_n, pmtn_get_pid( p_es ) );
+
+        CopyCADescriptors( p_ids, i_cmd, capmtn_get_infos( p_capmt_n ),
+                           pmtn_get_descs( p_es ) );
+    }
+
+    p_capmt_n = capmt_get_es( p_capmt, k );
+    *pi_capmt_size = p_capmt_n - p_capmt;
 
     return p_capmt;
 }
@@ -1264,14 +1211,13 @@ static uint8_t *CAPMTBuild( access_t * p_access, int i_session_id,
 /*****************************************************************************
  * CAPMTFirst
  *****************************************************************************/
-static void CAPMTFirst( access_t * p_access, int i_session_id,
-                        dvbpsi_pmt_t *p_pmt )
+static void CAPMTFirst( access_t * p_access, int i_session_id, uint8_t *p_pmt )
 {
     uint8_t *p_capmt;
     int i_capmt_size;
 
     msg_Dbg( p_access, "adding first CAPMT for SID %d on session %d",
-             p_pmt->i_program_number, i_session_id );
+             pmt_get_program( p_pmt ), i_session_id );
 
     p_capmt = CAPMTBuild( p_access, i_session_id, p_pmt,
                           0x3 /* only */, 0x1 /* ok_descrambling */,
@@ -1287,8 +1233,7 @@ static void CAPMTFirst( access_t * p_access, int i_session_id,
 /*****************************************************************************
  * CAPMTAdd
  *****************************************************************************/
-static void CAPMTAdd( access_t * p_access, int i_session_id,
-                      dvbpsi_pmt_t *p_pmt )
+static void CAPMTAdd( access_t * p_access, int i_session_id, uint8_t *p_pmt )
 {
     system_ids_t *p_ids =
         (system_ids_t *)p_sessions[i_session_id - 1].p_sys;
@@ -1303,7 +1248,7 @@ static void CAPMTAdd( access_t * p_access, int i_session_id,
     }
 
     msg_Dbg( p_access, "adding CAPMT for SID %d on session %d",
-             p_pmt->i_program_number, i_session_id );
+             pmt_get_program( p_pmt ), i_session_id );
 
     p_capmt = CAPMTBuild( p_access, i_session_id, p_pmt,
                           0x4 /* add */, 0x1 /* ok_descrambling */,
@@ -1319,14 +1264,13 @@ static void CAPMTAdd( access_t * p_access, int i_session_id,
 /*****************************************************************************
  * CAPMTUpdate
  *****************************************************************************/
-static void CAPMTUpdate( access_t * p_access, int i_session_id,
-                         dvbpsi_pmt_t *p_pmt )
+static void CAPMTUpdate( access_t * p_access, int i_session_id, uint8_t *p_pmt )
 {
     uint8_t *p_capmt;
     int i_capmt_size;
 
     msg_Dbg( p_access, "updating CAPMT for SID %d on session %d",
-             p_pmt->i_program_number, i_session_id );
+             pmt_get_program( p_pmt ), i_session_id );
 
     p_capmt = CAPMTBuild( p_access, i_session_id, p_pmt,
                           0x5 /* update */, 0x1 /* ok_descrambling */,
@@ -1342,8 +1286,7 @@ static void CAPMTUpdate( access_t * p_access, int i_session_id,
 /*****************************************************************************
  * CAPMTDelete
  *****************************************************************************/
-static void CAPMTDelete( access_t * p_access, int i_session_id,
-                         dvbpsi_pmt_t *p_pmt )
+static void CAPMTDelete( access_t * p_access, int i_session_id, uint8_t *p_pmt )
 {
     system_ids_t *p_ids =
         (system_ids_t *)p_sessions[i_session_id - 1].p_sys;
@@ -1352,7 +1295,7 @@ static void CAPMTDelete( access_t * p_access, int i_session_id,
 
     p_ids->i_selected_programs--;
     msg_Dbg( p_access, "deleting CAPMT for SID %d on session %d",
-             p_pmt->i_program_number, i_session_id );
+             pmt_get_program( p_pmt ), i_session_id );
 
     p_capmt = CAPMTBuild( p_access, i_session_id, p_pmt,
                           0x5 /* update */, 0x4 /* not selected */,
@@ -1400,6 +1343,12 @@ static void ConditionalAccessHandle( access_t * p_access, int i_session_id,
         demux_ResendCAPMTs();
         break;
     }
+
+    case AOT_CA_UPDATE:
+        /* http://www.cablelabs.com/specifications/OC-SP-HOSTPOD-IF-I08-011221.pdf */
+    case AOT_CA_PMT_REPLY:
+        /* We do not care */
+        break;
 
     default:
         msg_Err( p_access,
@@ -2215,7 +2164,7 @@ void en50221_Poll( void )
 /*****************************************************************************
  * en50221_AddPMT :
  *****************************************************************************/
-void en50221_AddPMT( dvbpsi_pmt_t *p_pmt )
+void en50221_AddPMT( uint8_t *p_pmt )
 {
     int i_session_id;
 
@@ -2228,7 +2177,7 @@ void en50221_AddPMT( dvbpsi_pmt_t *p_pmt )
 /*****************************************************************************
  * en50221_UpdatePMT :
  *****************************************************************************/
-void en50221_UpdatePMT( dvbpsi_pmt_t *p_pmt )
+void en50221_UpdatePMT( uint8_t *p_pmt )
 {
     int i_session_id;
 
@@ -2241,7 +2190,7 @@ void en50221_UpdatePMT( dvbpsi_pmt_t *p_pmt )
 /*****************************************************************************
  * en50221_DeletePMT :
  *****************************************************************************/
-void en50221_DeletePMT( dvbpsi_pmt_t *p_pmt )
+void en50221_DeletePMT( uint8_t *p_pmt )
 {
     int i_session_id;
 

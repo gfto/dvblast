@@ -22,12 +22,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
 
-#include <dvbpsi/dvbpsi.h>
-#include <dvbpsi/descriptor.h>
-#include <dvbpsi/pmt.h>
-
-#include "netdb.h"
-#include "sys/socket.h"
+#include <netdb.h>
+#include <sys/socket.h>
 
 #define DEFAULT_PORT 3001
 #define TS_SIZE 188
@@ -42,6 +38,7 @@
 #define MAX_POLL_TIMEOUT 100000 /* 100 ms */
 #define DEFAULT_OUTPUT_LATENCY 200000 /* 200 ms */
 #define DEFAULT_MAX_RETENTION 40000 /* 40 ms */
+#define MAX_EIT_RETENTION 500000 /* 500 ms */
 
 /*****************************************************************************
  * Output configuration flags (for output_t -> i_config) - bit values
@@ -89,13 +86,16 @@ typedef struct output_t
     /* demux */
     int i_nb_errors;
     mtime_t i_last_error;
-    dvbpsi_psi_section_t *p_pat_section;
+    uint8_t *p_pat_section;
     uint8_t i_pat_version, i_pat_cc;
-    dvbpsi_psi_section_t *p_pmt_section;
+    uint8_t *p_pmt_section;
     uint8_t i_pmt_version, i_pmt_cc;
-    dvbpsi_psi_section_t *p_sdt_section;
+    uint8_t *p_nit_section;
+    uint8_t i_nit_version, i_nit_cc;
+    uint8_t *p_sdt_section;
     uint8_t i_sdt_version, i_sdt_cc;
-    uint8_t i_eit_cc;
+    block_t *p_eit_ts_buffer;
+    uint8_t i_eit_ts_buffer_offset, i_eit_cc;
     uint16_t i_ts_id;
 
     /* configuration */
@@ -126,8 +126,11 @@ extern int i_bandwidth;
 extern char *psz_modulation;
 extern int b_budget_mode;
 extern int b_output_udp;
+extern int b_dvb_compliance;
 extern int b_enable_epg;
 extern int b_unique_tsid;
+extern uint16_t i_network_id;
+extern const char *psz_network_name;
 extern mtime_t i_output_latency;
 extern mtime_t i_max_retention;
 extern mtime_t i_wallclock;
@@ -185,7 +188,7 @@ void demux_Run( block_t *p_ts );
 void demux_Change( output_t *p_output, uint16_t i_sid,
                    uint16_t *pi_pids, int i_nb_pids );
 void demux_ResendCAPMTs( void );
-int PIDIsSelected( uint16_t i_pid );
+bool demux_PIDIsSelected( uint16_t i_pid );
 
 output_t *output_Create( uint8_t i_config, const char *psz_displayname,
                          void *p_init_data );
@@ -228,87 +231,4 @@ static inline void block_DeleteChain( block_t *p_block )
         free( p_block );
         p_block = p_next;
     }
-}
-
-/*****************************************************************************
- * block_GetSync
- *****************************************************************************/
-static inline uint8_t block_GetSync( block_t *p_block )
-{
-    return p_block->p_ts[0];
-}
-
-/*****************************************************************************
- * block_HasTransportError
- *****************************************************************************/
-static inline uint8_t block_HasTransportError( block_t *p_block )
-{
-    return p_block->p_ts[1] & 0x80;
-}
-
-/*****************************************************************************
- * block_UnitStart
- *****************************************************************************/
-static inline uint8_t block_UnitStart( block_t *p_block )
-{
-    return p_block->p_ts[1] & 0x40;
-}
-
-/*****************************************************************************
- * block_GetPID
- *****************************************************************************/
-static inline uint16_t block_GetPID( block_t *p_block )
-{
-    return (((uint16_t)p_block->p_ts[1] & 0x1f) << 8)
-                | p_block->p_ts[2];
-}
-
-/*****************************************************************************
- * block_GetScrambling
- *****************************************************************************/
-static inline uint8_t block_GetScrambling( block_t *p_block )
-{
-    return p_block->p_ts[3] & 0xc0;
-}
-
-/*****************************************************************************
- * block_GetCC
- *****************************************************************************/
-static inline uint8_t block_GetCC( block_t *p_block )
-{
-    return p_block->p_ts[3] & 0xf;
-}
-
-/*****************************************************************************
- * block_HasPCR
- *****************************************************************************/
-static inline int block_HasPCR( block_t *p_block )
-{
-    return ( p_block->p_ts[3] & 0x20 ) && /* adaptation field present */
-           ( p_block->p_ts[4] >= 7 ) && /* adaptation field size */
-           ( p_block->p_ts[5] & 0x10 ); /* has PCR */
-}
-
-/*****************************************************************************
- * block_GetPCR
- *****************************************************************************/
-static inline mtime_t block_GetPCR( block_t *p_block )
-{
-    return ( (mtime_t)p_block->p_ts[6] << 25 ) |
-           ( (mtime_t)p_block->p_ts[7] << 17 ) |
-           ( (mtime_t)p_block->p_ts[8] << 9 ) |
-           ( (mtime_t)p_block->p_ts[9] << 1 ) |
-           ( (mtime_t)p_block->p_ts[10] >> 7 );
-}
-
-/*****************************************************************************
- * block_GetPayload
- *****************************************************************************/
-static inline uint8_t *block_GetPayload( block_t *p_block )
-{
-    if ( !(p_block->p_ts[3] & 0x10) )
-        return NULL;
-    if ( !(p_block->p_ts[3] & 0x20) )
-        return &p_block->p_ts[4];
-    return &p_block->p_ts[ 5 + p_block->p_ts[4] ];
 }

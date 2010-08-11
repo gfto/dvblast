@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -36,6 +37,8 @@
 #include <errno.h>
 
 #include "dvblast.h"
+
+#include <bitstream/mpeg/ts.h>
 
 /*****************************************************************************
  * Local prototypes
@@ -119,14 +122,19 @@ int output_Init( output_t *p_output, uint8_t i_config,
     p_output->i_cc = rand() & 0xffff;
     p_output->i_pat_cc = rand() & 0xf;
     p_output->i_pmt_cc = rand() & 0xf;
+    p_output->i_nit_cc = rand() & 0xf;
     p_output->i_sdt_cc = rand() & 0xf;
     p_output->i_eit_cc = rand() & 0xf;
     p_output->i_pat_version = rand() & 0xff;
     p_output->i_pmt_version = rand() & 0xff;
+    p_output->i_nit_version = rand() & 0xff;
     p_output->i_sdt_version = rand() & 0xff;
     p_output->p_pat_section = NULL;
     p_output->p_pmt_section = NULL;
+    p_output->p_nit_section = NULL;
     p_output->p_sdt_section = NULL;
+    p_output->p_eit_ts_buffer = NULL;
+    p_output->i_eit_ts_buffer_offset = 0;
     if ( b_unique_tsid )
         p_output->i_ts_id = rand() & 0xffff;
     p_output->i_ref_timestamp = 0;
@@ -175,6 +183,12 @@ void output_Close( output_t *p_output )
 
     p_output->p_packets = p_output->p_last_packet = NULL;
     free( p_output->psz_displayname );
+    free( p_output->p_pat_section );
+    free( p_output->p_pmt_section );
+    free( p_output->p_nit_section );
+    free( p_output->p_sdt_section );
+    free( p_output->p_eit_ts_buffer );
+    free( p_output->p_addr );
     p_output->i_config &= ~OUTPUT_VALID;
     close( p_output->i_handle );
 }
@@ -251,7 +265,9 @@ void output_Put( output_t *p_output, block_t *p_block )
           && p_output->p_last_packet->i_dts + i_max_retention > p_block->i_dts )
     {
         p_packet = p_output->p_last_packet;
-        if ( block_HasPCR( p_block ) )
+        if ( ts_has_adaptation( p_block->p_ts )
+              && ts_get_adaptation( p_block->p_ts )
+              && tsaf_has_pcr( p_block->p_ts ) )
             p_packet->i_dts = p_block->i_dts;
     }
     else

@@ -1,10 +1,13 @@
 $Id$
 
-Changes between 1.2 and 1.3:
+Changes between 1.2 and 2.0:
 ----------------------------
   * Fix latency and potential packet loss during CAM communication
   * Add optional kernel patches for lower latency
   * Smooth packet output with an extra buffer
+  * libdvbpsi runtime is no longer needed; biTStream development library
+    is used instead
+  * Add support for NIT in DVB compliance mode
   * Syslog support with -l option
   * Override FEC Inner with -F option
   * Override Rolloff with -R option

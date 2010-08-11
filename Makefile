@@ -8,7 +8,7 @@ CFLAGS += -Wall -O3 -fomit-frame-pointer
 CFLAGS += -g
 CFLAGS += -I/usr/src/kernel/linux-2.6.29.1/include
 LDLIBS += -lrt
-LDLIBS_DVBLAST += -ldvbpsi -lpthread
+LDLIBS_DVBLAST += -lpthread
 
 OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm.o
 OBJ_DVBLASTCTL = util.o dvblastctl.o

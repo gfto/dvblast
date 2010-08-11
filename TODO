@@ -1,4 +1,3 @@
 - Test and enhance the API for DVB-C, H, and ATSC support
 - Win32 support
 - Improve build system (autostuff)
-- bitstream support

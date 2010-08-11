@@ -80,9 +80,9 @@ void en50221_Init( void );
 void en50221_Reset( void );
 void en50221_Read( void );
 void en50221_Poll( void );
-void en50221_AddPMT( dvbpsi_pmt_t *p_pmt );
-void en50221_UpdatePMT( dvbpsi_pmt_t *p_pmt );
-void en50221_DeletePMT( dvbpsi_pmt_t *p_pmt );
+void en50221_AddPMT( uint8_t *p_pmt );
+void en50221_UpdatePMT( uint8_t *p_pmt );
+void en50221_DeletePMT( uint8_t *p_pmt );
 uint8_t en50221_StatusMMI( uint8_t *p_answer, ssize_t *pi_size );
 uint8_t en50221_StatusMMISlot( uint8_t *p_buffer, ssize_t i_size,
                                uint8_t *p_answer, ssize_t *pi_size );

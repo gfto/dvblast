@@ -13,7 +13,7 @@ It outputs one or several RTP streams carrying transport streams with:
  - hardware or software PID filtering
  - PID-based or service-based demultiplexing
  - optional descrambling via CAM device
- - EIT, SDT and TDT pass-through for EPG information<
+ - optional DVB tables
 
 DVBlast is written to be the core of a custom IRD, CID,or ASI gateway,
 based on a PC with a Linux-supported card. It is very lightweight and
@@ -24,7 +24,7 @@ Current features
 ================
 
  - Lightweight program designed for extreme memory and CPU conditions
- - Only one dependancy: libdvbpsi
+ - No runtime dependancy; one build dependancy (biTStream)
  - CAM menus (MMI) support via an external application
  - The configuration file describing outputs can be reloaded without losing
    a single packet
@@ -48,6 +48,12 @@ a bandwidth (usually -b 8 for 8 MHz multiplexes).
 Please note that frequencies are in kHz for DVB-S/S2/C, but Hz for DVB-T.
 Symbol rates are in symbols/s, and bandwidths in MHz. If you have several
 linux-dvb cards in the machine, specify which one to use with -a.
+
+You generally want to run DVBlast in DVB compliance mode with option -C.
+This option will pass through or generate mandatory DVB tables (NIT, SDT,
+EITp/f, TOT, TDT). If you also want to pass-through the EIT schedule tables,
+use the -e switch. It is considered a good practice to configure the name
+of the network (for the NIT) with the -M option.
 
 Other rarely used options are available - run dvblast -h for more
 information.
@@ -226,8 +232,7 @@ Note that IPv6 addresses specified on command line may need to have the square
 brackets escaped (\[ and \]), depending on your shell.
 
 The -u switch disables the PID filters, so that all PIDs, even the
-unused ones, can be output. With -e, dvblast also streams EIT and SDT packets
-for the related services.
+unused ones, can be output.
 
 Other options are self-understandable, and are listed in dvblast -h.
 
