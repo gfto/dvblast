@@ -77,8 +77,7 @@ static void rtp_SetHdr( output_t *p_output, packet_t *p_packet,
 /*****************************************************************************
  * output_Create : called from main thread
  *****************************************************************************/
-output_t *output_Create( uint8_t i_config, const char *psz_displayname,
-                         void *p_init_data )
+output_t *output_Create( const char *psz_displayname, struct addrinfo *p_ai )
 {
     int i;
     output_t *p_output = NULL;
@@ -101,7 +100,7 @@ output_t *output_Create( uint8_t i_config, const char *psz_displayname,
         pp_outputs[i] = p_output;
     }
 
-    if ( output_Init( p_output, i_config, psz_displayname, p_init_data ) < 0 )
+    if ( output_Init( p_output, psz_displayname, p_ai ) < 0 )
         return NULL;
 
     return p_output;
@@ -110,8 +109,8 @@ output_t *output_Create( uint8_t i_config, const char *psz_displayname,
 /*****************************************************************************
  * output_Init
  *****************************************************************************/
-int output_Init( output_t *p_output, uint8_t i_config,
-                 const char *psz_displayname, void *p_init_data )
+int output_Init( output_t *p_output, const char *psz_displayname,
+                 struct addrinfo *p_ai )
 {
     p_output->i_sid = 0;
     p_output->p_packets = p_output->p_last_packet = NULL;
@@ -135,15 +134,22 @@ int output_Init( output_t *p_output, uint8_t i_config,
     p_output->p_sdt_section = NULL;
     p_output->p_eit_ts_buffer = NULL;
     p_output->i_eit_ts_buffer_offset = 0;
-    if ( b_unique_tsid )
-        p_output->i_ts_id = rand() & 0xffff;
+    if ( b_random_tsid )
+    {
+        p_output->i_tsid = rand() & 0xffff;
+        p_output->b_fixed_tsid = true;
+    }
+    else
+    {
+        p_output->i_tsid = 0;
+        p_output->b_fixed_tsid = false;
+    }
     p_output->i_ref_timestamp = 0;
     p_output->i_ref_wallclock = 0;
 
-    p_output->i_config = i_config;
+    p_output->i_config = 0;
     p_output->psz_displayname = strdup( psz_displayname );
 
-    struct addrinfo *p_ai = (struct addrinfo *)p_init_data;
     p_output->i_addrlen = p_ai->ai_addrlen;
     p_output->p_addr = malloc( p_output->i_addrlen );
     memcpy( p_output->p_addr, p_ai->ai_addr,
@@ -205,7 +211,7 @@ static void output_Flush( output_t *p_output )
                       NB_BLOCKS_IPV6 : NB_BLOCKS;
     int i_iov, i_block;
 
-    if ( !b_output_udp && !(p_output->i_config & OUTPUT_UDP) )
+    if ( !(p_output->i_config & OUTPUT_UDP) )
     {
         p_iov[0].iov_base = p_rtp_hdr;
         p_iov[0].iov_len = sizeof(p_rtp_hdr);
@@ -262,7 +268,8 @@ void output_Put( output_t *p_output, block_t *p_block )
 
     if ( p_output->p_last_packet != NULL
           && p_output->p_last_packet->i_depth < i_block_cnt
-          && p_output->p_last_packet->i_dts + i_max_retention > p_block->i_dts )
+          && p_output->p_last_packet->i_dts + p_output->i_max_retention
+              > p_block->i_dts )
     {
         p_packet = p_output->p_last_packet;
         if ( ts_has_adaptation( p_block->p_ts )
@@ -298,7 +305,7 @@ mtime_t output_Send( void )
     if ( output_dup.i_config & OUTPUT_VALID )
     {
         while ( output_dup.p_packets != NULL
-                 && output_dup.p_packets->i_dts + i_output_latency
+                 && output_dup.p_packets->i_dts + output_dup.i_output_latency
                      <= i_wallclock )
             output_Flush( &output_dup );
 
@@ -313,18 +320,19 @@ mtime_t output_Send( void )
             continue;
 
         while ( p_output->p_packets != NULL
-                 && p_output->p_packets->i_dts + i_output_latency
+                 && p_output->p_packets->i_dts + p_output->i_output_latency
                      <= i_wallclock )
             output_Flush( p_output );
 
         if ( p_output->p_packets != NULL
-              && (p_output->p_packets->i_dts < i_earliest_dts
+              && (p_output->p_packets->i_dts + p_output->i_output_latency
+                   < i_earliest_dts
                    || i_earliest_dts == -1) )
-            i_earliest_dts = p_output->p_packets->i_dts;
+            i_earliest_dts = p_output->p_packets->i_dts
+                              + p_output->i_output_latency;
     }
 
-    return i_earliest_dts == -1 ? -1 :
-           i_earliest_dts + i_output_latency - i_wallclock;
+    return i_earliest_dts == -1 ? -1 : i_earliest_dts - i_wallclock;
 }
 
 /*****************************************************************************

@@ -55,6 +55,9 @@ EITp/f, TOT, TDT). If you also want to pass-through the EIT schedule tables,
 use the -e switch. It is considered a good practice to configure the name
 of the network (for the NIT) with the -M option.
 
+If you don't want to set these options on a general basis, you can set them
+per output - see below.
+
 Other rarely used options are available - run dvblast -h for more
 information.
 
@@ -83,7 +86,7 @@ Configuring outputs
 
 DVBlast reads a configuration file containing one or several lines in the
 format :
-<IP>[:<port>][/udp]	<always on>	<SID>	[<PID>,]*
+<IP>[:<port>][/<option>]*	<always on>	<SID>	[<PID>,]*
 
 For instance :
 239.255.0.1:1234		1	10750	1234,1235,1236
@@ -107,6 +110,18 @@ be on at all times or if it may break. If set to "1", then DVBlast will
 regularly reset the CAM module if it fails to descramble the service,
 assuming the module is dead. Every time it is reset a few TS packets
 will be lost, that is why this feature is optional.
+
+Other options can be set by appending / to the multicast address definition.
+Available options include :
+ /udp (turns on -U for a specific output)
+ /dvb (turns on -C for a specific output)
+ /epg (turns on -C -e for a specific output)
+ /tsid=XXX (sets the transport stream ID)
+ /retention=XXX (see -E)
+ /latency=XXX (see -L)
+Several options can be appended, for instance:
+
+239.255.0.1:1234/udp/epg/tsid=42
 
 The optional "/udp" parameter can be used to force DVBlast to output
 raw UDP stream. This functionality is provided for backwards compatibility

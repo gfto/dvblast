@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvblast.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2009 VideoLAN
+ * Copyright (C) 2004, 2008-2010 VideoLAN
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
@@ -63,14 +63,9 @@ int b_tone = 0;
 int i_bandwidth = 8;
 char *psz_modulation = NULL;
 int b_budget_mode = 0;
-int b_output_udp = 0;
-int b_dvb_compliance = 0;
-int b_enable_epg = 0;
-int b_unique_tsid = 0;
+int b_random_tsid = 0;
 uint16_t i_network_id = 0xffff;
 const char *psz_network_name = "DVBlast - http://www.videolan.org/projects/dvblast.html";
-mtime_t i_output_latency = DEFAULT_OUTPUT_LATENCY;
-mtime_t i_max_retention = DEFAULT_MAX_RETENTION;
 volatile int b_hup_received = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
@@ -78,6 +73,12 @@ uint16_t i_src_port = DEFAULT_PORT;
 in_addr_t i_src_addr = { 0 };
 int b_src_rawudp = 0;
 int i_asi_adapter = 0;
+
+static int b_udp_global = 0;
+static int b_dvb_global = 0;
+static int b_epg_global = 0;
+static mtime_t i_latency_global = DEFAULT_OUTPUT_LATENCY;
+static mtime_t i_retention_global = DEFAULT_MAX_RETENTION;
 
 void (*pf_Open)( void ) = NULL;
 block_t * (*pf_Read)( mtime_t i_poll_timeout ) = NULL;
@@ -108,7 +109,7 @@ static void ReadConfiguration( char *psz_file )
     while ( fgets( psz_line, sizeof(psz_line), p_file ) != NULL )
     {
         output_t *p_output = NULL;
-        char *psz_parser, *psz_token, *psz_token2, *psz_token3;
+        char *psz_parser, *psz_token, *psz_token2;
         struct addrinfo *p_addr;
         struct addrinfo ai_hints;
         char sz_port[6];
@@ -116,7 +117,12 @@ static void ReadConfiguration( char *psz_file )
         uint16_t i_sid = 0;
         uint16_t *pi_pids = NULL;
         int i_nb_pids = 0;
-        uint8_t i_config = 0;
+        uint8_t i_config = (b_udp_global ? OUTPUT_UDP : 0) |
+                           (b_dvb_global ? OUTPUT_DVB : 0) |
+                           (b_epg_global ? OUTPUT_EPG : 0);
+        mtime_t i_retention = i_retention_global;
+        mtime_t i_latency = i_latency_global;
+        int i_tsid = -1;
 
         snprintf( sz_port, sizeof( sz_port ), "%d", DEFAULT_PORT );
 
@@ -127,11 +133,24 @@ static void ReadConfiguration( char *psz_file )
         if ( psz_token == NULL )
             continue;
 
-        if ( (psz_token3 = strrchr( psz_token, '/' )) != NULL )
+        psz_token2 = psz_token;
+        while ( (psz_token2 = strchr( psz_token2, '/' )) != NULL )
         {
-            *psz_token3 = '\0';
-            if( strncasecmp( psz_token3 + 1, "udp", 3 ) == 0 )
+            *psz_token2++ = '\0';
+            if ( !strncasecmp( psz_token2, "udp", 3 ) )
                 i_config |= OUTPUT_UDP;
+            else if ( !strncasecmp( psz_token2, "dvb", 3 ) )
+                i_config |= OUTPUT_DVB;
+            else if ( !strncasecmp( psz_token2, "epg", 3 ) )
+                i_config |= OUTPUT_EPG;
+            else if ( !strncasecmp( psz_token2, "tsid=", 5 ) )
+                i_tsid = strtol( psz_token2 + 5, NULL, 0 );
+            else if ( !strncasecmp( psz_token2, "retention=", 10 ) )
+                i_retention = strtoll( psz_token2 + 10, NULL, 0 ) * 1000;
+            else if ( !strncasecmp( psz_token2, "latency=", 8 ) )
+                i_latency = strtoll( psz_token2 + 8, NULL, 0 ) * 1000;
+            else
+                msg_Warn( NULL, "unrecognized option %s", psz_token2 );
         }
 
         if ( !strncmp( psz_token, "[", 1 ) )
@@ -227,9 +246,8 @@ static void ReadConfiguration( char *psz_file )
             }
         }
 
-        msg_Dbg( NULL, "conf: %s w=%d sid=%d pids[%d]=%d,%d,%d,%d,%d...",
-                 psz_displayname,
-                 ( i_config & OUTPUT_WATCH ) ? 1 : 0, i_sid, i_nb_pids,
+        msg_Dbg( NULL, "conf: %s config=0x%x sid=%d pids[%d]=%d,%d,%d,%d,%d...",
+                 psz_displayname, i_config, i_sid, i_nb_pids,
                  i_nb_pids < 1 ? -1 : pi_pids[0],
                  i_nb_pids < 2 ? -1 : pi_pids[1],
                  i_nb_pids < 3 ? -1 : pi_pids[2],
@@ -247,7 +265,6 @@ static void ReadConfiguration( char *psz_file )
                      ( p_esad->sin_port == p_nsad->sin_port ) )
                 {
                     p_output = pp_outputs[i];
-                    output_Init( p_output, i_config, psz_displayname, (void *)p_addr );
                     break;
                 }
             }
@@ -263,19 +280,20 @@ static void ReadConfiguration( char *psz_file )
                      ( p_esad->sin6_port == p_nsad->sin6_port ) )
                 {
                     p_output = pp_outputs[i];
-                    output_Init( p_output, i_config, psz_displayname, (void *)p_addr );
                     break;
                 }
             }
         }
 
         if ( i == i_nb_outputs )
-            p_output = output_Create( i_config, psz_displayname, (void *)p_addr );
+            p_output = output_Create( psz_displayname, p_addr );
 
         if ( p_output != NULL )
         {
-            demux_Change( p_output, i_sid, pi_pids, i_nb_pids );
-            p_output->i_config |= OUTPUT_STILL_PRESENT;
+            p_output->i_config = OUTPUT_VALID | OUTPUT_STILL_PRESENT | i_config;
+            p_output->i_output_latency = i_latency;
+            p_output->i_max_retention = i_retention;
+            demux_Change( p_output, i_tsid, i_sid, pi_pids, i_nb_pids );
         }
 
         free( psz_displayname );
@@ -287,11 +305,13 @@ static void ReadConfiguration( char *psz_file )
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID ) &&
-            !( pp_outputs[i]->i_config & OUTPUT_STILL_PRESENT ) )
+        output_t *p_output = pp_outputs[i];
+
+        if ( (p_output->i_config & OUTPUT_VALID) &&
+             !(p_output->i_config & OUTPUT_STILL_PRESENT) )
         {
             msg_Dbg( NULL, "closing %s", pp_outputs[i]->psz_displayname );
-            demux_Change( pp_outputs[i], 0, NULL, 0 );
+            demux_Change( pp_outputs[i], -1, 0, NULL, 0 );
             output_Close( pp_outputs[i] );
         }
 
@@ -530,15 +550,15 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'U':
-            b_output_udp = 1;
+            b_udp_global = 1;
             break;
 
         case 'L':
-            i_output_latency = strtoll( optarg, NULL, 0 ) * 1000;
+            i_latency_global = strtoll( optarg, NULL, 0 ) * 1000;
             break;
 
         case 'E':
-            i_max_retention = strtoll( optarg, NULL, 0 ) * 1000;
+            i_retention_global = strtoll( optarg, NULL, 0 ) * 1000;
             break;
 
         case 'd':
@@ -621,11 +641,16 @@ int main( int i_argc, char **pp_argv )
                 i_dup_config |= OUTPUT_VALID;
             }
 
-            if ( i_dup_config &= OUTPUT_VALID ) {
-              output_Init( &output_dup, i_dup_config, psz_displayname, p_daddr );
+            if ( i_dup_config & OUTPUT_VALID )
+            {
+                output_dup.i_config = i_dup_config;
+                output_dup.i_output_latency = i_latency_global;
+                output_dup.i_max_retention = i_retention_global;
+                output_Init( &output_dup, psz_displayname, p_daddr );
             }
             else
-              msg_Err( NULL, "Invalid configuration for -d switch: %s" , optarg);
+                msg_Err( NULL, "Invalid configuration for -d switch: %s" ,
+                         optarg);
 
             free( psz_displayname );
             freeaddrinfo( p_daddr );
@@ -681,11 +706,11 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'C':
-            b_dvb_compliance = 1;
+            b_dvb_global = 1;
             break;
 
         case 'e':
-            b_enable_epg = 1;
+            b_epg_global = 1;
             break;
 
         case 'M':
@@ -701,7 +726,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'T':
-            b_unique_tsid = 1;
+            b_random_tsid = 1;
             break;
 
         case 'V':
@@ -721,16 +746,16 @@ int main( int i_argc, char **pp_argv )
 
     msg_Warn( NULL, "restarting" );
 
-    if ( b_output_udp )
+    if ( b_udp_global )
     {
         msg_Warn( NULL, "raw UDP output is deprecated.  Please consider using RTP." );
         msg_Warn( NULL, "for DVB-IP compliance you should use RTP." );
     }
 
-    if ( b_enable_epg && !b_dvb_compliance )
+    if ( b_epg_global && !b_dvb_global )
     {
         msg_Dbg( NULL, "turning on DVB compliance, required by EPG information" );
-        b_dvb_compliance = 1;
+        b_dvb_global = 1;
     }
 
     signal( SIGHUP, SigHandler );

@@ -47,6 +47,8 @@
  * Bit  2 : Set if output is valid (replaces m_addr != 0 tests)
  * Bit  3 : Set for UDP, otherwise use RTP if a network stream
  * Bit  4 : Set for file / FIFO output, unset for network (future use)
+ * Bit  5 : Set if DVB conformance tables are inserted
+ * Bit  6 : Set if DVB EIT schedule tables are forwarded
  *****************************************************************************/
 
 #define OUTPUT_WATCH         0x01
@@ -54,6 +56,8 @@
 #define OUTPUT_VALID         0x04
 #define OUTPUT_UDP           0x08
 #define OUTPUT_FILE          0x10
+#define OUTPUT_DVB           0x20
+#define OUTPUT_EPG           0x40
 
 typedef int64_t mtime_t;
 
@@ -96,12 +100,16 @@ typedef struct output_t
     uint8_t i_sdt_version, i_sdt_cc;
     block_t *p_eit_ts_buffer;
     uint8_t i_eit_ts_buffer_offset, i_eit_cc;
-    uint16_t i_ts_id;
 
     /* configuration */
     uint16_t i_sid; /* 0 if raw mode */
     uint16_t *pi_pids;
     int i_nb_pids;
+    int i_ttl;
+    in_addr_t i_ssrc;
+    uint16_t i_tsid;
+    bool b_fixed_tsid;
+    mtime_t i_output_latency, i_max_retention;
     uint8_t i_config;
 } output_t;
 
@@ -125,14 +133,9 @@ extern int b_tone;
 extern int i_bandwidth;
 extern char *psz_modulation;
 extern int b_budget_mode;
-extern int b_output_udp;
-extern int b_dvb_compliance;
-extern int b_enable_epg;
-extern int b_unique_tsid;
+extern int b_random_tsid;
 extern uint16_t i_network_id;
 extern const char *psz_network_name;
-extern mtime_t i_output_latency;
-extern mtime_t i_max_retention;
 extern mtime_t i_wallclock;
 extern volatile int b_hup_received;
 extern int i_comm_fd;
@@ -185,15 +188,14 @@ void asi_UnsetFilter( int i_fd, uint16_t i_pid );
 
 void demux_Open( void );
 void demux_Run( block_t *p_ts );
-void demux_Change( output_t *p_output, uint16_t i_sid,
+void demux_Change( output_t *p_output, int i_tsid, uint16_t i_sid,
                    uint16_t *pi_pids, int i_nb_pids );
 void demux_ResendCAPMTs( void );
 bool demux_PIDIsSelected( uint16_t i_pid );
 
-output_t *output_Create( uint8_t i_config, const char *psz_displayname,
-                         void *p_init_data );
-int output_Init( output_t *p_output, uint8_t i_config,
-                 const char *psz_displayname, void *p_init_data );
+output_t *output_Create( const char *psz_displayname, struct addrinfo *p_ai );
+int output_Init( output_t *p_output, const char *psz_displayname,
+                 struct addrinfo *p_ai );
 void output_Close( output_t *p_output );
 void output_Put( output_t *p_output, block_t *p_block );
 mtime_t output_Send( void );
