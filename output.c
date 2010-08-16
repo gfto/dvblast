@@ -148,6 +148,7 @@ int output_Init( output_t *p_output, const char *psz_displayname,
     p_output->i_ref_wallclock = 0;
 
     p_output->i_config = 0;
+    p_output->i_ttl = 0;
     p_output->psz_displayname = strdup( psz_displayname );
 
     p_output->i_addrlen = p_ai->ai_addrlen;
@@ -336,6 +337,28 @@ mtime_t output_Send( void )
 }
 
 /*****************************************************************************
+ * output_SetTTL : set the TTL of an output socket
+ *****************************************************************************/
+void output_SetTTL( output_t *p_output, int i_ttl )
+{
+    if ( p_output->p_addr->ss_family == AF_INET6 )
+    {
+        struct sockaddr_in6 *addr = (struct sockaddr_in6 *)p_output->p_addr;
+        if ( IN6_IS_ADDR_MULTICAST( addr->sin6_addr.s6_addr ) )
+            setsockopt( p_output->i_handle, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+                        (void *)&i_ttl, sizeof(i_ttl) );
+    }
+    else if ( p_output->p_addr->ss_family == AF_INET )
+    {
+        struct sockaddr_in *addr = (struct sockaddr_in *)p_output->p_addr;
+        if ( IN_MULTICAST( ntohl( addr->sin_addr.s_addr ) ) )
+            setsockopt( p_output->i_handle, IPPROTO_IP, IP_MULTICAST_TTL,
+                        (void *)&i_ttl, sizeof(i_ttl) );
+    }
+    p_output->i_ttl = i_ttl;
+}
+
+/*****************************************************************************
  * net_Open
  *****************************************************************************/
 static int net_Open( output_t *p_output )
@@ -347,27 +370,6 @@ static int net_Open( output_t *p_output )
         msg_Err( NULL, "couldn't create socket for %s (%s)",
                  p_output->psz_displayname, strerror(errno) );
         return -errno;
-    }
-
-    if ( p_output->p_addr->ss_family == AF_INET6 )
-    {
-        struct sockaddr_in6 *addr = (struct sockaddr_in6 *)p_output->p_addr;
-        if ( IN6_IS_ADDR_MULTICAST( addr->sin6_addr.s6_addr ) )
-        {
-            int i = i_ttl;
-            setsockopt( i_handle, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
-                        (void *)&i, sizeof(i) );
-        }
-    }
-    else if ( p_output->p_addr->ss_family == AF_INET )
-    {
-        struct sockaddr_in *addr = (struct sockaddr_in *)p_output->p_addr;
-        if ( IN_MULTICAST( ntohl( addr->sin_addr.s_addr ) ) )
-        {
-            int i = i_ttl;
-            setsockopt( i_handle, IPPROTO_IP, IP_MULTICAST_TTL,
-                        (void *)&i, sizeof(i) );
-        }
     }
 
     if ( connect( i_handle, (struct sockaddr *)p_output->p_addr,

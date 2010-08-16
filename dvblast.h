@@ -119,7 +119,6 @@ extern output_t **pp_outputs;
 extern int i_nb_outputs;
 extern output_t output_dup;
 extern char *psz_srv_socket;
-extern int i_ttl;
 extern in_addr_t i_ssrc;
 extern int i_adapter;
 extern int i_fenum;
@@ -199,6 +198,7 @@ int output_Init( output_t *p_output, const char *psz_displayname,
 void output_Close( output_t *p_output );
 void output_Put( output_t *p_output, block_t *p_block );
 mtime_t output_Send( void );
+void output_SetTTL( output_t *p_output, int i_ttl );
 
 void comm_Open( void );
 void comm_Read( void );

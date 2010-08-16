@@ -1445,14 +1445,13 @@ static void HandlePAT( mtime_t i_dts )
             const uint8_t *p_old_program = NULL;
             uint16_t i_sid = patn_get_program( p_program );
             uint16_t i_pid = patn_get_pid( p_program );
-            int i_pmt;
             j++;
 
             if ( i_sid == 0 )
             {
                 if ( i_pid != NIT_PID )
                     msg_Warn( NULL,
-                        "NIT is carried on PID %u which isn't DVB compliant",
+                        "NIT is carried on PID %hu which isn't DVB compliant",
                         i_pid );
                 continue; /* NIT */
             }
@@ -1463,6 +1462,7 @@ static void HandlePAT( mtime_t i_dts )
                   || patn_get_pid( p_old_program ) != i_pid
                   || b_change )
             {
+                int i_pmt;
                 b_display = true;
 
                 if ( p_old_program != NULL )
@@ -1538,7 +1538,7 @@ static void HandlePATSection( uint16_t i_pid, uint8_t *p_section,
 {
     if ( i_pid != PAT_PID || !pat_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid PAT section received on PID %u", i_pid );
+        msg_Warn( NULL, "invalid PAT section received on PID %hu", i_pid );
         free( p_section );
         return;
     }
@@ -1578,7 +1578,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
     if ( i_pid != p_sid->i_pmt_pid )
     {
-        msg_Warn( NULL, "invalid PMT section received on PID %u", i_pid );
+        msg_Warn( NULL, "invalid PMT section received on PID %hu", i_pid );
         free( p_pmt );
         return;
     }
@@ -1593,7 +1593,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
     if ( !pmt_validate( p_pmt ) )
     {
-        msg_Warn( NULL, "invalid PMT section received on PID %u", i_pid );
+        msg_Warn( NULL, "invalid PMT section received on PID %hu", i_pid );
         free( p_pmt );
         goto out_pmt;
     }
@@ -1733,12 +1733,15 @@ out_nit:
     ;
 }
 
+/*****************************************************************************
+ * HandleNITSection
+ *****************************************************************************/
 static void HandleNITSection( uint16_t i_pid, uint8_t *p_section,
                               mtime_t i_dts )
 {
     if ( i_pid != NIT_PID || !nit_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid NIT section received on PID %u", i_pid );
+        msg_Warn( NULL, "invalid NIT section received on PID %hu", i_pid );
         free( p_section );
         return;
     }
@@ -1767,7 +1770,7 @@ static void HandleSDT( mtime_t i_dts )
     if ( psi_table_validate( pp_current_sdt_sections ) &&
          psi_table_compare( pp_current_sdt_sections, pp_next_sdt_sections ) )
     {
-        /* Identical sdt. Shortcut. */
+        /* Identical SDT. Shortcut. */
         psi_table_free( pp_next_sdt_sections );
         psi_table_init( pp_next_sdt_sections );
         goto out_sdt;
@@ -1853,7 +1856,7 @@ static void HandleSDTSection( uint16_t i_pid, uint8_t *p_section,
 {
     if ( i_pid != SDT_PID || !sdt_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid SDT section received on PID %u", i_pid );
+        msg_Warn( NULL, "invalid SDT section received on PID %hu", i_pid );
         free( p_section );
         return;
     }
@@ -1887,7 +1890,7 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
 
     if ( i_pid != EIT_PID || !eit_validate( p_eit ) )
     {
-        msg_Warn( NULL, "invalid EIT section received on PID %u", i_pid );
+        msg_Warn( NULL, "invalid EIT section received on PID %hu", i_pid );
         free( p_eit );
         return;
     }
@@ -1905,7 +1908,7 @@ static void HandleSection( uint16_t i_pid, uint8_t *p_section, mtime_t i_dts )
 
     if ( !psi_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid section on PID %u", i_pid );
+        msg_Warn( NULL, "invalid section on PID %hu", i_pid );
         free( p_section );
         return;
     }

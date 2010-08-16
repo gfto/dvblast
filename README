@@ -119,6 +119,7 @@ Available options include :
  /tsid=XXX (sets the transport stream ID)
  /retention=XXX (see -E)
  /latency=XXX (see -L)
+ /ttl=XX (see -t)
 Several options can be appended, for instance:
 
 239.255.0.1:1234/udp/epg/tsid=42

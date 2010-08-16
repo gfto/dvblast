@@ -48,7 +48,6 @@ int i_nb_outputs = 0;
 output_t output_dup = { 0 };
 static char *psz_conf_file = NULL;
 char *psz_srv_socket = NULL;
-int i_ttl = 64;
 in_addr_t i_ssrc = 0;
 static int i_priority = -1;
 int i_adapter = 0;
@@ -79,6 +78,7 @@ static int b_dvb_global = 0;
 static int b_epg_global = 0;
 static mtime_t i_latency_global = DEFAULT_OUTPUT_LATENCY;
 static mtime_t i_retention_global = DEFAULT_MAX_RETENTION;
+static int i_ttl_global = 64;
 
 void (*pf_Open)( void ) = NULL;
 block_t * (*pf_Read)( mtime_t i_poll_timeout ) = NULL;
@@ -123,6 +123,7 @@ static void ReadConfiguration( char *psz_file )
         mtime_t i_retention = i_retention_global;
         mtime_t i_latency = i_latency_global;
         int i_tsid = -1;
+        int i_ttl = i_ttl_global;
 
         snprintf( sz_port, sizeof( sz_port ), "%d", DEFAULT_PORT );
 
@@ -149,6 +150,8 @@ static void ReadConfiguration( char *psz_file )
                 i_retention = strtoll( psz_token2 + 10, NULL, 0 ) * 1000;
             else if ( !strncasecmp( psz_token2, "latency=", 8 ) )
                 i_latency = strtoll( psz_token2 + 8, NULL, 0 ) * 1000;
+            else if ( !strncasecmp( psz_token2, "ttl=", 4 ) )
+                i_ttl = strtol( psz_token2 + 4, NULL, 0 );
             else
                 msg_Warn( NULL, "unrecognized option %s", psz_token2 );
         }
@@ -246,13 +249,14 @@ static void ReadConfiguration( char *psz_file )
             }
         }
 
-        msg_Dbg( NULL, "conf: %s config=0x%x sid=%d pids[%d]=%d,%d,%d,%d,%d...",
-                 psz_displayname, i_config, i_sid, i_nb_pids,
-                 i_nb_pids < 1 ? -1 : pi_pids[0],
-                 i_nb_pids < 2 ? -1 : pi_pids[1],
-                 i_nb_pids < 3 ? -1 : pi_pids[2],
-                 i_nb_pids < 4 ? -1 : pi_pids[3],
-                 i_nb_pids < 5 ? -1 : pi_pids[4] );
+        msg_Dbg( NULL,
+            "conf: %s config=0x%x ttl=%d sid=%d pids[%d]=%d,%d,%d,%d,%d...",
+            psz_displayname, i_config, i_ttl, i_sid, i_nb_pids,
+            i_nb_pids < 1 ? -1 : pi_pids[0],
+            i_nb_pids < 2 ? -1 : pi_pids[1],
+            i_nb_pids < 3 ? -1 : pi_pids[2],
+            i_nb_pids < 4 ? -1 : pi_pids[3],
+            i_nb_pids < 5 ? -1 : pi_pids[4] );
 
         for ( i = 0; i < i_nb_outputs; i++ )
         {
@@ -294,6 +298,8 @@ static void ReadConfiguration( char *psz_file )
             p_output->i_output_latency = i_latency;
             p_output->i_max_retention = i_retention;
             demux_Change( p_output, i_tsid, i_sid, pi_pids, i_nb_pids );
+            if ( p_output->i_ttl != i_ttl )
+                output_SetTTL( p_output, i_ttl );
         }
 
         free( psz_displayname );
@@ -479,7 +485,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 't':
-            i_ttl = strtol( optarg, NULL, 0 );
+            i_ttl_global = strtol( optarg, NULL, 0 );
             break;
 
         case 'o':
