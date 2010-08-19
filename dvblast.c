@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
@@ -38,6 +39,12 @@
 
 #include "dvblast.h"
 #include "version.h"
+
+#ifdef HAVE_ICONV
+#include <iconv.h>
+#endif
+
+#include <bitstream/dvb/si.h>
 
 /*****************************************************************************
  * Local declarations
@@ -64,7 +71,8 @@ char *psz_modulation = NULL;
 int b_budget_mode = 0;
 int b_random_tsid = 0;
 uint16_t i_network_id = 0xffff;
-const char *psz_network_name = "DVBlast - http://www.videolan.org/projects/dvblast.html";
+uint8_t *p_network_name;
+size_t i_network_name_size;
 volatile int b_hup_received = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
@@ -72,6 +80,8 @@ uint16_t i_src_port = DEFAULT_PORT;
 in_addr_t i_src_addr = { 0 };
 int b_src_rawudp = 0;
 int i_asi_adapter = 0;
+const char *psz_native_charset = "UTF-8";
+const char *psz_dvb_charset = "ISO_8859-1";
 
 static int b_udp_global = 0;
 static int b_dvb_global = 0;
@@ -347,7 +357,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP:port>] [-C [-e] [-M <network name] [-N <network ID>]] [-T]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP:port>] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter <adapter>" );
@@ -386,16 +396,21 @@ void usage()
 
     msg_Raw( NULL, "Misc:" );
     msg_Raw( NULL, "  -h --help             display this full help" );
-    msg_Raw( NULL, "  -i --priority <RT pritority>" );
+    msg_Raw( NULL, "  -i --priority <RT priority>" );
+    msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8)" );
+    msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default ISO_8859-1)" );
+    msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
     msg_Raw( NULL, "  -q                    be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
-    msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
     msg_Raw( NULL, "  -V --version          only display the version" );
     exit(1);
 }
 
 int main( int i_argc, char **pp_argv )
 {
+    const char *psz_network_name = "DVBlast - http://www.videolan.org/projects/dvblast.html";
+    char *p_network_name_tmp = NULL;
+    size_t i_network_name_tmp_size;
     mtime_t i_poll_timeout = MAX_POLL_TIMEOUT;
     struct sched_param param;
     int i_error;
@@ -438,13 +453,15 @@ int main( int i_argc, char **pp_argv )
         { "epg-passthrough", no_argument,       NULL, 'e' },
         { "network-name",    no_argument,       NULL, 'M' },
         { "network-id",      no_argument,       NULL, 'N' },
+        { "system-charset",  required_argument, NULL, 'j' },
+        { "dvb-charset",     required_argument, NULL, 'J' },
         { "logger",          no_argument,       NULL, 'l' },
         { "help",            no_argument,       NULL, 'h' },
         { "version",         no_argument,       NULL, 'V' },
-        { 0, 0, 0, 0}
+        { 0, 0, 0, 0 }
     };
 
-    while ( ( c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uUTL:E:d:D:A:lCeM:N:hV", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uUTL:E:d:D:A:lCeM:N:j:J:hV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -727,6 +744,14 @@ int main( int i_argc, char **pp_argv )
             i_network_id = strtoul( optarg, NULL, 0 );
             break;
 
+        case 'j':
+            psz_native_charset = optarg;
+            break;
+
+        case 'J':
+            psz_dvb_charset = optarg;
+            break;
+
         case 'l':
             b_enable_syslog = 1;
             break;
@@ -763,6 +788,43 @@ int main( int i_argc, char **pp_argv )
         msg_Dbg( NULL, "turning on DVB compliance, required by EPG information" );
         b_dvb_global = 1;
     }
+
+    if ( strcasecmp( psz_native_charset, psz_dvb_charset ) )
+    {
+#ifdef HAVE_ICONV
+        iconv_t iconv_system = iconv_open( psz_dvb_charset,
+                                           psz_native_charset );
+        if ( iconv_system != (iconv_t)-1 )
+        {
+            size_t i = strlen( psz_network_name );
+            char *p, *psz_string;
+            i_network_name_tmp_size = i * 6;
+            p = psz_string = malloc(i_network_name_tmp_size);
+            if ( iconv( iconv_system, (char **)&psz_network_name, &i, &p,
+                        &i_network_name_tmp_size ) == -1 )
+                free( psz_string );
+            else
+            {
+                p_network_name_tmp = psz_string;
+                i_network_name_tmp_size = p - psz_string;
+            }
+            iconv_close( iconv_system );
+        }
+#else
+        msg_Warn( NULL,
+                  "unable to convert from %s to %s (iconv is not available)",
+                  psz_native_charset, psz_dvb_charset );
+#endif
+    }
+    if ( p_network_name_tmp == NULL )
+    {
+        p_network_name_tmp = strdup(psz_network_name);
+        i_network_name_tmp_size = strlen(psz_network_name);
+    }
+    p_network_name = dvb_string_set( (uint8_t *)p_network_name_tmp,
+                                     i_network_name_tmp_size, psz_dvb_charset,
+                                     &i_network_name_size );
+    free( p_network_name_tmp );
 
     signal( SIGHUP, SigHandler );
     srand( time(NULL) * getpid() );

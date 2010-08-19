@@ -27,12 +27,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <inttypes.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
 #include "dvblast.h"
 #include "en50221.h"
+
+#ifdef HAVE_ICONV
+#include <iconv.h>
+#endif
 
 #include <bitstream/mpeg/ts.h>
 #include <bitstream/mpeg/pes.h>
@@ -1060,13 +1065,18 @@ static void NewNIT( output_t *p_output )
     psi_set_section( p, 0 );
     psi_set_lastsection( p, 0 );
 
-    nit_set_desclength( p, DESCS_MAX_SIZE );
-    p_descs = nit_get_descs( p );
-    p_desc = descs_get_desc( p_descs, 0 );
-    desc40_init( p_desc );
-    desc40_set_networkname( p_desc, psz_network_name );
-    p_desc = descs_get_desc( p_descs, 1 );
-    descs_set_length( p_descs, p_desc - p_descs - DESCS_HEADER_SIZE );
+    if ( p_network_name != NULL )
+    {
+        nit_set_desclength( p, DESCS_MAX_SIZE );
+        p_descs = nit_get_descs( p );
+        p_desc = descs_get_desc( p_descs, 0 );
+        desc40_init( p_desc );
+        desc40_set_networkname( p_desc, p_network_name, i_network_name_size );
+        p_desc = descs_get_desc( p_descs, 1 );
+        descs_set_length( p_descs, p_desc - p_descs - DESCS_HEADER_SIZE );
+    }
+    else
+        nit_set_desclength( p, 0 );
 
     p_header2 = nit_get_header2( p );
     nith_init( p_header2 );
@@ -1232,7 +1242,9 @@ static bool PIDWouldBeSelected( uint8_t *p_es )
     case 0x2: /* video */
     case 0x3: /* audio MPEG-1 */
     case 0x4: /* audio */
-    case 0xf: /* audio AAC */
+    case 0xf: /* audio AAC ADTS */
+    case 0x10: /* video MPEG-4 */
+    case 0x11: /* audio AAC LATM */
     case 0x1b: /* video H264 */
         return true;
         break;
@@ -1247,9 +1259,13 @@ static bool PIDWouldBeSelected( uint8_t *p_es )
             uint8_t i_tag = desc_get_tag( p_desc );
             j++;
 
-            if( i_tag == 0x56 /* ttx */
+            if( i_tag == 0x46 /* VBI + teletext */
+                 || i_tag == 0x56 /* teletext */
                  || i_tag == 0x59 /* dvbsub */
-                 || i_tag == 0x6a /* A/52 */ )
+                 || i_tag == 0x6a /* A/52 */
+                 || i_tag == 0x7a /* Enhanced A/52 */
+                 || i_tag == 0x7b /* DCA */
+                 || i_tag == 0x7c /* AAC */ )
                 return true;
         }
         break;
@@ -1278,6 +1294,8 @@ static bool PIDCarriesPES( const uint8_t *p_es )
     case 0x4: /* audio */
     case 0x6: /* private PES data */
     case 0xf: /* audio AAC */
+    case 0x10: /* video MPEG-4 */
+    case 0x11: /* audio AAC LATM */
     case 0x1b: /* video H264 */
         return true;
         break;
@@ -1386,6 +1404,67 @@ static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
             break;
         }
     }
+}
+
+/*****************************************************************************
+ * demux_Iconv
+ *****************************************************************************
+ * This code is from biTStream's examples and is under the WTFPL (see
+ * LICENSE.WTFPL).
+ *****************************************************************************/
+static char *iconv_append_null(const char *p_string, size_t i_length)
+{
+    char *psz_string = malloc(i_length + 1);
+    memcpy(psz_string, p_string, i_length);
+    psz_string[i_length] = '\0';
+    return psz_string;
+}
+
+char *demux_Iconv(void *_unused, const char *psz_encoding,
+                  char *p_string, size_t i_length)
+{
+#ifdef HAVE_ICONV
+    static const char *psz_current_encoding = "";
+    static iconv_t iconv_handle = (iconv_t)-1;
+
+    char *psz_string, *p;
+    size_t i_out_length;
+
+    if (!strcmp(psz_encoding, psz_native_charset))
+        return iconv_append_null(p_string, i_length);
+
+    if (iconv_handle != (iconv_t)-1 &&
+        strcmp(psz_encoding, psz_current_encoding)) {
+        iconv_close(iconv_handle);
+        iconv_handle = (iconv_t)-1;
+    }
+
+    if (iconv_handle == (iconv_t)-1)
+        iconv_handle = iconv_open(psz_native_charset, psz_encoding);
+    if (iconv_handle == (iconv_t)-1) {
+        msg_Warn(NULL, "couldn't convert from %s to %s (%m)", psz_encoding,
+                psz_native_charset);
+        return iconv_append_null(p_string, i_length);
+    }
+
+    /* converted strings can be up to six times larger */
+    i_out_length = i_length * 6;
+    p = psz_string = malloc(i_out_length);
+    if (iconv(iconv_handle, &p_string, &i_length, &p, &i_out_length) == -1) {
+        msg_Warn(NULL, "couldn't convert from %s to %s (%m)", psz_encoding,
+                psz_native_charset);
+        free(psz_string);
+        return iconv_append_null(p_string, i_length);
+    }
+    if (i_length)
+        msg_Warn(NULL, "partial conversion from %s to %s", psz_encoding,
+                psz_native_charset);
+
+    *p = '\0';
+    return psz_string;
+#else
+    return iconv_append_null(p_string, i_length);
+#endif
 }
 
 /*****************************************************************************
@@ -1686,7 +1765,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
         UpdatePMT( i_sid );
 
-        pmt_print( p_pmt, msg_Dbg, NULL );
+        pmt_print( p_pmt, msg_Dbg, NULL, demux_Iconv, NULL );
     }
 
 out_pmt:
@@ -1727,7 +1806,8 @@ static void HandleNIT( mtime_t i_dts )
     psi_table_init( pp_next_nit_sections );
 
     if ( b_display )
-        nit_table_print( pp_current_nit_sections, msg_Dbg, NULL );
+        nit_table_print( pp_current_nit_sections, msg_Dbg, NULL,
+                         demux_Iconv, NULL );
 
 out_nit:
     ;
@@ -1842,7 +1922,8 @@ static void HandleSDT( mtime_t i_dts )
     }
 
     if ( b_change )
-        sdt_table_print( pp_current_sdt_sections, msg_Dbg, NULL );
+        sdt_table_print( pp_current_sdt_sections, msg_Dbg, NULL,
+                         demux_Iconv, NULL );
 
 out_sdt:
     SendSDT( i_dts );

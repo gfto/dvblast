@@ -25,6 +25,9 @@
 #include <netdb.h>
 #include <sys/socket.h>
 
+#define HAVE_CLOCK_NANOSLEEP
+#define HAVE_ICONV
+
 #define DEFAULT_PORT 3001
 #define TS_SIZE 188
 #define NB_BLOCKS 7
@@ -134,7 +137,8 @@ extern char *psz_modulation;
 extern int b_budget_mode;
 extern int b_random_tsid;
 extern uint16_t i_network_id;
-extern const char *psz_network_name;
+extern uint8_t *p_network_name;
+extern size_t i_network_name_size;
 extern mtime_t i_wallclock;
 extern volatile int b_hup_received;
 extern int i_comm_fd;
@@ -142,6 +146,8 @@ extern uint16_t i_src_port;
 extern in_addr_t i_src_addr;
 extern int b_src_rawudp;
 extern int i_asi_adapter;
+extern const char *psz_native_charset;
+extern const char *psz_dvb_charset;
 
 extern void (*pf_Open)( void );
 extern block_t * (*pf_Read)( mtime_t i_poll_timeout );
@@ -191,6 +197,9 @@ void demux_Change( output_t *p_output, int i_tsid, uint16_t i_sid,
                    uint16_t *pi_pids, int i_nb_pids );
 void demux_ResendCAPMTs( void );
 bool demux_PIDIsSelected( uint16_t i_pid );
+char *demux_Iconv(void *_unused, const char *psz_encoding,
+                  char *p_string, size_t i_length);
+
 
 output_t *output_Create( const char *psz_displayname, struct addrinfo *p_ai );
 int output_Init( output_t *p_output, const char *psz_displayname,

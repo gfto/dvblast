@@ -25,10 +25,11 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <stdbool.h>
+#include <inttypes.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -48,6 +49,7 @@
 
 #include <bitstream/mpeg/psi.h>
 #include <bitstream/dvb/ci.h>
+#include <bitstream/dvb/si.h>
 
 #include "dvblast.h"
 #include "en50221.h"
@@ -62,7 +64,7 @@
     {                                           \
         (tab) = malloc( sizeof( void ** ) );    \
     }                                           \
-    (tab)[count] = (p);        \
+    (tab)[count] = (p);                         \
     (count)++
 
 /*****************************************************************************
@@ -1090,7 +1092,7 @@ static bool HasCADescriptors( system_ids_t *p_ids, uint8_t *p_descs )
         uint8_t i_tag = desc_get_tag( p_desc );
         j++;
 
-        if ( i_tag == 0x9
+        if ( i_tag == 0x9 && desc09_validate( p_desc )
               && CheckSystemID( p_ids, desc09_get_sysid( p_desc ) ) )
             return true;
     }
@@ -1113,7 +1115,7 @@ static void CopyCADescriptors( system_ids_t *p_ids, uint8_t i_cmd,
         uint8_t i_tag = desc_get_tag( p_desc );
         j++;
 
-        if ( i_tag == 0x9
+        if ( i_tag == 0x9 && desc09_validate( p_desc )
               && CheckSystemID( p_ids, desc09_get_sysid( p_desc ) ) )
         {
             uint8_t *p_info = capmti_get_info( p_infos, k );
@@ -1657,7 +1659,6 @@ static void MMIDisplayReply( access_t *p_access, int i_session_id )
 static char *MMIGetText( access_t *p_access, uint8_t **pp_apdu, int *pi_size )
 {
     int i_tag = APDUGetTag( *pp_apdu, *pi_size );
-    char *psz_text;
     int l;
     uint8_t *d;
 
@@ -1669,14 +1670,11 @@ static char *MMIGetText( access_t *p_access, uint8_t **pp_apdu, int *pi_size )
     }
 
     d = APDUGetLength( *pp_apdu, &l );
-    psz_text = malloc( l + 1 );
-    strncpy( psz_text, (char *)d, l );
-    psz_text[l] = '\0';
 
     *pp_apdu += l + 4;
     *pi_size -= l + 4;
 
-    return psz_text;
+    return dvb_string_get( d, l, demux_Iconv, p_access );
 }
 
 /*****************************************************************************
