@@ -43,6 +43,7 @@
 #include <bitstream/mpeg/pes.h>
 #include <bitstream/mpeg/psi.h>
 #include <bitstream/dvb/si.h>
+#include <bitstream/dvb/si_print.h>
 #include <bitstream/mpeg/psi_print.h>
 
 /*****************************************************************************
@@ -1044,8 +1045,6 @@ static void NewPMT( output_t *p_output )
 static void NewNIT( output_t *p_output )
 {
     uint8_t *p_ts;
-    uint8_t *p_descs;
-    uint8_t *p_desc;
     uint8_t *p_header2;
     uint8_t *p;
 
@@ -1067,6 +1066,8 @@ static void NewNIT( output_t *p_output )
 
     if ( p_network_name != NULL )
     {
+        uint8_t *p_descs;
+        uint8_t *p_desc;
         nit_set_desclength( p, DESCS_MAX_SIZE );
         p_descs = nit_get_descs( p );
         p_desc = descs_get_desc( p_descs, 0 );
