@@ -213,40 +213,43 @@ static void demux_Handle( block_t *p_ts )
         dvb_Reset();
     }
 
-    /* PSI parsing */
-    if ( i_pid == TDT_PID || i_pid == RST_PID )
-        SendTDT( p_ts );
-    else if ( p_pids[i_pid].i_psi_refcount )
-        HandlePSIPacket( p_ts->p_ts, p_ts->i_dts );
-
-    p_pids[i_pid].i_last_cc = i_cc;
-
-    /* PCR handling */
-    if ( ts_has_adaptation( p_ts->p_ts )
-          && ts_get_adaptation( p_ts->p_ts )
-          && tsaf_has_pcr( p_ts->p_ts ) )
+    if ( !ts_get_transporterror( p_ts->p_ts ) )
     {
-        mtime_t i_timestamp = tsaf_get_pcr( p_ts->p_ts );
-        int j;
+        /* PSI parsing */
+        if ( i_pid == TDT_PID || i_pid == RST_PID )
+            SendTDT( p_ts );
+        else if ( p_pids[i_pid].i_psi_refcount )
+            HandlePSIPacket( p_ts->p_ts, p_ts->i_dts );
 
-        for ( j = 0; j < i_nb_sids; j++ )
+        /* PCR handling */
+        if ( ts_has_adaptation( p_ts->p_ts )
+              && ts_get_adaptation( p_ts->p_ts )
+              && tsaf_has_pcr( p_ts->p_ts ) )
         {
-            sid_t *p_sid = pp_sids[j];
-            if ( p_sid->i_sid && p_sid->p_current_pmt != NULL
-                  && pmt_get_pcrpid( p_sid->p_current_pmt ) == i_pid )
+            mtime_t i_timestamp = tsaf_get_pcr( p_ts->p_ts );
+            int j;
+
+            for ( j = 0; j < i_nb_sids; j++ )
             {
-                for ( i = 0; i < i_nb_outputs; i++ )
+                sid_t *p_sid = pp_sids[j];
+                if ( p_sid->i_sid && p_sid->p_current_pmt != NULL
+                      && pmt_get_pcrpid( p_sid->p_current_pmt ) == i_pid )
                 {
-                    output_t *p_output = pp_outputs[i];
-                    if ( p_output->i_sid == p_sid->i_sid )
+                    for ( i = 0; i < i_nb_outputs; i++ )
                     {
-                        p_output->i_ref_timestamp = i_timestamp;
-                        p_output->i_ref_wallclock = p_ts->i_dts;
+                        output_t *p_output = pp_outputs[i];
+                        if ( p_output->i_sid == p_sid->i_sid )
+                        {
+                            p_output->i_ref_timestamp = i_timestamp;
+                            p_output->i_ref_wallclock = p_ts->i_dts;
+                        }
                     }
                 }
             }
         }
     }
+
+    p_pids[i_pid].i_last_cc = i_cc;
 
     /* Output */
     for ( i = 0; i < p_pids[i_pid].i_nb_outputs; i++ )
@@ -2041,7 +2044,7 @@ static void HandlePSIPacket( uint8_t *p_ts, mtime_t i_dts )
     uint16_t i_pid = ts_get_pid( p_ts );
     ts_pid_t *p_pid = &p_pids[i_pid];
     uint8_t i_cc = ts_get_cc( p_ts );
-    const uint8_t *p_payload = ts_payload( p_ts );
+    const uint8_t *p_payload;
     uint8_t i_length;
 
     if ( ts_check_duplicate( i_cc, p_pid->i_last_cc )
@@ -2052,9 +2055,20 @@ static void HandlePSIPacket( uint8_t *p_ts, mtime_t i_dts )
           && ts_check_discontinuity( i_cc, p_pid->i_last_cc ) )
         psi_assemble_reset( &p_pid->p_psi_buffer, &p_pid->i_psi_buffer_used );
 
-    if ( psi_assemble_empty( &p_pid->p_psi_buffer, &p_pid->i_psi_buffer_used ) )
-        p_payload = ts_section( p_ts );
+    p_payload = ts_section( p_ts );
+    i_length = p_ts + TS_SIZE - p_payload;
 
+    if ( !psi_assemble_empty( &p_pid->p_psi_buffer,
+                              &p_pid->i_psi_buffer_used ) )
+    {
+        uint8_t *p_section = psi_assemble_payload( &p_pid->p_psi_buffer,
+                                                   &p_pid->i_psi_buffer_used,
+                                                   &p_payload, &i_length );
+        if ( p_section != NULL )
+            HandleSection( i_pid, p_section, i_dts );
+    }
+
+    p_payload = ts_next_section( p_ts );
     i_length = p_ts + TS_SIZE - p_payload;
 
     while ( i_length )
