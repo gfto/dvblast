@@ -45,6 +45,7 @@
 #endif
 
 #include <bitstream/dvb/si.h>
+#include <bitstream/ietf/rtp.h>
 
 /*****************************************************************************
  * Local declarations
@@ -52,10 +53,9 @@
 mtime_t i_wallclock = 0;
 output_t **pp_outputs = NULL;
 int i_nb_outputs = 0;
-output_t output_dup = { 0 };
+output_t output_dup;
 static char *psz_conf_file = NULL;
 char *psz_srv_socket = NULL;
-in_addr_t i_ssrc = 0;
 static int i_priority = -1;
 int i_adapter = 0;
 int i_fenum = 0;
@@ -73,16 +73,16 @@ int b_random_tsid = 0;
 uint16_t i_network_id = 0xffff;
 uint8_t *p_network_name;
 size_t i_network_name_size;
-volatile int b_hup_received = 0;
-int i_verbose = DEFAULT_VERBOSITY;
-int i_syslog = 0;
-uint16_t i_src_port = DEFAULT_PORT;
-in_addr_t i_src_addr = { 0 };
-int b_src_rawudp = 0;
+char *psz_udp_src = NULL;
 int i_asi_adapter = 0;
 const char *psz_native_charset = "UTF-8";
 const char *psz_dvb_charset = "ISO_8859-1";
 
+volatile sig_atomic_t b_hup_received = 0;
+int i_verbose = DEFAULT_VERBOSITY;
+int i_syslog = 0;
+
+uint8_t pi_ssrc_global[4] = { 0, 0, 0, 0 };
 static int b_udp_global = 0;
 static int b_dvb_global = 0;
 static int b_epg_global = 0;
@@ -98,7 +98,145 @@ void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid ) = NULL;
 /*****************************************************************************
  * Configuration files
  *****************************************************************************/
-static void ReadConfiguration( char *psz_file )
+void config_Init( output_config_t *p_config )
+{
+    memset( p_config, 0, sizeof(output_config_t) );
+
+    p_config->psz_displayname = NULL;
+
+    p_config->i_family = AF_UNSPEC;
+    p_config->connect_addr.ss_family = AF_UNSPEC;
+    p_config->bind_addr.ss_family = AF_UNSPEC;
+    p_config->i_if_index_v6 = -1;
+
+    p_config->pi_pids = NULL;
+}
+
+void config_Free( output_config_t *p_config )
+{
+    free( p_config->psz_displayname );
+    free( p_config->pi_pids );
+}
+
+static void config_Defaults( output_config_t *p_config )
+{
+    config_Init( p_config );
+
+    p_config->i_config = (b_udp_global ? OUTPUT_UDP : 0) |
+                         (b_dvb_global ? OUTPUT_DVB : 0) |
+                         (b_epg_global ? OUTPUT_EPG : 0);
+    p_config->i_max_retention = i_retention_global;
+    p_config->i_output_latency = i_latency_global;
+    p_config->i_tsid = -1;
+    p_config->i_ttl = i_ttl_global;
+    memcpy( p_config->pi_ssrc, pi_ssrc_global, 4 * sizeof(uint8_t) );
+}
+
+bool config_ParseHost( output_config_t *p_config, char *psz_string )
+{
+    struct addrinfo *p_ai;
+    int i_mtu;
+
+    p_config->psz_displayname = strdup( psz_string );
+
+    p_ai = ParseNodeService( psz_string, &psz_string, DEFAULT_PORT );
+    if ( p_ai == NULL ) goto err;
+    memcpy( &p_config->connect_addr, p_ai->ai_addr, p_ai->ai_addrlen );
+    freeaddrinfo( p_ai );
+
+    p_config->i_family = p_config->connect_addr.ss_family;
+    if ( p_config->i_family == AF_UNSPEC ) goto err;
+
+    if ( psz_string == NULL || !*psz_string ) goto end;
+
+    if ( *psz_string == '@' )
+    {
+        psz_string++;
+        p_ai = ParseNodeService( psz_string, &psz_string, 0 );
+        if ( p_ai == NULL || p_ai->ai_family != p_config->i_family )
+            msg_Warn( NULL, "invalid bind address" );
+        else
+            memcpy( &p_config->bind_addr, p_ai->ai_addr, p_ai->ai_addrlen );
+        freeaddrinfo( p_ai );
+    }
+
+    while ( (psz_string = strchr( psz_string, '/' )) != NULL )
+    {
+        *psz_string++ = '\0';
+
+#define IS_OPTION( option ) (!strncasecmp( psz_string, option, strlen(option) ))
+#define ARG_OPTION( option ) (psz_string + strlen(option))
+
+        if ( IS_OPTION("udp") )
+            p_config->i_config |= OUTPUT_UDP;
+        else if ( IS_OPTION("dvb") )
+            p_config->i_config |= OUTPUT_DVB;
+        else if ( IS_OPTION("epg") )
+            p_config->i_config |= OUTPUT_EPG;
+        else if ( IS_OPTION("tsid=") )
+            p_config->i_tsid = strtol( ARG_OPTION("tsid="), NULL, 0 );
+        else if ( IS_OPTION("retention=") )
+            p_config->i_max_retention = strtoll( ARG_OPTION("retention="),
+                                                 NULL, 0 ) * 1000;
+        else if ( IS_OPTION("latency=") )
+            p_config->i_output_latency = strtoll( ARG_OPTION("latency="),
+                                                  NULL, 0 ) * 1000;
+        else if ( IS_OPTION("ttl=") )
+            p_config->i_ttl = strtol( ARG_OPTION("ttl="), NULL, 0 );
+        else if ( IS_OPTION("tos=") )
+            p_config->i_tos = strtol( ARG_OPTION("tos="), NULL, 0 );
+        else if ( IS_OPTION("mtu=") )
+            p_config->i_mtu = strtol( ARG_OPTION("mtu="), NULL, 0 );
+        else if ( IS_OPTION("ifindex=") )
+            p_config->i_if_index_v6 = strtol( ARG_OPTION("ifindex="), NULL, 0 );
+        else if ( IS_OPTION("ssrc=") )
+        {
+            in_addr_t i_addr = inet_addr( ARG_OPTION("ssrc=") );
+            memcpy( p_config->pi_ssrc, &i_addr, 4 * sizeof(uint8_t) );
+        }
+        else
+            msg_Warn( NULL, "unrecognized option %s", psz_string );
+
+#undef IS_OPTION
+#undef ARG_OPTION
+    }
+
+end:
+    i_mtu = p_config->i_family == AF_INET6 ? DEFAULT_IPV6_MTU :
+            DEFAULT_IPV4_MTU;
+
+    if ( !p_config->i_mtu )
+        p_config->i_mtu = i_mtu;
+    else if ( p_config->i_mtu < TS_SIZE + RTP_HEADER_SIZE )
+    {
+        msg_Warn( NULL, "invalid MTU %d, setting %d", p_config->i_mtu, i_mtu );
+        p_config->i_mtu = i_mtu;
+    }
+
+    return true;
+
+err:
+    free( p_config->psz_displayname );
+    return false;
+}
+
+static void config_Print( output_config_t *p_config )
+{
+    const char *psz_base = "conf: %s config=0x%x sid=%d pids[%d]=";
+    size_t i_len = strlen(psz_base) + 6 * p_config->i_nb_pids + 1;
+    char psz_format[i_len];
+    int i, j = strlen(psz_base);
+
+    strcpy( psz_format, psz_base );
+    for ( i = 0; i < p_config->i_nb_pids; i++ )
+        j += sprintf( psz_format + j, "%u,", p_config->pi_pids[i] );
+    psz_format[j - 1] = '\0';
+
+    msg_Dbg( NULL, psz_format, p_config->psz_displayname, p_config->i_config,
+             p_config->i_sid, p_config->i_nb_pids );
+}
+
+static void config_ReadFile( char *psz_file )
 {
     FILE *p_file;
     char psz_line[2048];
@@ -118,130 +256,40 @@ static void ReadConfiguration( char *psz_file )
 
     while ( fgets( psz_line, sizeof(psz_line), p_file ) != NULL )
     {
-        output_t *p_output = NULL;
-        char *psz_parser, *psz_token, *psz_token2;
-        struct addrinfo *p_addr;
-        struct addrinfo ai_hints;
-        char sz_port[6];
-        char *psz_displayname;
-        uint16_t i_sid = 0;
-        uint16_t *pi_pids = NULL;
-        int i_nb_pids = 0;
-        uint8_t i_config = (b_udp_global ? OUTPUT_UDP : 0) |
-                           (b_dvb_global ? OUTPUT_DVB : 0) |
-                           (b_epg_global ? OUTPUT_EPG : 0);
-        mtime_t i_retention = i_retention_global;
-        mtime_t i_latency = i_latency_global;
-        int i_tsid = -1;
-        int i_ttl = i_ttl_global;
-
-        snprintf( sz_port, sizeof( sz_port ), "%d", DEFAULT_PORT );
+        output_config_t config;
+        output_t *p_output;
+        char *psz_token, *psz_parser;
 
         if ( !strncmp( psz_line, "#", 1 ) )
             continue;
 
+        config_Defaults( &config );
+
         psz_token = strtok_r( psz_line, "\t\n ", &psz_parser );
-        if ( psz_token == NULL )
+        if ( psz_token == NULL || !config_ParseHost( &config, psz_token ))
+        {
+            config_Free( &config );
             continue;
-
-        psz_token2 = psz_token;
-        while ( (psz_token2 = strchr( psz_token2, '/' )) != NULL )
-        {
-            *psz_token2++ = '\0';
-            if ( !strncasecmp( psz_token2, "udp", 3 ) )
-                i_config |= OUTPUT_UDP;
-            else if ( !strncasecmp( psz_token2, "dvb", 3 ) )
-                i_config |= OUTPUT_DVB;
-            else if ( !strncasecmp( psz_token2, "epg", 3 ) )
-                i_config |= OUTPUT_EPG;
-            else if ( !strncasecmp( psz_token2, "tsid=", 5 ) )
-                i_tsid = strtol( psz_token2 + 5, NULL, 0 );
-            else if ( !strncasecmp( psz_token2, "retention=", 10 ) )
-                i_retention = strtoll( psz_token2 + 10, NULL, 0 ) * 1000;
-            else if ( !strncasecmp( psz_token2, "latency=", 8 ) )
-                i_latency = strtoll( psz_token2 + 8, NULL, 0 ) * 1000;
-            else if ( !strncasecmp( psz_token2, "ttl=", 4 ) )
-                i_ttl = strtol( psz_token2 + 4, NULL, 0 );
-            else
-                msg_Warn( NULL, "unrecognized option %s", psz_token2 );
-        }
-
-        if ( !strncmp( psz_token, "[", 1 ) )
-        {
-            if ( (psz_token2 = strchr( psz_token, ']' ) ) == NULL )
-              continue;
-
-            char *psz_maddr = malloc( psz_token2 - psz_token );
-            memset( psz_maddr, '\0', ( psz_token2 - psz_token ) );
-            strncpy( psz_maddr, psz_token + 1, ( psz_token2 - psz_token - 1 ));
-
-            if ( (psz_token2 = strchr( psz_token2, ':' )) != NULL )
-            {
-                *psz_token2 = '\0';
-                snprintf( sz_port, sizeof( sz_port ), "%d", atoi( psz_token2 + 1 ) );
-            }
-
-            p_addr = malloc( sizeof( p_addr ) );
-
-            memset( &ai_hints, 0, sizeof( ai_hints ) );
-            ai_hints.ai_socktype = SOCK_DGRAM;
-            ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
-            ai_hints.ai_family   = AF_INET6;
-
-            int i_ai = getaddrinfo( psz_maddr, sz_port, &ai_hints, &p_addr );
-            if ( i_ai != 0 )
-            {
-                msg_Err( NULL, "Cannot configure output [%s]:%s: %s", psz_maddr,
-                         sz_port, gai_strerror( i_ai ) );
-                continue;
-            }
-
-            psz_displayname = malloc( INET6_ADDRSTRLEN + 8 );
-            snprintf( psz_displayname, ( INET6_ADDRSTRLEN + 8 ), "[%s]:%s",
-                      psz_maddr, sz_port );
-
-            free( psz_maddr );
-        }
-        else
-        {
-            if ( (psz_token2 = strrchr( psz_token, ':' )) != NULL )
-            {
-                *psz_token2 = '\0';
-                snprintf( sz_port, sizeof( sz_port ), "%d",  atoi( psz_token2 + 1 ) );
-            }
-
-            p_addr = malloc( sizeof( p_addr ) );
-
-            memset( &ai_hints, 0, sizeof( ai_hints ) );
-            ai_hints.ai_socktype = SOCK_DGRAM;
-            ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
-            ai_hints.ai_family   = AF_INET;
-
-            int i_ai = getaddrinfo( psz_token, sz_port, &ai_hints, &p_addr );
-            if ( i_ai != 0 )
-            {
-                msg_Err( NULL, "Cannot configure output %s:%s: %s", psz_token,
-                         sz_port, gai_strerror( i_ai ) );
-                continue;
-            }
-
-            psz_displayname = malloc( INET_ADDRSTRLEN + 6 );
-            snprintf( psz_displayname, ( INET_ADDRSTRLEN + 6 ), "%s:%s",
-                      psz_token, sz_port );
         }
 
         psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
         if ( psz_token == NULL )
+        {
+            config_Free( &config );
             continue;
+        }
         if( atoi( psz_token ) == 1 )
-            i_config |= OUTPUT_WATCH;
+            config.i_config |= OUTPUT_WATCH;
         else
-            i_config &= ~OUTPUT_WATCH;
+            config.i_config &= ~OUTPUT_WATCH;
 
         psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
         if ( psz_token == NULL )
+        {
+            config_Free( &config );
             continue;
-        i_sid = strtol(psz_token, NULL, 0);
+        }
+        config.i_sid = strtol(psz_token, NULL, 0);
 
         psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
         if ( psz_token != NULL )
@@ -252,69 +300,33 @@ static void ReadConfiguration( char *psz_file )
                 psz_token = strtok_r( psz_token, ",", &psz_parser );
                 if ( psz_token == NULL )
                     break;
-                pi_pids = realloc( pi_pids,
-                                   (i_nb_pids + 1) * sizeof(uint16_t) );
-                pi_pids[i_nb_pids++] = strtol(psz_token, NULL, 0);
+                config.pi_pids = realloc( config.pi_pids,
+                                 (config.i_nb_pids + 1) * sizeof(uint16_t) );
+                config.pi_pids[config.i_nb_pids++] = strtol(psz_token, NULL, 0);
                 psz_token = NULL;
             }
         }
 
-        msg_Dbg( NULL,
-            "conf: %s config=0x%x ttl=%d sid=%d pids[%d]=%d,%d,%d,%d,%d...",
-            psz_displayname, i_config, i_ttl, i_sid, i_nb_pids,
-            i_nb_pids < 1 ? -1 : pi_pids[0],
-            i_nb_pids < 2 ? -1 : pi_pids[1],
-            i_nb_pids < 3 ? -1 : pi_pids[2],
-            i_nb_pids < 4 ? -1 : pi_pids[3],
-            i_nb_pids < 5 ? -1 : pi_pids[4] );
+        config_Print( &config );
 
-        for ( i = 0; i < i_nb_outputs; i++ )
-        {
-            if ( pp_outputs[i]->p_addr->ss_family == AF_INET )
-            {
-                struct sockaddr_in *p_esad = (struct sockaddr_in *)pp_outputs[i]->p_addr;
-                struct sockaddr_in *p_nsad = (struct sockaddr_in *)p_addr->ai_addr;
+        p_output = output_Find( &config );
 
-                if ( ( p_esad->sin_addr.s_addr == p_nsad->sin_addr.s_addr ) &&
-                     ( p_esad->sin_port == p_nsad->sin_port ) )
-                {
-                    p_output = pp_outputs[i];
-                    break;
-                }
-            }
-            else if ( pp_outputs[i]->p_addr->ss_family == AF_INET6 )
-            {
-                struct sockaddr_in6 *p_esad = (struct sockaddr_in6 *)pp_outputs[i]->p_addr;
-                struct sockaddr_in6 *p_nsad = (struct sockaddr_in6 *)p_addr->ai_addr;
-
-                if ( ( p_esad->sin6_addr.s6_addr32[0] == p_nsad->sin6_addr.s6_addr32[0] ) &&
-                     ( p_esad->sin6_addr.s6_addr32[1] == p_nsad->sin6_addr.s6_addr32[1] ) &&
-                     ( p_esad->sin6_addr.s6_addr32[2] == p_nsad->sin6_addr.s6_addr32[2] ) &&
-                     ( p_esad->sin6_addr.s6_addr32[3] == p_nsad->sin6_addr.s6_addr32[3] ) &&
-                     ( p_esad->sin6_port == p_nsad->sin6_port ) )
-                {
-                    p_output = pp_outputs[i];
-                    break;
-                }
-            }
-        }
-
-        if ( i == i_nb_outputs )
-            p_output = output_Create( psz_displayname, p_addr );
+        if ( p_output == NULL )
+            p_output = output_Create( &config );
 
         if ( p_output != NULL )
         {
-            p_output->i_config = OUTPUT_VALID | OUTPUT_STILL_PRESENT | i_config;
-            p_output->i_output_latency = i_latency;
-            p_output->i_max_retention = i_retention;
-            demux_Change( p_output, i_tsid, i_sid, pi_pids, i_nb_pids );
-            if ( p_output->i_ttl != i_ttl )
-                output_SetTTL( p_output, i_ttl );
+            free( p_output->config.psz_displayname );
+            p_output->config.psz_displayname = strdup( config.psz_displayname );
+
+            output_Change( p_output, &config );
+            demux_Change( p_output, &config );
+
+            p_output->config.i_config = OUTPUT_VALID | OUTPUT_STILL_PRESENT |
+                                        config.i_config;
         }
 
-        free( psz_displayname );
-        free( pi_pids );
-        freeaddrinfo( p_addr );
+        config_Free( &config );
     }
 
     fclose( p_file );
@@ -322,16 +334,20 @@ static void ReadConfiguration( char *psz_file )
     for ( i = 0; i < i_nb_outputs; i++ )
     {
         output_t *p_output = pp_outputs[i];
+        output_config_t config;
 
-        if ( (p_output->i_config & OUTPUT_VALID) &&
-             !(p_output->i_config & OUTPUT_STILL_PRESENT) )
+        config_Init( &config );
+
+        if ( (p_output->config.i_config & OUTPUT_VALID) &&
+             !(p_output->config.i_config & OUTPUT_STILL_PRESENT) )
         {
-            msg_Dbg( NULL, "closing %s", pp_outputs[i]->psz_displayname );
-            demux_Change( pp_outputs[i], -1, 0, NULL, 0 );
-            output_Close( pp_outputs[i] );
+            msg_Dbg( NULL, "closing %s", p_output->config.psz_displayname );
+            demux_Change( p_output, &config );
+            output_Close( p_output );
         }
 
-        pp_outputs[i]->i_config &= ~OUTPUT_STILL_PRESENT;
+        p_output->config.i_config &= ~OUTPUT_STILL_PRESENT;
+        config_Free( &config );
     }
 }
 
@@ -357,7 +373,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D <src mcast>:<port>|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP:port>] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter <adapter>" );
@@ -411,6 +427,7 @@ int main( int i_argc, char **pp_argv )
     const char *psz_network_name = "DVBlast - http://www.videolan.org/projects/dvblast.html";
     char *p_network_name_tmp = NULL;
     size_t i_network_name_tmp_size;
+    char *psz_dup_config = NULL;
     mtime_t i_poll_timeout = MAX_POLL_TIMEOUT;
     struct sched_param param;
     int i_error;
@@ -510,7 +527,7 @@ int main( int i_argc, char **pp_argv )
             struct in_addr maddr;
             if ( !inet_aton( optarg, &maddr ) )
                 usage();
-            i_ssrc = maddr.s_addr;
+            memcpy( pi_ssrc_global, &maddr.s_addr, 4 * sizeof(uint8_t) );
             break;
         }
 
@@ -585,105 +602,11 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'd':
-        {
-            char *psz_token, *psz_displayname;
-            char sz_port[6];
-            struct addrinfo *p_daddr;
-            struct addrinfo ai_hints;
-            int i_dup_config = 0;
-
-            snprintf( sz_port, sizeof( sz_port ), "%d", DEFAULT_PORT );
-
-            p_daddr = malloc( sizeof( p_daddr ) );
-            memset( p_daddr, '\0', sizeof( p_daddr ) );
-
-            if ( !strncmp( optarg, "[", 1 ) )
-            {
-                if ( (psz_token = strchr( optarg, ']' ) ) == NULL )
-                {
-                    msg_Err(NULL, "Invalid target address for -d switch");
-                    break;
-                }
-
-                char *psz_maddr = malloc( psz_token - optarg );
-                memset( psz_maddr, '\0', ( psz_token - optarg ) );
-                strncpy( psz_maddr, optarg + 1, ( psz_token - optarg - 1 ));
-
-                if ( (psz_token = strchr( psz_token, ':' )) != NULL )
-                {
-                    *psz_token = '\0';
-                    snprintf( sz_port, sizeof( sz_port ), "%d", atoi( psz_token + 1 ) );
-                }
-
-                memset( &ai_hints, 0, sizeof( ai_hints ) );
-                ai_hints.ai_socktype = SOCK_DGRAM;
-                ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
-                ai_hints.ai_family   = AF_INET6;
-
-                int i_ai = getaddrinfo( psz_maddr, sz_port, &ai_hints, &p_daddr );
-                if ( i_ai != 0 )
-                {
-                    msg_Err( NULL, "Cannot duplicate to [%s]:%s: %s", psz_maddr,
-                             sz_port, gai_strerror( i_ai ) );
-                    break;
-                }
-
-                psz_displayname = malloc( INET6_ADDRSTRLEN + 20 );
-                snprintf( psz_displayname, ( INET6_ADDRSTRLEN + 20 ),
-                          "duplicate ([%s]:%s)", psz_maddr, sz_port );
-
-                i_dup_config |= OUTPUT_VALID;
-
-                free( psz_maddr );
-            }
-            else
-            {
-                if ( (psz_token = strrchr( optarg, ':' )) != NULL )
-                {
-                    *psz_token = '\0';
-                    snprintf( sz_port, sizeof( sz_port ), "%d",  atoi( psz_token + 1 ) );
-                }
-
-                memset( &ai_hints, 0, sizeof( ai_hints ) );
-                ai_hints.ai_socktype = SOCK_DGRAM;
-                ai_hints.ai_flags    = AI_ADDRCONFIG | AI_NUMERICHOST | AI_NUMERICSERV;
-                ai_hints.ai_family   = AF_INET;
-
-                int i_ai = getaddrinfo( optarg, sz_port, &ai_hints, &p_daddr );
-                if ( i_ai != 0 )
-                {
-                    msg_Err( NULL, "Cannot duplicate to %s:%s: %s", optarg,
-                             sz_port, gai_strerror( i_ai ) );
-                    break;
-                }
-
-                psz_displayname = malloc( INET_ADDRSTRLEN + 18 );
-                snprintf( psz_displayname, ( INET_ADDRSTRLEN + 18 ),
-                          "duplicate (%s:%s)", optarg, sz_port );
-
-                i_dup_config |= OUTPUT_VALID;
-            }
-
-            if ( i_dup_config & OUTPUT_VALID )
-            {
-                output_dup.i_config = i_dup_config;
-                output_dup.i_output_latency = i_latency_global;
-                output_dup.i_max_retention = i_retention_global;
-                output_Init( &output_dup, psz_displayname, p_daddr );
-            }
-            else
-                msg_Err( NULL, "Invalid configuration for -d switch: %s" ,
-                         optarg);
-
-            free( psz_displayname );
-            freeaddrinfo( p_daddr );
+            psz_dup_config = optarg;
             break;
-        }
 
         case 'D':
-        {
-            char *psz_token;
-            struct in_addr maddr;
+            psz_udp_src = optarg;
             if ( pf_Open != NULL )
                 usage();
             if ( psz_srv_socket != NULL )
@@ -691,27 +614,11 @@ int main( int i_argc, char **pp_argv )
                 msg_Err( NULL, "-r is only available for linux-dvb input" );
                 usage();
             }
-
             pf_Open = udp_Open;
             pf_Read = udp_Read;
             pf_SetFilter = udp_SetFilter;
             pf_UnsetFilter = udp_UnsetFilter;
-
-            if ( (psz_token = strrchr( optarg, '/' )) != NULL )
-            {
-                *psz_token = '\0';
-                b_src_rawudp = ( strncasecmp( psz_token + 1, "udp", 3 ) == 0 );
-            }
-            if ( (psz_token = strrchr( optarg, ':' )) != NULL )
-            {
-                *psz_token = '\0';
-                i_src_port = atoi( psz_token + 1 );
-            }
-            if ( !inet_aton( optarg, &maddr ) )
-                usage();
-            i_src_addr = maddr.s_addr;
             break;
-        }
 
         case 'A':
             i_asi_adapter = strtol( optarg, NULL, 0 );
@@ -789,6 +696,23 @@ int main( int i_argc, char **pp_argv )
         b_dvb_global = 1;
     }
 
+    memset( &output_dup, 0, sizeof(output_dup) );
+    if ( psz_dup_config != NULL )
+    {
+        output_config_t config;
+
+        config_Defaults( &config );
+        if ( !config_ParseHost( &config, psz_dup_config ) )
+            msg_Err( NULL, "Invalid target address for -d switch" );
+        else
+        {
+            output_Init( &output_dup, &config );
+            output_Change( &output_dup, &config );
+        }
+
+        config_Free( &config );
+    }
+
     if ( strcasecmp( psz_native_charset, psz_dvb_charset ) )
     {
 #ifdef HAVE_ICONV
@@ -843,7 +767,7 @@ int main( int i_argc, char **pp_argv )
         }
     }
 
-    ReadConfiguration( psz_conf_file );
+    config_ReadFile( psz_conf_file );
 
     if ( psz_srv_socket != NULL )
         comm_Open();
@@ -856,7 +780,7 @@ int main( int i_argc, char **pp_argv )
         {
             b_hup_received = 0;
             msg_Warn( NULL, "HUP received, reloading" );
-            ReadConfiguration( psz_conf_file );
+            config_ReadFile( psz_conf_file );
         }
 
         p_ts = pf_Read( i_poll_timeout );

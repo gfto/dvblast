@@ -7,6 +7,8 @@ Changes between 1.2 and 2.0:
   * Smooth packet output with an extra buffer
   * libdvbpsi runtime is no longer needed; biTStream development library
     is used instead
+  * Add the ability to bind to a specific network interface
+  * Add a configurable MTU
   * Add support for NIT in DVB compliance mode
   * Syslog support with -l option
   * Override FEC Inner with -F option

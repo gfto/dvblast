@@ -30,10 +30,8 @@
 
 #define DEFAULT_PORT 3001
 #define TS_SIZE 188
-#define NB_BLOCKS 7
-#define NB_BLOCKS_IPV6 6          // assume MTU of 1280 bytes for IPv6
-#define RTP_SIZE 12
-#define EMPTY_PID 8192
+#define DEFAULT_IPV4_MTU 1500
+#define DEFAULT_IPV6_MTU 1280
 #define PADDING_PID 8191
 #define WATCHDOG_WAIT 10000000LL
 #define MAX_ERRORS 1000
@@ -74,14 +72,35 @@ typedef struct block_t
 
 typedef struct packet_t packet_t;
 
+typedef struct output_config_t
+{
+    /* identity */
+    int i_family;
+    struct sockaddr_storage connect_addr;
+    struct sockaddr_storage bind_addr;
+    int i_if_index_v6;
+
+    /* common config */
+    char *psz_displayname;
+    uint64_t i_config;
+
+    /* output config */
+    uint8_t pi_ssrc[4];
+    mtime_t i_output_latency, i_max_retention;
+    int i_ttl;
+    uint8_t i_tos;
+    int i_mtu;
+
+    /* demux config */
+    int i_tsid;
+    uint16_t i_sid; /* 0 if raw mode */
+    uint16_t *pi_pids;
+    int i_nb_pids;
+} output_config_t;
+
 typedef struct output_t
 {
-    /* address information, protocol agnostic */
-    struct sockaddr_storage *p_addr;
-    socklen_t i_addrlen;
-
-    /* display string */
-    char *psz_displayname;
+    output_config_t config;
 
     /* output */
     int i_handle;
@@ -103,17 +122,7 @@ typedef struct output_t
     uint8_t i_sdt_version, i_sdt_cc;
     block_t *p_eit_ts_buffer;
     uint8_t i_eit_ts_buffer_offset, i_eit_cc;
-
-    /* configuration */
-    uint16_t i_sid; /* 0 if raw mode */
-    uint16_t *pi_pids;
-    int i_nb_pids;
-    int i_ttl;
-    in_addr_t i_ssrc;
     uint16_t i_tsid;
-    bool b_fixed_tsid;
-    mtime_t i_output_latency, i_max_retention;
-    uint8_t i_config;
 } output_t;
 
 extern int i_syslog;
@@ -122,7 +131,6 @@ extern output_t **pp_outputs;
 extern int i_nb_outputs;
 extern output_t output_dup;
 extern char *psz_srv_socket;
-extern in_addr_t i_ssrc;
 extern int i_adapter;
 extern int i_fenum;
 extern int i_frequency;
@@ -142,9 +150,7 @@ extern size_t i_network_name_size;
 extern mtime_t i_wallclock;
 extern volatile int b_hup_received;
 extern int i_comm_fd;
-extern uint16_t i_src_port;
-extern in_addr_t i_src_addr;
-extern int b_src_rawudp;
+extern char *psz_udp_src;
 extern int i_asi_adapter;
 extern const char *psz_native_charset;
 extern const char *psz_dvb_charset;
@@ -157,6 +163,10 @@ extern void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid );
 /*****************************************************************************
  * Prototypes
  *****************************************************************************/
+
+void config_Init( output_config_t *p_config );
+void config_Free( output_config_t *p_config );
+bool config_ParseHost( output_config_t *p_config, char *psz_string );
 
 /* Connect/Disconnect from syslogd */
 void msg_Connect( const char *ident );
@@ -173,6 +183,8 @@ void msg_Raw( void *_unused, const char *psz_format, ... );
 mtime_t mdate( void );
 void msleep( mtime_t delay );
 void hexDump( uint8_t *p_data, uint32_t i_len );
+struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
+                                   uint16_t i_default_port );
 
 void dvb_Open( void );
 void dvb_Reset( void );
@@ -193,21 +205,20 @@ void asi_UnsetFilter( int i_fd, uint16_t i_pid );
 
 void demux_Open( void );
 void demux_Run( block_t *p_ts );
-void demux_Change( output_t *p_output, int i_tsid, uint16_t i_sid,
-                   uint16_t *pi_pids, int i_nb_pids );
+void demux_Change( output_t *p_output, const output_config_t *p_config );
 void demux_ResendCAPMTs( void );
 bool demux_PIDIsSelected( uint16_t i_pid );
 char *demux_Iconv(void *_unused, const char *psz_encoding,
                   char *p_string, size_t i_length);
 
 
-output_t *output_Create( const char *psz_displayname, struct addrinfo *p_ai );
-int output_Init( output_t *p_output, const char *psz_displayname,
-                 struct addrinfo *p_ai );
+output_t *output_Create( const output_config_t *p_config );
+int output_Init( output_t *p_output, const output_config_t *p_config );
 void output_Close( output_t *p_output );
 void output_Put( output_t *p_output, block_t *p_block );
 mtime_t output_Send( void );
-void output_SetTTL( output_t *p_output, int i_ttl );
+output_t *output_Find( const output_config_t *p_config );
+void output_Change( output_t *p_output, const output_config_t *p_config );
 
 void comm_Open( void );
 void comm_Read( void );

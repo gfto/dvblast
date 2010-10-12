@@ -1,7 +1,7 @@
 # DVBlast Makefile
 # Customise the path of your kernel
 
-VERSION = 1.2.0
+VERSION = 2.0.0
 TOPDIR = `basename ${PWD}`
 
 CFLAGS += -Wall -O3 -fomit-frame-pointer

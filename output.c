@@ -39,16 +39,19 @@
 #include "dvblast.h"
 
 #include <bitstream/mpeg/ts.h>
+#include <bitstream/ietf/rtp.h>
 
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
 struct packet_t
 {
-    block_t *pp_blocks[NB_BLOCKS];
-    int i_depth;
-    mtime_t i_dts;
     struct packet_t *p_next;
+    mtime_t i_dts;
+    int i_depth;
+    block_t **pp_blocks;
+    /* PRIVATE - this MUST be at the end of the structure: */
+    block_t *p_blocks; /* actually an array of pointers */
 };
 
 static uint8_t p_pad_ts[TS_SIZE] = {
@@ -70,21 +73,17 @@ static uint8_t p_pad_ts[TS_SIZE] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 
-static int net_Open( output_t *p_output );
-static void rtp_SetHdr( output_t *p_output, packet_t *p_packet,
-                        uint8_t *p_hdr );
-
 /*****************************************************************************
- * output_Create : called from main thread
+ * output_Create : create and insert the output_t structure
  *****************************************************************************/
-output_t *output_Create( const char *psz_displayname, struct addrinfo *p_ai )
+output_t *output_Create( const output_config_t *p_config )
 {
     int i;
     output_t *p_output = NULL;
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
-        if ( !( pp_outputs[i]->i_config & OUTPUT_VALID ) )
+        if ( !( pp_outputs[i]->config.i_config & OUTPUT_VALID ) )
         {
             p_output = pp_outputs[i];
             break;
@@ -94,30 +93,31 @@ output_t *output_Create( const char *psz_displayname, struct addrinfo *p_ai )
     if ( p_output == NULL )
     {
         p_output = malloc( sizeof(output_t) );
-        memset( p_output, 0, sizeof(output_t) );
         i_nb_outputs++;
         pp_outputs = realloc( pp_outputs, i_nb_outputs * sizeof(output_t *) );
         pp_outputs[i] = p_output;
     }
 
-    if ( output_Init( p_output, psz_displayname, p_ai ) < 0 )
+    if ( output_Init( p_output, p_config ) < 0 )
         return NULL;
 
     return p_output;
 }
 
 /*****************************************************************************
- * output_Init
+ * output_Init : set up the output initial config
  *****************************************************************************/
-int output_Init( output_t *p_output, const char *psz_displayname,
-                 struct addrinfo *p_ai )
+int output_Init( output_t *p_output, const output_config_t *p_config )
 {
-    p_output->i_sid = 0;
-    p_output->p_packets = p_output->p_last_packet = NULL;
-    p_output->pi_pids = NULL;
-    p_output->i_nb_pids = 0;
+    socklen_t i_sockaddr_len = (p_config->i_family == AF_INET) ?
+                               sizeof(struct sockaddr_in) :
+                               sizeof(struct sockaddr_in6);
 
-    p_output->i_nb_errors = 0;
+    memset( p_output, 0, sizeof(output_t) );
+    config_Init( &p_output->config );
+
+    /* Init run-time values */
+    p_output->p_packets = p_output->p_last_packet = NULL;
     p_output->i_cc = rand() & 0xffff;
     p_output->i_pat_cc = rand() & 0xf;
     p_output->i_pmt_cc = rand() & 0xf;
@@ -133,36 +133,66 @@ int output_Init( output_t *p_output, const char *psz_displayname,
     p_output->p_nit_section = NULL;
     p_output->p_sdt_section = NULL;
     p_output->p_eit_ts_buffer = NULL;
-    p_output->i_eit_ts_buffer_offset = 0;
     if ( b_random_tsid )
-    {
         p_output->i_tsid = rand() & 0xffff;
-        p_output->b_fixed_tsid = true;
-    }
-    else
+
+    /* Init socket-related fields */
+    p_output->config.i_family = p_config->i_family;
+    memcpy( &p_output->config.connect_addr, &p_config->connect_addr,
+            sizeof(struct sockaddr_storage) );
+    memcpy( &p_output->config.bind_addr, &p_config->bind_addr,
+            sizeof(struct sockaddr_storage) );
+    p_output->config.i_if_index_v6 = p_config->i_if_index_v6;
+
+    p_output->i_handle = socket( p_config->i_family, SOCK_DGRAM, IPPROTO_UDP );
+    if ( p_output->i_handle < 0 )
     {
-        p_output->i_tsid = 0;
-        p_output->b_fixed_tsid = false;
+        msg_Err( NULL, "couldn't create socket (%s)", strerror(errno) );
+        p_output->config.i_config &= ~OUTPUT_VALID;
+        return -errno;
     }
-    p_output->i_ref_timestamp = 0;
-    p_output->i_ref_wallclock = 0;
 
-    p_output->i_config = 0;
-    p_output->i_ttl = 0;
-    p_output->psz_displayname = strdup( psz_displayname );
-
-    p_output->i_addrlen = p_ai->ai_addrlen;
-    p_output->p_addr = malloc( p_output->i_addrlen );
-    memcpy( p_output->p_addr, p_ai->ai_addr,
-            p_output->i_addrlen );
-
-    if ( ( p_output->i_handle = net_Open( p_output ) ) < 0 )
+    if ( p_config->bind_addr.ss_family != AF_UNSPEC )
     {
-        p_output->i_config &= ~OUTPUT_VALID;
-        return -1;
+        if ( bind( p_output->i_handle, (struct sockaddr *)&p_config->bind_addr,
+                   i_sockaddr_len ) < 0 )
+            msg_Warn( NULL, "couldn't bind socket (%s)", strerror(errno) );
+
+        if ( p_config->i_family == AF_INET )
+        {
+            struct sockaddr_in *p_connect_addr =
+                (struct sockaddr_in *)&p_output->config.connect_addr;
+            struct sockaddr_in *p_bind_addr =
+                (struct sockaddr_in *)&p_output->config.bind_addr;
+
+            if ( IN_MULTICAST( ntohl( p_connect_addr->sin_addr.s_addr ) ) )
+                setsockopt( p_output->i_handle, IPPROTO_IP, IP_MULTICAST_IF,
+                            (void *)&p_bind_addr->sin_addr.s_addr,
+                            sizeof(p_bind_addr->sin_addr.s_addr) );
+        }
     }
 
-    p_output->i_config |= OUTPUT_VALID;
+    if ( p_config->i_family == AF_INET6 && p_config->i_if_index_v6 != -1 )
+    {
+        struct sockaddr_in6 *p_addr =
+            (struct sockaddr_in6 *)&p_output->config.connect_addr;
+        if ( IN6_IS_ADDR_MULTICAST( p_addr->sin6_addr.s6_addr ) )
+            setsockopt( p_output->i_handle, IPPROTO_IPV6,
+                        IPV6_MULTICAST_IF, (void *)&p_config->i_if_index_v6,
+                        sizeof(p_config->i_if_index_v6) );
+    }
+
+    if ( connect( p_output->i_handle,
+                  (struct sockaddr *)&p_output->config.connect_addr,
+                  i_sockaddr_len ) < 0 )
+    {
+        msg_Err( NULL, "couldn't connect socket (%s)", strerror(errno) );
+        close( p_output->i_handle );
+        p_output->config.i_config &= ~OUTPUT_VALID;
+        return -errno;
+    }
+
+    p_output->config.i_config |= OUTPUT_VALID;
 
     return 0;
 }
@@ -189,15 +219,27 @@ void output_Close( output_t *p_output )
     }
 
     p_output->p_packets = p_output->p_last_packet = NULL;
-    free( p_output->psz_displayname );
     free( p_output->p_pat_section );
     free( p_output->p_pmt_section );
     free( p_output->p_nit_section );
     free( p_output->p_sdt_section );
     free( p_output->p_eit_ts_buffer );
-    free( p_output->p_addr );
-    p_output->i_config &= ~OUTPUT_VALID;
+    p_output->config.i_config &= ~OUTPUT_VALID;
+
     close( p_output->i_handle );
+
+    config_Free( &p_output->config );
+}
+
+/*****************************************************************************
+ * output_BlockCount
+ *****************************************************************************/
+static int output_BlockCount( output_t *p_output )
+{
+    int i_mtu = p_output->config.i_mtu;
+    if ( !(p_output->config.i_config & OUTPUT_UDP) )
+        i_mtu -= RTP_HEADER_SIZE;
+    return i_mtu / TS_SIZE;
 }
 
 /*****************************************************************************
@@ -206,17 +248,25 @@ void output_Close( output_t *p_output )
 static void output_Flush( output_t *p_output )
 {
     packet_t *p_packet = p_output->p_packets;
-    struct iovec p_iov[NB_BLOCKS + 1];
-    uint8_t p_rtp_hdr[RTP_SIZE];
-    int i_block_cnt = ( p_output->p_addr->ss_family == AF_INET6 ) ?
-                      NB_BLOCKS_IPV6 : NB_BLOCKS;
+    int i_block_cnt = output_BlockCount( p_output );
+    struct iovec p_iov[i_block_cnt + 1];
+    uint8_t p_rtp_hdr[RTP_HEADER_SIZE];
     int i_iov, i_block;
 
-    if ( !(p_output->i_config & OUTPUT_UDP) )
+    if ( !(p_output->config.i_config & OUTPUT_UDP) )
     {
         p_iov[0].iov_base = p_rtp_hdr;
         p_iov[0].iov_len = sizeof(p_rtp_hdr);
-        rtp_SetHdr( p_output, p_packet, p_rtp_hdr );
+
+        rtp_set_hdr( p_rtp_hdr );
+        rtp_set_type( p_rtp_hdr, RTP_TYPE_TS );
+        rtp_set_cc( p_rtp_hdr, p_output->i_cc++ );
+        rtp_set_timestamp( p_rtp_hdr,
+                           p_output->i_ref_timestamp
+                            + (p_packet->i_dts - p_output->i_ref_wallclock)
+                               * 9 / 100 );
+        rtp_set_ssrc( p_rtp_hdr, p_output->config.pi_ssrc );
+
         i_iov = 1;
     }
     else
@@ -239,7 +289,7 @@ static void output_Flush( output_t *p_output )
     if ( writev( p_output->i_handle, p_iov, i_iov ) < 0 )
     {
         msg_Err( NULL, "couldn't writev to %s (%s)",
-                 p_output->psz_displayname, strerror(errno) );
+                 p_output->config.psz_displayname, strerror(errno) );
     }
     /* Update the wallclock because writev() can take some time. */
     i_wallclock = mdate();
@@ -261,15 +311,14 @@ static void output_Flush( output_t *p_output )
  *****************************************************************************/
 void output_Put( output_t *p_output, block_t *p_block )
 {
-    int i_block_cnt = ( p_output->p_addr->ss_family == AF_INET6 ) ?
-                      NB_BLOCKS_IPV6 : NB_BLOCKS;
+    int i_block_cnt = output_BlockCount( p_output );
     packet_t *p_packet;
 
     p_block->i_refcount++;
 
     if ( p_output->p_last_packet != NULL
           && p_output->p_last_packet->i_depth < i_block_cnt
-          && p_output->p_last_packet->i_dts + p_output->i_max_retention
+          && p_output->p_last_packet->i_dts + p_output->config.i_max_retention
               > p_block->i_dts )
     {
         p_packet = p_output->p_last_packet;
@@ -280,7 +329,10 @@ void output_Put( output_t *p_output, block_t *p_block )
     }
     else
     {
-        p_packet = malloc( sizeof(packet_t) );
+        /* This isn't the cleanest allocation of the world. */
+        p_packet = malloc( sizeof(packet_t)
+                            + (i_block_cnt - 1) * sizeof(block_t *) );
+        p_packet->pp_blocks = &p_packet->p_blocks;
         p_packet->i_depth = 0;
         p_packet->p_next = NULL;
         p_packet->i_dts = p_block->i_dts;
@@ -303,11 +355,11 @@ mtime_t output_Send( void )
     mtime_t i_earliest_dts = -1;
     int i;
 
-    if ( output_dup.i_config & OUTPUT_VALID )
+    if ( output_dup.config.i_config & OUTPUT_VALID )
     {
         while ( output_dup.p_packets != NULL
-                 && output_dup.p_packets->i_dts + output_dup.i_output_latency
-                     <= i_wallclock )
+                 && output_dup.p_packets->i_dts
+                     + output_dup.config.i_output_latency <= i_wallclock )
             output_Flush( &output_dup );
 
         if ( output_dup.p_packets != NULL )
@@ -317,111 +369,112 @@ mtime_t output_Send( void )
     for ( i = 0; i < i_nb_outputs; i++ )
     {
         output_t *p_output = pp_outputs[i];
-        if ( !( p_output->i_config & OUTPUT_VALID ) )
+        if ( !( p_output->config.i_config & OUTPUT_VALID ) )
             continue;
 
         while ( p_output->p_packets != NULL
-                 && p_output->p_packets->i_dts + p_output->i_output_latency
-                     <= i_wallclock )
+                 && p_output->p_packets->i_dts
+                     + p_output->config.i_output_latency <= i_wallclock )
             output_Flush( p_output );
 
         if ( p_output->p_packets != NULL
-              && (p_output->p_packets->i_dts + p_output->i_output_latency
-                   < i_earliest_dts
+              && (p_output->p_packets->i_dts
+                   + p_output->config.i_output_latency < i_earliest_dts
                    || i_earliest_dts == -1) )
             i_earliest_dts = p_output->p_packets->i_dts
-                              + p_output->i_output_latency;
+                              + p_output->config.i_output_latency;
     }
 
     return i_earliest_dts == -1 ? -1 : i_earliest_dts - i_wallclock;
 }
 
 /*****************************************************************************
- * output_SetTTL : set the TTL of an output socket
+ * output_Find : find an existing output from a given output_config_t
  *****************************************************************************/
-void output_SetTTL( output_t *p_output, int i_ttl )
+output_t *output_Find( const output_config_t *p_config )
 {
-    if ( p_output->p_addr->ss_family == AF_INET6 )
+    socklen_t i_sockaddr_len = (p_config->i_family == AF_INET) ?
+                               sizeof(struct sockaddr_in) :
+                               sizeof(struct sockaddr_in6);
+    int i;
+
+    for ( i = 0; i < i_nb_outputs; i++ )
     {
-        struct sockaddr_in6 *addr = (struct sockaddr_in6 *)p_output->p_addr;
-        if ( IN6_IS_ADDR_MULTICAST( addr->sin6_addr.s6_addr ) )
-            setsockopt( p_output->i_handle, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
-                        (void *)&i_ttl, sizeof(i_ttl) );
+        output_t *p_output = pp_outputs[i];
+
+        if ( !(p_output->config.i_config & OUTPUT_VALID) ) continue;
+
+        if ( p_config->i_family != p_output->config.i_family ||
+             memcmp( &p_config->connect_addr, &p_output->config.connect_addr,
+                     i_sockaddr_len ) ||
+             memcmp( &p_config->bind_addr, &p_output->config.bind_addr,
+                     i_sockaddr_len ) )
+            continue;
+
+        if ( p_config->i_family == AF_INET6 &&
+             p_config->i_if_index_v6 != p_output->config.i_if_index_v6 )
+            continue;
+
+        return p_output;
     }
-    else if ( p_output->p_addr->ss_family == AF_INET )
-    {
-        struct sockaddr_in *addr = (struct sockaddr_in *)p_output->p_addr;
-        if ( IN_MULTICAST( ntohl( addr->sin_addr.s_addr ) ) )
-            setsockopt( p_output->i_handle, IPPROTO_IP, IP_MULTICAST_TTL,
-                        (void *)&i_ttl, sizeof(i_ttl) );
-    }
-    p_output->i_ttl = i_ttl;
+
+    return NULL;
 }
 
 /*****************************************************************************
- * net_Open
+ * output_Change : get changes from a new output_config_t
  *****************************************************************************/
-static int net_Open( output_t *p_output )
+void output_Change( output_t *p_output, const output_config_t *p_config )
 {
-    int i_handle = socket( p_output->p_addr->ss_family, SOCK_DGRAM, IPPROTO_UDP );
+    memcpy( p_output->config.pi_ssrc, p_config->pi_ssrc, 4 * sizeof(uint8_t) );
+    p_output->config.i_output_latency = p_config->i_output_latency;
+    p_output->config.i_max_retention = p_config->i_max_retention;
 
-    if ( i_handle < 0 )
+    if ( p_output->config.i_ttl != p_config->i_ttl )
     {
-        msg_Err( NULL, "couldn't create socket for %s (%s)",
-                 p_output->psz_displayname, strerror(errno) );
-        return -errno;
+        if ( p_output->config.i_family == AF_INET6 )
+        {
+            struct sockaddr_in6 *p_addr =
+                (struct sockaddr_in6 *)&p_output->config.connect_addr;
+            if ( IN6_IS_ADDR_MULTICAST( p_addr->sin6_addr.s6_addr ) )
+                setsockopt( p_output->i_handle, IPPROTO_IPV6,
+                            IPV6_MULTICAST_HOPS, (void *)&p_config->i_ttl,
+                            sizeof(p_config->i_ttl) );
+        }
+        else
+        {
+            struct sockaddr_in *p_addr =
+                (struct sockaddr_in *)&p_output->config.connect_addr;
+            if ( IN_MULTICAST( ntohl( p_addr->sin_addr.s_addr ) ) )
+                setsockopt( p_output->i_handle, IPPROTO_IP, IP_MULTICAST_TTL,
+                            (void *)&p_config->i_ttl, sizeof(p_config->i_ttl) );
+        }
+        p_output->config.i_ttl = p_config->i_ttl;
     }
 
-    if ( connect( i_handle, (struct sockaddr *)p_output->p_addr,
-                  p_output->i_addrlen ) < 0 )
+    if ( p_output->config.i_tos != p_config->i_tos )
     {
-        msg_Err( NULL, "couldn't connect socket to %s (%s)",
-                 p_output->psz_displayname, strerror(errno) );
-        close( i_handle );
-        return -errno;
+        if ( p_output->config.i_family == AF_INET )
+            setsockopt( p_output->i_handle, IPPROTO_IP, IP_TOS,
+                        (void *)&p_config->i_tos, sizeof(p_config->i_tos) );
+        p_output->config.i_tos = p_config->i_tos;
     }
 
-    return i_handle;
+    if ( p_output->config.i_mtu != p_config->i_mtu
+          || ((p_output->config.i_config ^ p_config->i_config) & OUTPUT_UDP) )
+    {
+        int i_block_cnt;
+        packet_t *p_packet = p_output->p_last_packet;
+        p_output->config.i_config &= ~OUTPUT_UDP;
+        p_output->config.i_config |= p_config->i_config & OUTPUT_UDP;
+        p_output->config.i_mtu = p_config->i_mtu;
+
+        i_block_cnt = output_BlockCount( p_output );
+        if ( p_packet != NULL && p_packet->i_depth < i_block_cnt )
+        {
+            p_packet = realloc( p_packet, sizeof(packet_t *)
+                                 + (i_block_cnt - 1) * sizeof(block_t *) );
+            p_packet->pp_blocks = &p_packet->p_blocks;
+        }
+    }
 }
-
-/*****************************************************************************
- * rtp_SetHdr
- *****************************************************************************/
-/*
- * Reminder : RTP header
-    0                   1                   2                   3
-    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |V=2|P|X|  CC   |M|     PT      |       sequence number         |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                           timestamp                           |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |           synchronization source (SSRC) identifier            |
-   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
-   |            contributing source (CSRC) identifiers             |
-   |                             ....                              |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- */
-
-static void rtp_SetHdr( output_t *p_output, packet_t *p_packet, uint8_t *p_hdr )
-{
-    mtime_t i_timestamp;
-
-    i_timestamp = p_output->i_ref_timestamp
-                   + (p_packet->i_dts - p_output->i_ref_wallclock) * 9 / 100;
-
-    p_hdr[0] = 0x80;
-    p_hdr[1] = 33;
-    p_hdr[2] = p_output->i_cc >> 8;
-    p_hdr[3] = p_output->i_cc & 0xff;
-    p_hdr[4] = (i_timestamp >> 24) & 0xff;
-    p_hdr[5] = (i_timestamp >> 16) & 0xff;
-    p_hdr[6] = (i_timestamp >> 8) & 0xff;
-    p_hdr[7] = i_timestamp & 0xff;
-    p_hdr[8] = ((uint8_t *)&i_ssrc)[0];
-    p_hdr[9] = ((uint8_t *)&i_ssrc)[1];
-    p_hdr[10] = ((uint8_t *)&i_ssrc)[2];
-    p_hdr[11] = ((uint8_t *)&i_ssrc)[3];
-    p_output->i_cc++;
-}
-

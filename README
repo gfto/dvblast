@@ -80,13 +80,26 @@ instance a multi-program transport stream. The address is specified with
 such a stream for instance to cross network boundaries between the
 receivers and the target network.
 
+The syntax of the -D option is:
+[<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*
+where <src mcast> is the multicast address carrying the stream, and <src
+host> is optionally the address of the source, for source-specific multicast.
+Options include:
+ /udp (for streams without an RTP header)
+ /mtu=XXXX (sets the maximum UDP packet size)
+ /ifindex=X (binds to a specific network interface, by link number)
+ /ifaddr=XXX.XXX.XXX.XXX (binds to a specific network interface, by address)
+
+For example:
+-D 239.255.0.2:1234/udp/ifindex=1
+
 
 Configuring outputs
 ===================
 
 DVBlast reads a configuration file containing one or several lines in the
 format :
-<IP>[:<port>][/<option>]*	<always on>	<SID>	[<PID>,]*
+<IP>[:<port>][@<IP>[:<port>]][/<option>]*	<always on>	<SID>	[<PID>,]*
 
 For instance :
 239.255.0.1:1234		1	10750	1234,1235,1236
@@ -105,6 +118,15 @@ For example :
 [ff12::1%eth0]:1234		1	10750
 [ff15::abcd]:1234		1	10750
 
+An optional bind address can be specified after an '@' sign. The typical
+usage of this is to allow binding to a specific interface in a system which
+has several. For instance:
+239.255.0.1:1234@192.168.42.1	1	10750
+
+For IPv6 the bind address is not relevant; binding to an interface is achieved
+via the option "/ifindex=X" where X is the number of the link, as given by
+the command `ip link`.
+
 The "always on" flag tells DVBlast whether the channel is expected to
 be on at all times or if it may break. If set to "1", then DVBlast will
 regularly reset the CAM module if it fails to descramble the service,
@@ -117,12 +139,16 @@ Available options include :
  /dvb (turns on -C for a specific output)
  /epg (turns on -C -e for a specific output)
  /tsid=XXX (sets the transport stream ID)
+ /ssrc=XXX.XXX.XXX.XXX (sets the RTP synchronization source IPv4)
  /retention=XXX (see -E)
  /latency=XXX (see -L)
  /ttl=XX (see -t)
+ /tos=XX (sets the IPv4 Type Of Service option)
+ /mtu=XXXX (sets the maximum UDP packet size)
+
 Several options can be appended, for instance:
 
-239.255.0.1:1234/udp/epg/tsid=42
+239.255.0.1:1234/udp/epg/tsid=42/ssrc=192.168.0.1
 
 The optional "/udp" parameter can be used to force DVBlast to output
 raw UDP stream. This functionality is provided for backwards compatibility

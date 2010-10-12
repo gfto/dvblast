@@ -238,7 +238,7 @@ static void demux_Handle( block_t *p_ts )
                     for ( i = 0; i < i_nb_outputs; i++ )
                     {
                         output_t *p_output = pp_outputs[i];
-                        if ( p_output->i_sid == p_sid->i_sid )
+                        if ( p_output->config.i_sid == p_sid->i_sid )
                         {
                             p_output->i_ref_timestamp = i_timestamp;
                             p_output->i_ref_wallclock = p_ts->i_dts;
@@ -257,7 +257,7 @@ static void demux_Handle( block_t *p_ts )
         output_t *p_output = p_pids[i_pid].pp_outputs[i];
         if ( p_output != NULL )
         {
-            if ( i_ca_handle && (p_output->i_config & OUTPUT_WATCH) &&
+            if ( i_ca_handle && (p_output->config.i_config & OUTPUT_WATCH) &&
                  ts_get_unitstart( p_ts->p_ts ) )
             {
                 uint8_t *p_payload;
@@ -282,7 +282,7 @@ static void demux_Handle( block_t *p_ts )
 
                     msg_Warn( NULL,
                              "too many errors for stream %s, resetting",
-                             p_output->psz_displayname );
+                             p_output->config.psz_displayname );
                     en50221_Reset();
                 }
             }
@@ -296,7 +296,7 @@ static void demux_Handle( block_t *p_ts )
         }
     }
 
-    if ( output_dup.i_config & OUTPUT_VALID )
+    if ( output_dup.config.i_config & OUTPUT_VALID )
         output_Put( &output_dup, p_ts );
 
     p_ts->i_refcount--;
@@ -315,44 +315,51 @@ static int IsIn( uint16_t *pi_pids, int i_nb_pids, uint16_t i_pid )
     return ( i != i_nb_pids );
 }
 
-void demux_Change( output_t *p_output, int i_tsid, uint16_t i_sid,
-                   uint16_t *pi_pids, int i_nb_pids )
+void demux_Change( output_t *p_output, const output_config_t *p_config )
 {
-    int i;
     uint16_t *pi_wanted_pids, *pi_current_pids;
     int i_nb_wanted_pids, i_nb_current_pids;
-    uint16_t i_old_sid = p_output->i_sid;
-    int sid_change = ( i_sid != i_old_sid );
-    int pid_change = 0, tsid_change = 0;
 
-    if ( i_tsid != -1 &&
-         (!p_output->b_fixed_tsid || p_output->i_tsid != i_tsid) )
+    uint16_t i_old_sid = p_output->config.i_sid;
+    uint16_t i_sid = p_config->i_sid;
+    uint16_t *pi_old_pids = p_output->config.pi_pids;
+    uint16_t *pi_pids = p_config->pi_pids;
+    int i_old_nb_pids = p_output->config.i_nb_pids;
+    int i_nb_pids = p_config->i_nb_pids;
+
+    bool b_sid_change = i_sid != i_old_sid;
+    bool b_pid_change = false, b_tsid_change = false;
+    int i;
+
+    if ( p_config->i_tsid != -1 && p_output->config.i_tsid != p_config->i_tsid )
     {
-        p_output->b_fixed_tsid = true;
-        p_output->i_tsid = i_tsid;
-        tsid_change = 1;
+        p_output->i_tsid = p_config->i_tsid;
+        b_tsid_change = true;
     }
-    if ( i_tsid == -1 && p_output->b_fixed_tsid && !b_random_tsid )
+    if ( p_config->i_tsid == -1 && p_output->config.i_tsid != -1 )
     {
-        p_output->b_fixed_tsid = false;
-        if ( psi_table_validate(pp_current_pat_sections) )
+        if ( psi_table_validate(pp_current_pat_sections) && !b_random_tsid )
             p_output->i_tsid =
                 psi_table_get_tableidext(pp_current_pat_sections);
-        tsid_change = 1;
+        else
+            p_output->i_tsid = rand() & 0xffff;
+        b_tsid_change = true;
     }
+    p_output->config.i_tsid = p_config->i_tsid;
 
-    if ( i_sid == p_output->i_sid && i_nb_pids == p_output->i_nb_pids &&
-         (!i_nb_pids ||
-          !memcmp( p_output->pi_pids, pi_pids, i_nb_pids * sizeof(uint16_t) )) )
+    if ( !b_sid_change && p_config->i_nb_pids == p_output->config.i_nb_pids &&
+         (!p_config->i_nb_pids ||
+          !memcmp( p_output->config.pi_pids, p_config->pi_pids,
+                   p_config->i_nb_pids * sizeof(uint16_t) )) )
         goto out_change;
 
     GetPIDS( &pi_wanted_pids, &i_nb_wanted_pids, i_sid, pi_pids, i_nb_pids );
-    GetPIDS( &pi_current_pids, &i_nb_current_pids, p_output->i_sid,
-             p_output->pi_pids, p_output->i_nb_pids );
+    GetPIDS( &pi_current_pids, &i_nb_current_pids, i_old_sid, pi_old_pids,
+             i_old_nb_pids );
 
-    if ( sid_change && i_old_sid )
+    if ( b_sid_change && i_old_sid )
     {
-        p_output->i_sid = i_sid;
+        p_output->config.i_sid = p_config->i_sid;
         for ( i = 0; i < i_nb_sids; i++ )
         {
             if ( pp_sids[i]->i_sid == i_old_sid )
@@ -370,16 +377,15 @@ void demux_Change( output_t *p_output, int i_tsid, uint16_t i_sid,
 
     for ( i = 0; i < i_nb_current_pids; i++ )
     {
-        if ( pi_current_pids[i] != EMPTY_PID &&
-             !IsIn( pi_wanted_pids, i_nb_wanted_pids, pi_current_pids[i] ) )
+        if ( !IsIn( pi_wanted_pids, i_nb_wanted_pids, pi_current_pids[i] ) )
         {
             StopPID( p_output, pi_current_pids[i] );
-            pid_change = 1;
+            b_pid_change = true;
         }
     }
 
-    if ( sid_change &&
-         i_ca_handle && i_old_sid && SIDIsSelected( i_old_sid ) )
+    if ( b_sid_change && i_ca_handle && i_old_sid &&
+         SIDIsSelected( i_old_sid ) )
     {
         for ( i = 0; i < i_nb_sids; i++ )
         {
@@ -395,20 +401,19 @@ void demux_Change( output_t *p_output, int i_tsid, uint16_t i_sid,
 
     for ( i = 0; i < i_nb_wanted_pids; i++ )
     {
-        if ( pi_wanted_pids[i] != EMPTY_PID &&
-             !IsIn( pi_current_pids, i_nb_current_pids, pi_wanted_pids[i] ) )
+        if ( !IsIn( pi_current_pids, i_nb_current_pids, pi_wanted_pids[i] ) )
         {
             StartPID( p_output, pi_wanted_pids[i] );
-            pid_change = 1;
+            b_pid_change = true;
         }
     }
 
     free( pi_wanted_pids );
     free( pi_current_pids );
 
-    if ( sid_change && i_sid )
+    if ( b_sid_change && i_sid )
     {
-        p_output->i_sid = i_old_sid;
+        p_output->config.i_sid = i_old_sid;
         for ( i = 0; i < i_nb_sids; i++ )
         {
             if ( pp_sids[i]->i_sid == i_sid )
@@ -438,27 +443,27 @@ void demux_Change( output_t *p_output, int i_tsid, uint16_t i_sid,
         }
     }
 
-    p_output->i_sid = i_sid;
-    free( p_output->pi_pids );
-    p_output->pi_pids = malloc( sizeof(uint16_t) * i_nb_pids );
-    memcpy( p_output->pi_pids, pi_pids, sizeof(uint16_t) * i_nb_pids );
-    p_output->i_nb_pids = i_nb_pids;
+    p_output->config.i_sid = i_sid;
+    free( p_output->config.pi_pids );
+    p_output->config.pi_pids = malloc( sizeof(uint16_t) * i_nb_pids );
+    memcpy( p_output->config.pi_pids, pi_pids, sizeof(uint16_t) * i_nb_pids );
+    p_output->config.i_nb_pids = i_nb_pids;
 
 out_change:
-    if ( sid_change )
+    if ( b_sid_change )
     {
         NewSDT( p_output );
         NewNIT( p_output );
         NewPAT( p_output );
         NewPMT( p_output );
     }
-    else if ( tsid_change )
+    else if ( b_tsid_change )
     {
         NewSDT( p_output );
         NewNIT( p_output );
         NewPAT( p_output );
     }
-    else if ( pid_change )
+    else if ( b_pid_change )
         NewPMT( p_output );
 }
 
@@ -578,9 +583,9 @@ static void SelectPID( uint16_t i_sid, uint16_t i_pid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( (pp_outputs[i]->i_config & OUTPUT_VALID)
-              && pp_outputs[i]->i_sid == i_sid
-              && !pp_outputs[i]->i_nb_pids )
+        if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
+              && pp_outputs[i]->config.i_sid == i_sid
+              && !pp_outputs[i]->config.i_nb_pids )
             StartPID( pp_outputs[i], i_pid );
 }
 
@@ -589,9 +594,9 @@ static void UnselectPID( uint16_t i_sid, uint16_t i_pid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( (pp_outputs[i]->i_config & OUTPUT_VALID)
-              && pp_outputs[i]->i_sid == i_sid
-              && !pp_outputs[i]->i_nb_pids )
+        if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
+              && pp_outputs[i]->config.i_sid == i_sid
+              && !pp_outputs[i]->config.i_nb_pids )
             StopPID( pp_outputs[i], i_pid );
 }
 
@@ -606,8 +611,8 @@ static void SelectPSI( uint16_t i_sid, uint16_t i_pid )
     p_pids[i_pid].b_pes = false;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( (pp_outputs[i]->i_config & OUTPUT_VALID)
-              && pp_outputs[i]->i_sid == i_sid )
+        if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
+              && pp_outputs[i]->config.i_sid == i_sid )
             SetPID( i_pid );
 }
 
@@ -621,8 +626,8 @@ static void UnselectPSI( uint16_t i_sid, uint16_t i_pid )
                             &p_pids[i_pid].i_psi_buffer_used );
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( (pp_outputs[i]->i_config & OUTPUT_VALID)
-              && pp_outputs[i]->i_sid == i_sid )
+        if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
+              && pp_outputs[i]->config.i_sid == i_sid )
             UnsetPID( i_pid );
 }
 
@@ -757,7 +762,7 @@ static void SendPAT( mtime_t i_dts )
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( !(p_output->i_config & OUTPUT_VALID) )
+        if ( !(p_output->config.i_config & OUTPUT_VALID) )
             continue;
 
         if ( p_output->p_pat_section == NULL &&
@@ -796,8 +801,8 @@ static void SendPMT( sid_t *p_sid, mtime_t i_dts )
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( (p_output->i_config & OUTPUT_VALID)
-               && p_output->i_sid == p_sid->i_sid
+        if ( (p_output->config.i_config & OUTPUT_VALID)
+               && p_output->config.i_sid == p_sid->i_sid
                && p_output->p_pmt_section != NULL )
             OutputPSISection( p_output, p_output->p_pmt_section,
                               p_sid->i_pmt_pid, &p_output->i_pmt_cc, i_dts,
@@ -816,8 +821,8 @@ static void SendNIT( mtime_t i_dts )
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( (p_output->i_config & OUTPUT_VALID)
-               && (p_output->i_config & OUTPUT_DVB)
+        if ( (p_output->config.i_config & OUTPUT_VALID)
+               && (p_output->config.i_config & OUTPUT_DVB)
                && p_output->p_nit_section != NULL )
             OutputPSISection( p_output, p_output->p_nit_section, NIT_PID,
                               &p_output->i_nit_cc, i_dts, NULL, NULL );
@@ -835,8 +840,8 @@ static void SendSDT( mtime_t i_dts )
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( (p_output->i_config & OUTPUT_VALID)
-               && (p_output->i_config & OUTPUT_DVB)
+        if ( (p_output->config.i_config & OUTPUT_VALID)
+               && (p_output->config.i_config & OUTPUT_DVB)
                && p_output->p_sdt_section != NULL )
             OutputPSISection( p_output, p_output->p_sdt_section, SDT_PID,
                               &p_output->i_sdt_cc, i_dts, NULL, NULL );
@@ -857,10 +862,10 @@ static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( (p_output->i_config & OUTPUT_VALID)
-               && (p_output->i_config & OUTPUT_DVB)
-               && (!b_epg || (p_output->i_config & OUTPUT_EPG))
-               && p_output->i_sid == p_sid->i_sid )
+        if ( (p_output->config.i_config & OUTPUT_VALID)
+               && (p_output->config.i_config & OUTPUT_DVB)
+               && (!b_epg || (p_output->config.i_config & OUTPUT_EPG))
+               && p_output->config.i_sid == p_sid->i_sid )
         {
             if ( eit_get_tsid( p_eit ) != p_output->i_tsid )
             {
@@ -901,8 +906,8 @@ static void SendTDT( block_t *p_ts )
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( (p_output->i_config & OUTPUT_VALID)
-               && (p_output->i_config & OUTPUT_DVB)
+        if ( (p_output->config.i_config & OUTPUT_VALID)
+               && (p_output->config.i_config & OUTPUT_DVB)
                && p_output->p_sdt_section != NULL )
             output_Put( p_output, p_ts );
     }
@@ -920,11 +925,11 @@ static void NewPAT( output_t *p_output )
     p_output->p_pat_section = NULL;
     p_output->i_pat_version++;
 
-    if ( !p_output->i_sid ) return;
+    if ( !p_output->config.i_sid ) return;
     if ( !psi_table_validate(pp_current_pat_sections) ) return;
 
     p_program = pat_table_find_program( pp_current_pat_sections,
-                                         p_output->i_sid );
+                                        p_output->config.i_sid );
     if ( p_program == NULL ) return;
 
     p = p_output->p_pat_section = psi_allocate();
@@ -938,7 +943,7 @@ static void NewPAT( output_t *p_output )
 
     p = pat_get_program( p, 0 );
     patn_init( p );
-    patn_set_program( p, p_output->i_sid );
+    patn_set_program( p, p_output->config.i_sid );
     patn_set_pid( p, patn_get_pid( p_program ) );
     psi_set_crc( p_output->p_pat_section );
 }
@@ -989,10 +994,10 @@ static void NewPMT( output_t *p_output )
     p_output->p_pmt_section = NULL;
     p_output->i_pmt_version++;
 
-    if ( !p_output->i_sid ) return;
+    if ( !p_output->config.i_sid ) return;
 
     for ( i = 0; i < i_nb_sids; i++ )
-        if ( pp_sids[i]->i_sid == p_output->i_sid )
+        if ( pp_sids[i]->i_sid == p_output->config.i_sid )
             break;
 
     if ( i == i_nb_sids ) return;
@@ -1003,7 +1008,7 @@ static void NewPMT( output_t *p_output )
     p = p_output->p_pmt_section = psi_allocate();
     pmt_init( p );
     psi_set_length( p, PSI_MAX_SIZE );
-    pmt_set_program( p, p_output->i_sid );
+    pmt_set_program( p, p_output->config.i_sid );
     psi_set_version( p, p_output->i_pmt_version );
     psi_set_current( p );
     pmt_set_pcrpid( p, pmt_get_pcrpid( p_current_pmt ) );
@@ -1017,8 +1022,9 @@ static void NewPMT( output_t *p_output )
         uint16_t i_pid = pmtn_get_pid( p_current_es );
 
         j++;
-        if ( (p_output->i_nb_pids || !PIDWouldBeSelected( p_current_es ))
-              && !IsIn( p_output->pi_pids, p_output->i_nb_pids, i_pid ) )
+        if ( (p_output->config.i_nb_pids || !PIDWouldBeSelected( p_current_es ))
+              && !IsIn( p_output->config.pi_pids, p_output->config.i_nb_pids,
+                        i_pid ) )
             continue;
 
         p_es = pmt_get_es( p, k );
@@ -1055,7 +1061,7 @@ static void NewNIT( output_t *p_output )
     p_output->p_nit_section = NULL;
     p_output->i_nit_version++;
 
-    if ( !p_output->i_sid ) return;
+    if ( !p_output->config.i_sid ) return;
     if ( !psi_table_validate(pp_current_pat_sections) ) return;
 
     p = p_output->p_nit_section = psi_allocate();
@@ -1113,11 +1119,11 @@ static void NewSDT( output_t *p_output )
     p_output->p_sdt_section = NULL;
     p_output->i_sdt_version++;
 
-    if ( !p_output->i_sid ) return;
+    if ( !p_output->config.i_sid ) return;
     if ( !psi_table_validate(pp_current_sdt_sections) ) return;
 
     p_current_service = sdt_table_find_service( pp_current_sdt_sections,
-                                         p_output->i_sid );
+                                                p_output->config.i_sid );
 
     if ( p_current_service == NULL )
     {
@@ -1145,7 +1151,7 @@ static void NewSDT( output_t *p_output )
 
     p_service = sdt_get_service( p, 0 );
     sdtn_init( p_service );
-    sdtn_set_sid( p_service, p_output->i_sid );
+    sdtn_set_sid( p_service, p_output->config.i_sid );
     if ( sdtn_get_eitschedule(p_current_service) )
         sdtn_set_eitschedule(p_service);
     if ( sdtn_get_eitpresent(p_current_service) )
@@ -1175,8 +1181,8 @@ static void Update##table( uint16_t i_sid )                                 \
     int i;                                                                  \
                                                                             \
     for ( i = 0; i < i_nb_outputs; i++ )                                    \
-        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID )                     \
-             && pp_outputs[i]->i_sid == i_sid )                             \
+        if ( ( pp_outputs[i]->config.i_config & OUTPUT_VALID )              \
+             && pp_outputs[i]->config.i_sid == i_sid )                      \
             New##table( pp_outputs[i] );                                    \
 }
 
@@ -1196,7 +1202,8 @@ static void UpdateTSID(void)
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( (p_output->i_config & OUTPUT_VALID) && !p_output->b_fixed_tsid )
+        if ( (p_output->config.i_config & OUTPUT_VALID)
+              && p_output->config.i_tsid == -1 && !b_random_tsid )
         {
             p_output->i_tsid = i_tsid;
             NewNIT( p_output );
@@ -1212,8 +1219,8 @@ static bool SIDIsSelected( uint16_t i_sid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( ( pp_outputs[i]->i_config & OUTPUT_VALID )
-             && pp_outputs[i]->i_sid == i_sid )
+        if ( ( pp_outputs[i]->config.i_config & OUTPUT_VALID )
+             && pp_outputs[i]->config.i_sid == i_sid )
             return true;
 
     return false;

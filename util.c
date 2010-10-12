@@ -29,7 +29,9 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <time.h>
+#include <sys/types.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -248,5 +250,82 @@ void hexDump( uint8_t *p_data, uint32_t i_len )
 
     free( p_hrdata );
     free( p_outline );
+}
+
+/*****************************************************************************
+ * ParseNodeService: parse a host:port string
+ *****************************************************************************/
+struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
+                                   uint16_t i_default_port )
+{
+    int i_family = AF_INET;
+    char psz_port_buffer[6];
+    char *psz_string = strdup( _psz_string );
+    char *psz_node, *psz_port = NULL, *psz_end;
+    struct addrinfo *p_res;
+    struct addrinfo hint;
+    int i_ret;
+
+    if ( psz_string[0] == '[' )
+    {
+        i_family = AF_INET6;
+        psz_node = psz_string + 1;
+        psz_end = strchr( psz_node, ']' );
+        if ( psz_end == NULL )
+        {
+            msg_Warn( NULL, "invalid IPv6 address %s", _psz_string );
+            free( psz_string );
+            return NULL;
+        }
+        *psz_end++ = '\0';
+    }
+    else
+    {
+        psz_node = psz_string;
+        psz_end = strpbrk( psz_string, "@:,/" );
+    }
+
+    if ( psz_end != NULL && psz_end[0] == ':' )
+    {
+        *psz_end++ = '\0';
+        psz_port = psz_end;
+        psz_end = strpbrk( psz_port, "@:,/" );
+    }
+
+    if ( psz_end != NULL )
+    {
+        *psz_end = '\0';
+        if ( ppsz_end != NULL )
+            *ppsz_end = _psz_string + (psz_end - psz_string);
+    }
+    else if ( ppsz_end != NULL )
+        *ppsz_end = _psz_string + strlen(_psz_string);
+
+    if ( i_default_port != 0 && (psz_port == NULL || !*psz_port) )
+    {
+        sprintf( psz_port_buffer, "%u", i_default_port );
+        psz_port = psz_port_buffer;
+    }
+
+    if ( psz_node[0] == '\0' )
+    {
+        free( psz_string );
+        return NULL;
+    }
+
+    memset( &hint, 0, sizeof(hint) );
+    hint.ai_family = i_family;
+    hint.ai_socktype = SOCK_DGRAM;
+    hint.ai_protocol = 0;
+    hint.ai_flags = AI_PASSIVE | AI_NUMERICHOST | AI_NUMERICSERV | AI_ADDRCONFIG;
+    if ( (i_ret = getaddrinfo( psz_node, psz_port, NULL, &p_res )) != 0 )
+    {
+        msg_Warn( NULL, "getaddrinfo error: %s", gai_strerror(i_ret) );
+        free( psz_string );
+        return NULL;
+    }
+
+    free( psz_string );
+    return p_res;
 }
 
