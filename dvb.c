@@ -520,8 +520,51 @@ static int FrontendDoDiseqc(void)
 #if DVB_API_VERSION >= 5
 
 /*****************************************************************************
- * GetModulation : helper functions for S2API
+ * Helper functions for S2API
  *****************************************************************************/
+static fe_spectral_inversion_t GetInversion(void)
+{
+    switch ( i_inversion )
+    {
+        case 0:  return INVERSION_OFF;
+        case 1:  return INVERSION_ON;
+        default:
+            msg_Warn( NULL, "invalid inversion %d", i_inversion );
+        case -1: return INVERSION_AUTO;
+    }
+}
+
+static fe_code_rate_t GetFEC(fe_caps_t fe_caps, int i_fec_value)
+{
+#define GET_FEC_INNER(fec, val)                                             \
+    if ( (fe_caps & FE_CAN_##fec) && (i_fec_value == val) )                 \
+       return fec;
+
+    GET_FEC_INNER(FEC_AUTO, 999);
+    GET_FEC_INNER(FEC_AUTO, -1);
+    if (i_fec_value == 0)
+        return FEC_NONE;
+    GET_FEC_INNER(FEC_1_2, 12);
+    GET_FEC_INNER(FEC_2_3, 23);
+    GET_FEC_INNER(FEC_3_4, 34);
+    if (i_fec_value == 35)
+        return FEC_3_5;
+    GET_FEC_INNER(FEC_4_5, 45);
+    GET_FEC_INNER(FEC_5_6, 56);
+    GET_FEC_INNER(FEC_6_7, 67);
+    GET_FEC_INNER(FEC_7_8, 78);
+    GET_FEC_INNER(FEC_8_9, 89);
+    if (i_fec_value == 910)
+        return FEC_9_10;
+
+#undef GET_FEC_INNER
+    msg_Warn(NULL, "invalid FEC %d", i_fec_value );
+    return FEC_AUTO;
+}
+
+#define GetFECInner(caps) GetFEC(caps, i_fec)
+#define GetFECLP(caps) GetFEC(caps, i_fec_lp)
+
 static fe_modulation_t GetModulation(void)
 {
 #define GET_MODULATION( mod )                                               \
@@ -547,42 +590,72 @@ static fe_modulation_t GetModulation(void)
     exit(1);
 }
 
-static fe_code_rate_t GetFECInner(fe_caps_t fe_caps)
+static fe_pilot_t GetPilot(void)
 {
-#define GET_FEC_INNER(fec,val)                                                    \
-    if ( (fe_caps & FE_CAN_##fec) && (i_fec == val) )                             \
-       return fec;
-
-    GET_FEC_INNER(FEC_AUTO,999);
-    if (i_fec == 0)
-        return FEC_NONE;
-    GET_FEC_INNER(FEC_1_2, 12);
-    GET_FEC_INNER(FEC_2_3, 23);
-    GET_FEC_INNER(FEC_3_4, 34);
-    if (i_fec == 35)
-        return FEC_3_5;
-    GET_FEC_INNER(FEC_4_5, 45);
-    GET_FEC_INNER(FEC_5_6, 56);
-    GET_FEC_INNER(FEC_6_7, 67);
-    GET_FEC_INNER(FEC_7_8, 78);
-    GET_FEC_INNER(FEC_8_9, 89);
-    if (i_fec == 910)
-        return FEC_9_10;
-
-#undef GET_FEC_INNER
-    msg_Err( NULL, "invalid fec-inner %d", i_fec );
-    exit(1);
+    switch ( i_pilot )
+    {
+        case 0:  return PILOT_OFF;
+        case 1:  return PILOT_ON;
+        default:
+            msg_Warn( NULL, "invalid pilot %d", i_pilot );
+        case -1: return PILOT_AUTO;
+    }
 }
 
-static fe_rolloff_t GetRollOff(int rolloff)
+static fe_rolloff_t GetRollOff(void)
 {
-    switch( rolloff )
+    switch ( i_rolloff )
     {
-        case 0:  return ROLLOFF_AUTO;
+        case -1:
+        case  0: return ROLLOFF_AUTO;
         case 20: return ROLLOFF_20;
         case 25: return ROLLOFF_25;
         default:
+            msg_Warn( NULL, "invalid rolloff %d", i_rolloff );
         case 35: return ROLLOFF_35;
+    }
+}
+
+static fe_guard_interval_t GetGuard(void)
+{
+    switch ( i_guard )
+    {
+        case 32: return GUARD_INTERVAL_1_32;
+        case 16: return GUARD_INTERVAL_1_16;
+        case  8: return GUARD_INTERVAL_1_8;
+        case  4: return GUARD_INTERVAL_1_4;
+        default:
+            msg_Warn( NULL, "invalid guard interval %d", i_guard );
+        case -1:
+        case  0: return GUARD_INTERVAL_AUTO;
+    }
+}
+
+static fe_transmit_mode_t GetTransmission(void)
+{
+    switch ( i_transmission )
+    {
+        case 2: return TRANSMISSION_MODE_2K;
+        case 8: return TRANSMISSION_MODE_8K;
+        case 4: return TRANSMISSION_MODE_4K;
+        default:
+            msg_Warn( NULL, "invalid tranmission mode %d", i_transmission );
+        case -1:
+        case 0: return TRANSMISSION_MODE_AUTO;
+    }
+}
+
+static fe_hierarchy_t GetHierarchy(void)
+{
+    switch ( i_hierarchy )
+    {
+        case 0: return HIERARCHY_NONE;
+        case 1: return HIERARCHY_1;
+        case 2: return HIERARCHY_2;
+        case 4: return HIERARCHY_4;
+        default:
+            msg_Warn( NULL, "invalid intramission mode %d", i_transmission );
+        case -1: return HIERARCHY_AUTO;
     }
 }
 
@@ -721,7 +794,12 @@ static struct dtv_properties dvbt_cmdseq = {
 #define SYMBOL_RATE 3
 #define BANDWIDTH 3
 #define FEC_INNER 4
+#define FEC_LP 5
+#define GUARD 6
+#define PILOT 6
+#define TRANSMISSION 7
 #define ROLLOFF 7
+#define HIERARCHY 8
 
 struct dtv_property pclear[] = {
     { .cmd = DTV_CLEAR },
@@ -758,24 +836,33 @@ static void FrontendSet( bool b_init )
     case FE_OFDM:
         p = &dvbt_cmdseq;
         p->props[FREQUENCY].u.data = i_frequency;
+        p->props[INVERSION].u.data = GetInversion();
         if ( psz_modulation != NULL )
             p->props[MODULATION].u.data = GetModulation();
         p->props[BANDWIDTH].u.data = i_bandwidth * 1000000;
+        p->props[FEC_INNER].u.data = GetFECInner(info.caps);
+        p->props[FEC_LP].u.data = GetFECLP(info.caps);
+        p->props[GUARD].u.data = GetGuard();
+        p->props[TRANSMISSION].u.data = GetTransmission();
+        p->props[HIERARCHY].u.data = GetHierarchy();
 
-        msg_Dbg( NULL, "tuning OFDM frontend to f=%d bandwidth=%d modulation=%s",
-                 i_frequency, i_bandwidth,
-                 psz_modulation == NULL ? "qam_auto" : psz_modulation );
+        msg_Dbg( NULL, "tuning OFDM frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d",
+                 i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
+                 i_hierarchy,
+                 psz_modulation == NULL ? "qam_auto" : psz_modulation,
+                 i_guard, i_transmission );
         break;
 
     case FE_QAM:
         p = &dvbc_cmdseq;
         p->props[FREQUENCY].u.data = i_frequency;
+        p->props[INVERSION].u.data = GetInversion();
         if ( psz_modulation != NULL )
             p->props[MODULATION].u.data = GetModulation();
         p->props[SYMBOL_RATE].u.data = i_srate;
 
-        msg_Dbg( NULL, "tuning QAM frontend to f=%d srate=%d modulation=%s",
-                 i_frequency, i_srate,
+        msg_Dbg( NULL, "tuning QAM frontend to f=%d srate=%d inversion=%d modulation=%s",
+                 i_frequency, i_srate, i_inversion,
                  psz_modulation == NULL ? "qam_auto" : psz_modulation );
         break;
 
@@ -784,18 +871,20 @@ static void FrontendSet( bool b_init )
         {
             p = &dvbs2_cmdseq;
             p->props[MODULATION].u.data = GetModulation();
-            p->props[ROLLOFF].u.data = GetRollOff(i_rolloff);
+            p->props[PILOT].u.data = GetPilot();
+            p->props[ROLLOFF].u.data = GetRollOff();
         }
         else
             p = &dvbs_cmdseq;
 
+        p->props[INVERSION].u.data = GetInversion();
         p->props[SYMBOL_RATE].u.data = i_srate;
         p->props[FEC_INNER].u.data = GetFECInner(info.caps);
         p->props[FREQUENCY].u.data = FrontendDoDiseqc();
 
-        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d fec=%d rolloff=%d modulation=%s",
-                 i_frequency, i_srate, i_fec, i_rolloff,
-                 psz_modulation == NULL ? "legacy" : psz_modulation );
+        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d",
+                 i_frequency, i_srate, i_inversion, i_fec, i_rolloff,
+                 psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot );
         break;
 
     default:
@@ -824,6 +913,9 @@ static void FrontendSet( bool b_init )
 }
 
 #else /* !S2API */
+
+#warn "You are trying to compile DVBlast with an outdated linux-dvb interface."
+#warn "DVBlast will be very limited and some options will have no effect."
 
 static void FrontendSet( bool b_init )
 {

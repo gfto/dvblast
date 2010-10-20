@@ -60,6 +60,7 @@ static int i_priority = -1;
 int i_adapter = 0;
 int i_fenum = 0;
 int i_frequency = 0;
+int i_inversion = -1;
 int i_srate = 27500000;
 int i_fec = 999;
 int i_rolloff = 35;
@@ -68,6 +69,11 @@ int i_voltage = 13;
 int b_tone = 0;
 int i_bandwidth = 8;
 char *psz_modulation = NULL;
+int i_pilot = -1;
+int i_fec_lp = 999;
+int i_guard = -1;
+int i_transmission = -1;
+int i_hierarchy = -1;
 int b_budget_mode = 0;
 int b_random_tsid = 0;
 uint16_t i_network_id = 0xffff;
@@ -373,7 +379,7 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-F <fec inner>] [-R <rolloff>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-m <modulation] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [X <transmission>] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter <adapter>" );
@@ -383,15 +389,22 @@ void usage()
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
     msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
+    msg_Raw( NULL, "  -I --inversion        Inversion (-1 auto, 0 off, 1 on)" );
     msg_Raw( NULL, "  -m --modulation       Modulation type" );
     msg_Raw( NULL, "    DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
     msg_Raw( NULL, "    DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
     msg_Raw( NULL, "    DVB-S2 qpsk|psk_8 (default legacy DVB-S)" );
     msg_Raw( NULL, "  -n --frontend-number <frontend number>" );
     msg_Raw( NULL, "  -p --force-pulse      force 22kHz pulses for high-band selection (DVB-S)" );
+    msg_Raw( NULL, "  -P --pilot            DVB-S2 Pilot (-1 auto, 0 off, 1 on)" );
     msg_Raw( NULL, "  -R --rolloff          DVB-S2 Rolloff value" );
     msg_Raw( NULL, "    DVB-S2 35=0.35|25=0.25|20=0.20|0=AUTO (default: 35)" );
-    msg_Raw( NULL, "  -s --symbole-rate" );
+    msg_Raw( NULL, "  -K --fec-lp           DVB-T low priority FEC (default auto)" );
+    msg_Raw( NULL, "  -G --guard            DVB-T guard interval" );
+    msg_Raw( NULL, "    DVB-T  32 (1/32)|16 (1/16)|8 (1/8)|4 (1/4)|-1 (auto, default)" );
+    msg_Raw( NULL, "  -H --hierarchy        DVB-T hierarchy (0, 1, 2, 4 or -1 auto, default)" );
+    msg_Raw( NULL, "  -X --transmission     DVB-T transmission (2, 4, 8 or -1 auto, default)" );
+    msg_Raw( NULL, "  -s --symbol-rate" );
     msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
     msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
@@ -457,7 +470,13 @@ int main( int i_argc, char **pp_argv )
         { "voltage",         required_argument, NULL, 'v' },
         { "force-pulse",     no_argument,       NULL, 'p' },
         { "bandwidth",       required_argument, NULL, 'b' },
+        { "inversion",       required_argument, NULL, 'I' },
         { "modulation",      required_argument, NULL, 'm' },
+        { "pilot",           required_argument, NULL, 'P' },
+        { "fec-lp",          required_argument, NULL, 'K' },
+        { "guard",           required_argument, NULL, 'G' },
+        { "hierarchy",       required_argument, NULL, 'H' },
+        { "transmission",    required_argument, NULL, 'X' },
         { "budget-mode",     no_argument,       NULL, 'u' },
         { "udp",             no_argument,       NULL, 'U' },
         { "unique-ts-id",    no_argument,       NULL, 'T' },
@@ -478,7 +497,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:m:uUTL:E:d:D:A:lCeM:N:j:J:hV", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:uUTL:E:d:D:A:lCeM:N:j:J:hV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -581,8 +600,32 @@ int main( int i_argc, char **pp_argv )
             i_bandwidth = strtol( optarg, NULL, 0 );
             break;
 
+        case 'I':
+            i_inversion = strtol( optarg, NULL, 0 );
+            break;
+
         case 'm':
             psz_modulation = optarg;
+            break;
+
+        case 'P':
+            i_pilot = strtol( optarg, NULL, 0 );
+            break;
+
+        case 'K':
+            i_fec_lp = strtol( optarg, NULL, 0 );
+            break;
+
+        case 'G':
+            i_guard = strtol( optarg, NULL, 0 );
+            break;
+
+        case 'X':
+            i_transmission = strtol( optarg, NULL, 0 );
+            break;
+
+        case 'H':
+            i_hierarchy = strtol( optarg, NULL, 0 );
             break;
 
         case 'u':

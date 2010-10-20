@@ -11,8 +11,7 @@ Changes between 1.2 and 2.0:
   * Add a configurable MTU
   * Add support for NIT in DVB compliance mode
   * Syslog support with -l option
-  * Override FEC Inner with -F option
-  * Override Rolloff with -R option
+  * Override tuning parameters with new options
 
 Changes between 1.1 and 1.2:
 ----------------------------
