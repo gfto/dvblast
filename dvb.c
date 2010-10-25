@@ -637,7 +637,9 @@ static fe_transmit_mode_t GetTransmission(void)
     {
         case 2: return TRANSMISSION_MODE_2K;
         case 8: return TRANSMISSION_MODE_8K;
+#ifdef TRANSMISSION_MODE_4K
         case 4: return TRANSMISSION_MODE_4K;
+#endif
         default:
             msg_Warn( NULL, "invalid tranmission mode %d", i_transmission );
         case -1:
