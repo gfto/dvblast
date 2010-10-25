@@ -1852,8 +1852,6 @@ static void InitSlot( access_t * p_access, int i_slot )
     if ( TPDUSend( p_access, i_slot, T_CREATE_TC, NULL, 0 ) != 0 )
         msg_Err( p_access, "en50221_Init: couldn't send TPDU on slot %d",
                  i_slot );
-
-    p_slots[i_slot].i_init_timeout = mdate() + CAM_INIT_TIMEOUT;
 }
 
 /*****************************************************************************
@@ -1867,6 +1865,7 @@ static void ResetSlot( int i_slot )
     if ( ioctl( i_ca_handle, CA_RESET, 1 << i_slot ) != 0 )
         msg_Err( NULL, "en50221_Poll: couldn't reset slot %d", i_slot );
     p_slot->b_active = false;
+    p_slot->i_init_timeout = mdate() + CAM_INIT_TIMEOUT;
     p_slot->b_expect_answer = false;
     p_slot->b_mmi_expected = false;
     p_slot->b_mmi_undisplayed = false;
@@ -2121,7 +2120,7 @@ void en50221_Poll( void )
         }
         else if ( !p_slot->b_active )
         {
-            if ( !p_slot->i_init_timeout )
+            if ( !p_slot->b_expect_answer )
                 InitSlot( NULL, i_slot );
             else if ( p_slot->i_init_timeout < i_wallclock )
             {
