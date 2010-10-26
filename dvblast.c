@@ -228,7 +228,7 @@ err:
 
 static void config_Print( output_config_t *p_config )
 {
-    const char *psz_base = "conf: %s config=0x%x sid=%d pids[%d]=";
+    const char *psz_base = "conf: %s config=0x%"PRIx64" sid=%hu pids[%d]=";
     size_t i_len = strlen(psz_base) + 6 * p_config->i_nb_pids + 1;
     char psz_format[i_len];
     int i, j = strlen(psz_base);
