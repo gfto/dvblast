@@ -706,8 +706,9 @@ static void OutputPSISection( output_t *p_output, uint8_t *p_section,
         block_t *p_block;
         uint8_t *p;
         uint8_t i_ts_offset;
+        bool b_append = (pp_ts_buffer != NULL && *pp_ts_buffer != NULL);
 
-        if ( pp_ts_buffer != NULL && *pp_ts_buffer != NULL )
+        if ( b_append )
         {
             p_block = *pp_ts_buffer;
             i_ts_offset = *pi_ts_buffer_offset;
@@ -722,14 +723,18 @@ static void OutputPSISection( output_t *p_output, uint8_t *p_section,
 
         psi_split_section( p, &i_ts_offset, p_section, &i_section_offset );
 
-        ts_set_pid( p, i_pid );
-        ts_set_cc( p, *pi_cc );
-        (*pi_cc)++;
-        *pi_cc &= 0xf;
+        if ( !b_append )
+        {
+            ts_set_pid( p, i_pid );
+            ts_set_cc( p, *pi_cc );
+            (*pi_cc)++;
+            *pi_cc &= 0xf;
+        }
 
         if ( i_section_offset == i_section_length )
         {
-            if ( i_ts_offset > MIN_SECTION_FRAGMENT && pp_ts_buffer != NULL )
+            if ( i_ts_offset < TS_SIZE - MIN_SECTION_FRAGMENT
+                  && pp_ts_buffer != NULL )
             {
                 *pp_ts_buffer = p_block;
                 *pi_ts_buffer_offset = i_ts_offset;
@@ -920,6 +925,7 @@ static void NewPAT( output_t *p_output )
 {
     const uint8_t *p_program;
     uint8_t *p;
+    uint8_t k = 0;
 
     free( p_output->p_pat_section );
     p_output->p_pat_section = NULL;
@@ -934,17 +940,30 @@ static void NewPAT( output_t *p_output )
 
     p = p_output->p_pat_section = psi_allocate();
     pat_init( p );
-    pat_set_length( p, PAT_PROGRAM_SIZE );
+    psi_set_length( p, PSI_MAX_SIZE );
     pat_set_tsid( p, p_output->i_tsid );
     psi_set_version( p, p_output->i_pat_version );
     psi_set_current( p );
     psi_set_section( p, 0 );
     psi_set_lastsection( p, 0 );
 
-    p = pat_get_program( p, 0 );
+    if ( p_output->config.i_config & OUTPUT_DVB )
+    {
+        /* NIT */
+        p = pat_get_program( p_output->p_pat_section, k++ );
+        patn_init( p );
+        patn_set_program( p, 0 );
+        patn_set_pid( p, NIT_PID );
+    }
+
+    p = pat_get_program( p_output->p_pat_section, k++ );
     patn_init( p );
     patn_set_program( p, p_output->config.i_sid );
     patn_set_pid( p, patn_get_pid( p_program ) );
+
+    p = pat_get_program( p_output->p_pat_section, k );
+    pat_set_length( p_output->p_pat_section,
+                    p - p_output->p_pat_section - PAT_HEADER_SIZE );
     psi_set_crc( p_output->p_pat_section );
 }
 
@@ -1060,9 +1079,6 @@ static void NewNIT( output_t *p_output )
     free( p_output->p_nit_section );
     p_output->p_nit_section = NULL;
     p_output->i_nit_version++;
-
-    if ( !p_output->config.i_sid ) return;
-    if ( !psi_table_validate(pp_current_pat_sections) ) return;
 
     p = p_output->p_nit_section = psi_allocate();
     nit_init( p, true );
