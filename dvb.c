@@ -52,7 +52,6 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
-#define FRONTEND_LOCK_TIMEOUT 30000000 /* 30 s */
 #define DVR_READ_TIMEOUT 30000000 /* 30 s */
 #define CA_POLL_PERIOD 100000 /* 100 ms */
 #define MAX_READ_ONCE 50
@@ -193,6 +192,11 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
 
     if ( i_frontend_timeout && i_wallclock > i_frontend_timeout )
     {
+        if ( i_quit_timeout_duration )
+        {
+            msg_Err( NULL, "no lock" );
+            exit(EXIT_STATUS_FRONTEND_TIMEOUT);
+        }
         msg_Warn( NULL, "no lock, tuning again" );
         FrontendSet(false);
     }
@@ -360,6 +364,9 @@ static void FrontendPoll( void )
                 i_frontend_timeout = 0;
                 i_last_packet = i_wallclock;
 
+                if ( i_quit_timeout_duration && !i_quit_timeout )
+                    i_quit_timeout = i_wallclock + i_quit_timeout_duration;
+
                 /* Read some statistics */
                 if( ioctl( i_frontend, FE_READ_BER, &i_value ) >= 0 )
                     msg_Dbg( NULL, "- Bit error rate: %d", i_value );
@@ -371,7 +378,7 @@ static void FrontendPoll( void )
             else
             {
                 msg_Dbg( NULL, "frontend has lost lock" );
-                i_frontend_timeout = i_wallclock + FRONTEND_LOCK_TIMEOUT;
+                i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
             }
 
             IF_UP( FE_REINIT )
@@ -911,7 +918,7 @@ static void FrontendSet( bool b_init )
     }
 
     i_last_status = 0;
-    i_frontend_timeout = i_wallclock + FRONTEND_LOCK_TIMEOUT;
+    i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
 }
 
 #else /* !S2API */
@@ -1008,7 +1015,7 @@ static void FrontendSet( bool b_init )
     }
 
     i_last_status = 0;
-    i_frontend_timeout = i_wallclock + FRONTEND_LOCK_TIMEOUT;
+    i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
 }
 
 #endif /* S2API */

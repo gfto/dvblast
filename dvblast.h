@@ -40,6 +40,8 @@
 #define DEFAULT_OUTPUT_LATENCY 200000 /* 200 ms */
 #define DEFAULT_MAX_RETENTION 40000 /* 40 ms */
 #define MAX_EIT_RETENTION 500000 /* 500 ms */
+#define DEFAULT_FRONTEND_TIMEOUT 30000000 /* 30 s */
+#define EXIT_STATUS_FRONTEND_TIMEOUT 100
 
 /*****************************************************************************
  * Output configuration flags (for output_t -> i_config) - bit values
@@ -148,6 +150,9 @@ extern int i_fec_lp;
 extern int i_guard;
 extern int i_transmission;
 extern int i_hierarchy;
+extern mtime_t i_frontend_timeout_duration;
+extern mtime_t i_quit_timeout;
+extern mtime_t i_quit_timeout_duration;
 extern int b_budget_mode;
 extern int b_random_tsid;
 extern uint16_t i_network_id;

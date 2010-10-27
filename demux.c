@@ -329,7 +329,11 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
 
     bool b_sid_change = i_sid != i_old_sid;
     bool b_pid_change = false, b_tsid_change = false;
+    bool b_dvb_change = !!((p_output->config.i_config ^ p_config->i_config)
+                             & OUTPUT_DVB);
     int i;
+
+    p_output->config.i_config = p_config->i_config;
 
     if ( p_config->i_tsid != -1 && p_output->config.i_tsid != p_config->i_tsid )
     {
@@ -457,14 +461,23 @@ out_change:
         NewPAT( p_output );
         NewPMT( p_output );
     }
-    else if ( b_tsid_change )
+    else
     {
-        NewSDT( p_output );
-        NewNIT( p_output );
-        NewPAT( p_output );
+        if ( b_tsid_change )
+        {
+            NewSDT( p_output );
+            NewNIT( p_output );
+            NewPAT( p_output );
+        }
+        else if ( b_dvb_change )
+        {
+            NewNIT( p_output );
+            NewPAT( p_output );
+        }
+
+        if ( b_pid_change )
+            NewPMT( p_output );
     }
-    else if ( b_pid_change )
-        NewPMT( p_output );
 }
 
 /*****************************************************************************

@@ -74,6 +74,9 @@ int i_fec_lp = 999;
 int i_guard = -1;
 int i_transmission = -1;
 int i_hierarchy = -1;
+mtime_t i_frontend_timeout_duration = DEFAULT_FRONTEND_TIMEOUT;
+mtime_t i_quit_timeout = 0;
+mtime_t i_quit_timeout_duration = 0;
 int b_budget_mode = 0;
 int b_random_tsid = 0;
 uint16_t i_network_id = 0xffff;
@@ -325,11 +328,9 @@ static void config_ReadFile( char *psz_file )
             free( p_output->config.psz_displayname );
             p_output->config.psz_displayname = strdup( config.psz_displayname );
 
+            config.i_config |= OUTPUT_VALID | OUTPUT_STILL_PRESENT;
             output_Change( p_output, &config );
             demux_Change( p_output, &config );
-
-            p_output->config.i_config = OUTPUT_VALID | OUTPUT_STILL_PRESENT |
-                                        config.i_config;
         }
 
         config_Free( &config );
@@ -379,10 +380,10 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [X <transmission>] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>]" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>] [-Q <quit timeout>]" );
 
     msg_Raw( NULL, "Input:" );
-    msg_Raw( NULL, "  -a --adapter <adapter>" );
+    msg_Raw( NULL, "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
     msg_Raw( NULL, "  -A --asi-adapter      read packets from an ASI adapter (0-n)" );
     msg_Raw( NULL, "  -b --bandwidth        frontend bandwith" );
     msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
@@ -408,6 +409,7 @@ void usage()
     msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
     msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
+    msg_Raw( NULL, "  -O --lock-timeout     timeout for the lock operation (in ms)" );
 
     msg_Raw( NULL, "Output:" );
     msg_Raw( NULL, "  -c --config-file <config file>" );
@@ -429,7 +431,8 @@ void usage()
     msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8)" );
     msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default ISO_8859-1)" );
     msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
-    msg_Raw( NULL, "  -q                    be quiet (less verbosity, repeat or use number for even quieter)" );
+    msg_Raw( NULL, "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
+    msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
     msg_Raw( NULL, "  -V --version          only display the version" );
     exit(1);
@@ -477,6 +480,7 @@ int main( int i_argc, char **pp_argv )
         { "guard",           required_argument, NULL, 'G' },
         { "hierarchy",       required_argument, NULL, 'H' },
         { "transmission",    required_argument, NULL, 'X' },
+        { "lock-timeout",    required_argument, NULL, 'O' },
         { "budget-mode",     no_argument,       NULL, 'u' },
         { "udp",             no_argument,       NULL, 'U' },
         { "unique-ts-id",    no_argument,       NULL, 'T' },
@@ -492,12 +496,14 @@ int main( int i_argc, char **pp_argv )
         { "system-charset",  required_argument, NULL, 'j' },
         { "dvb-charset",     required_argument, NULL, 'J' },
         { "logger",          no_argument,       NULL, 'l' },
+        { "quit-timeout",    required_argument, NULL, 'Q' },
+        { "quiet",           no_argument,       NULL, 'q' },
         { "help",            no_argument,       NULL, 'h' },
         { "version",         no_argument,       NULL, 'V' },
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:uUTL:E:d:D:A:lCeM:N:j:J:hV", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uUTL:E:d:D:A:lCeM:N:j:J:Q:hV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -624,6 +630,10 @@ int main( int i_argc, char **pp_argv )
             i_transmission = strtol( optarg, NULL, 0 );
             break;
 
+        case 'O':
+            i_frontend_timeout_duration = strtoll( optarg, NULL, 0 ) * 1000;
+            break;
+
         case 'H':
             i_hierarchy = strtol( optarg, NULL, 0 );
             break;
@@ -708,6 +718,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'T':
             b_random_tsid = 1;
+            break;
+
+        case 'Q':
+            i_quit_timeout_duration = strtoll( optarg, NULL, 0 ) * 1000;
             break;
 
         case 'V':
@@ -826,6 +840,9 @@ int main( int i_argc, char **pp_argv )
             config_ReadFile( psz_conf_file );
         }
 
+        if ( i_quit_timeout && i_quit_timeout <= i_wallclock )
+            exit(EXIT_SUCCESS);
+
         p_ts = pf_Read( i_poll_timeout );
         if ( p_ts != NULL )
             demux_Run( p_ts );
@@ -836,4 +853,5 @@ int main( int i_argc, char **pp_argv )
 
     if ( b_enable_syslog )
         msg_Disconnect();
+    return EXIT_SUCCESS;
 }
