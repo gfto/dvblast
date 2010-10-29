@@ -1,0 +1,13 @@
+About DVBiscovery
+=================
+
+DVBiscovery is a shell script that tries to tune a number of frequencies
+(from a config file), and stops after it has found a match. It then dumps
+the output of DVBlast to the standard output, so that an external process
+can parse it and find relevant information there. Typically, you would
+want to get the network ID from the NIT, which unically identifies the
+network you are on.
+
+DVBiscovery is therefore a sort of scanning program, but doesn't aim at
+exhaustivity (there are already programs doing that). It tries to guess
+where you are without any external information.
