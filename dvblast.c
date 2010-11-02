@@ -149,12 +149,12 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
     p_config->psz_displayname = strdup( psz_string );
 
     p_ai = ParseNodeService( psz_string, &psz_string, DEFAULT_PORT );
-    if ( p_ai == NULL ) goto err;
+    if ( p_ai == NULL ) return false;
     memcpy( &p_config->connect_addr, p_ai->ai_addr, p_ai->ai_addrlen );
     freeaddrinfo( p_ai );
 
     p_config->i_family = p_config->connect_addr.ss_family;
-    if ( p_config->i_family == AF_UNSPEC ) goto err;
+    if ( p_config->i_family == AF_UNSPEC ) return false;
 
     if ( psz_string == NULL || !*psz_string ) goto end;
 
@@ -223,10 +223,6 @@ end:
     }
 
     return true;
-
-err:
-    free( p_config->psz_displayname );
-    return false;
 }
 
 static void config_Print( output_config_t *p_config )
