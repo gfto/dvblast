@@ -114,7 +114,7 @@ signal_catch() {
 exec_dvblast() {
 	tmp_file=`mktemp`
 
-	$DVBLAST $diseqc $adapter -O $LOCK_TIMEOUT -Q $QUIT_TIMEOUT $opts 2>| $tmp_file &
+	$DVBLAST $diseqc $adapter -O $LOCK_TIMEOUT -Q $QUIT_TIMEOUT -q4 -x xml $opts 2>| $tmp_file &
 	childpid=$!
 	wait $childpid
 	if test $? -eq 0; then

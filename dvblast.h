@@ -35,7 +35,7 @@
 #define PADDING_PID 8191
 #define WATCHDOG_WAIT 10000000LL
 #define MAX_ERRORS 1000
-#define DEFAULT_VERBOSITY 3
+#define DEFAULT_VERBOSITY 4
 #define MAX_POLL_TIMEOUT 100000 /* 100 ms */
 #define DEFAULT_OUTPUT_LATENCY 200000 /* 200 ms */
 #define DEFAULT_MAX_RETENTION 40000 /* 40 ms */
@@ -165,6 +165,7 @@ extern char *psz_udp_src;
 extern int i_asi_adapter;
 extern const char *psz_native_charset;
 extern const char *psz_dvb_charset;
+extern enum print_type_t i_print_type;
 
 extern void (*pf_Open)( void );
 extern block_t * (*pf_Read)( mtime_t i_poll_timeout );

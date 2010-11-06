@@ -86,6 +86,7 @@ char *psz_udp_src = NULL;
 int i_asi_adapter = 0;
 const char *psz_native_charset = "UTF-8";
 const char *psz_dvb_charset = "ISO_8859-1";
+print_type_t i_print_type = -1;
 
 volatile sig_atomic_t b_hup_received = 0;
 int i_verbose = DEFAULT_VERBOSITY;
@@ -376,7 +377,8 @@ static void DisplayVersion()
  *****************************************************************************/
 void usage()
 {
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>] [-Q <quit timeout>]" );
+    DisplayVersion();
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
@@ -427,6 +429,7 @@ void usage()
     msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8)" );
     msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default ISO_8859-1)" );
     msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
+    msg_Raw( NULL, "  -x --print            print interesting events on stdout in a given format" );
     msg_Raw( NULL, "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
@@ -446,8 +449,6 @@ int main( int i_argc, char **pp_argv )
     int c;
 
     int b_enable_syslog = 0;
-
-    DisplayVersion();
 
     if ( i_argc == 1 )
         usage();
@@ -492,6 +493,7 @@ int main( int i_argc, char **pp_argv )
         { "system-charset",  required_argument, NULL, 'j' },
         { "dvb-charset",     required_argument, NULL, 'J' },
         { "logger",          no_argument,       NULL, 'l' },
+        { "print",           required_argument, NULL, 'x' },
         { "quit-timeout",    required_argument, NULL, 'Q' },
         { "quiet",           no_argument,       NULL, 'q' },
         { "help",            no_argument,       NULL, 'h' },
@@ -499,7 +501,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uUTL:E:d:D:A:lCeM:N:j:J:Q:hV", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uUTL:E:d:D:A:lCeM:N:j:J:x:Q:hV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -700,6 +702,10 @@ int main( int i_argc, char **pp_argv )
             i_network_id = strtoul( optarg, NULL, 0 );
             break;
 
+        case 'T':
+            b_random_tsid = 1;
+            break;
+
         case 'j':
             psz_native_charset = optarg;
             break;
@@ -712,8 +718,13 @@ int main( int i_argc, char **pp_argv )
             b_enable_syslog = 1;
             break;
 
-        case 'T':
-            b_random_tsid = 1;
+        case 'x':
+            if ( !strcmp(optarg, "text") )
+                i_print_type = PRINT_TEXT;
+            else if ( !strcmp(optarg, "xml") )
+                i_print_type = PRINT_XML;
+            else
+                msg_Warn( NULL, "unrecognized print type %s", optarg );
             break;
 
         case 'Q':
@@ -735,7 +746,18 @@ int main( int i_argc, char **pp_argv )
     if ( b_enable_syslog )
         msg_Connect( pp_argv[0] );
 
+    if ( i_verbose )
+        DisplayVersion();
+
     msg_Warn( NULL, "restarting" );
+    switch (i_print_type) {
+    case PRINT_XML:
+        printf("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+        printf("<TS>\n");
+        break;
+    default:
+        break;
+    }
 
     if ( b_udp_global )
     {

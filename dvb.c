@@ -49,6 +49,8 @@
 #include "en50221.h"
 #include "comm.h"
 
+#include <bitstream/common.h>
+
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
@@ -361,6 +363,13 @@ static void FrontendPoll( void )
             {
                 int32_t i_value = 0;
                 msg_Dbg( NULL, "frontend has acquired lock" );
+                switch (i_print_type) {
+                case PRINT_XML:
+                    printf("<STATUS type=\"lock\" status=\"1\"/>\n");
+                    break;
+                default:
+                    printf("frontend has acquired lock" );
+                }
                 i_frontend_timeout = 0;
                 i_last_packet = i_wallclock;
 
@@ -378,6 +387,13 @@ static void FrontendPoll( void )
             else
             {
                 msg_Dbg( NULL, "frontend has lost lock" );
+                switch (i_print_type) {
+                case PRINT_XML:
+                    printf("<STATUS type=\"lock\" status=\"0\"/>\n");
+                    break;
+                default:
+                    printf("frontend has lost lock" );
+                }
                 i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
             }
 

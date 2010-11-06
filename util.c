@@ -43,9 +43,10 @@
  * Local declarations
  *****************************************************************************/
 #define MAX_MSG 1024
-#define VERB_DBG  3
-#define VERB_INFO 2
-#define VERB_WARN 1
+#define VERB_DBG  4
+#define VERB_INFO 3
+#define VERB_WARN 2
+#define VERB_ERR 1
 
 /*****************************************************************************
  * msg_Connect
@@ -89,15 +90,18 @@ void msg_Info( void *_unused, const char *psz_format, ... )
  *****************************************************************************/
 void msg_Err( void *_unused, const char *psz_format, ... )
 {
-    va_list args;
-    char psz_fmt[MAX_MSG];
-    va_start( args, psz_format );
+    if ( i_verbose >= VERB_ERR )
+    {
+        va_list args;
+        char psz_fmt[MAX_MSG];
+        va_start( args, psz_format );
 
-    snprintf( psz_fmt, MAX_MSG, "error: %s\n", psz_format );
-    if ( i_syslog )
-        vsyslog( LOG_ERR, psz_fmt, args );
-    else
-        vfprintf( stderr, psz_fmt, args );
+        snprintf( psz_fmt, MAX_MSG, "error: %s\n", psz_format );
+        if ( i_syslog )
+            vsyslog( LOG_ERR, psz_fmt, args );
+        else
+            vfprintf( stderr, psz_fmt, args );
+    }
 }
 
 /*****************************************************************************
