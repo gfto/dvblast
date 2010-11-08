@@ -169,6 +169,7 @@ extern enum print_type_t i_print_type;
 
 extern void (*pf_Open)( void );
 extern block_t * (*pf_Read)( mtime_t i_poll_timeout );
+extern void (*pf_Reset)( void );
 extern int (*pf_SetFilter)( uint16_t i_pid );
 extern void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid );
 
@@ -207,11 +208,13 @@ uint8_t dvb_FrontendStatus( uint8_t *p_answer, ssize_t *pi_size );
 
 void udp_Open( void );
 block_t * udp_Read( mtime_t i_poll_timeout );
+void udp_Reset( void );
 int udp_SetFilter( uint16_t i_pid );
 void udp_UnsetFilter( int i_fd, uint16_t i_pid );
 
 void asi_Open( void );
 block_t * asi_Read( mtime_t i_poll_timeout );
+void asi_Reset( void );
 int asi_SetFilter( uint16_t i_pid );
 void asi_UnsetFilter( int i_fd, uint16_t i_pid );
 

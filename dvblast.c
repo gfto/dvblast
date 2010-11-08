@@ -102,6 +102,7 @@ static int i_ttl_global = 64;
 
 void (*pf_Open)( void ) = NULL;
 block_t * (*pf_Read)( mtime_t i_poll_timeout ) = NULL;
+void (*pf_Reset)( void ) = NULL;
 int (*pf_SetFilter)( uint16_t i_pid ) = NULL;
 void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid ) = NULL;
 
@@ -572,6 +573,7 @@ int main( int i_argc, char **pp_argv )
                 usage();
             pf_Open = dvb_Open;
             pf_Read = dvb_Read;
+            pf_Reset = dvb_Reset;
             pf_SetFilter = dvb_SetFilter;
             pf_UnsetFilter = dvb_UnsetFilter;
             break;
@@ -667,6 +669,7 @@ int main( int i_argc, char **pp_argv )
             }
             pf_Open = udp_Open;
             pf_Read = udp_Read;
+            pf_Reset = udp_Reset;
             pf_SetFilter = udp_SetFilter;
             pf_UnsetFilter = udp_UnsetFilter;
             break;
@@ -682,6 +685,7 @@ int main( int i_argc, char **pp_argv )
             }
             pf_Open = asi_Open;
             pf_Read = asi_Read;
+            pf_Reset = asi_Reset;
             pf_SetFilter = asi_SetFilter;
             pf_UnsetFilter = asi_UnsetFilter;
             break;

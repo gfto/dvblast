@@ -277,3 +277,12 @@ void asi_UnsetFilter( int i_fd, uint16_t i_pid )
         msg_Warn( NULL, "couldn't remove filter on PID %u", i_pid );
 #endif
 }
+
+/*****************************************************************************
+ * asi_Reset
+ *****************************************************************************/
+void asi_Reset( void )
+{
+    msg_Warn( NULL, "asi_Reset() do nothing" );
+}
+

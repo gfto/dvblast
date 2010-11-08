@@ -250,7 +250,7 @@ static void demux_Handle( block_t *p_ts )
         i_nb_errors = 0;
         msg_Warn( NULL,
                  "too many transport errors, tuning again" );
-        dvb_Reset();
+        pf_Reset();
     }
 
     if ( !ts_get_transporterror( p_ts->p_ts ) )
