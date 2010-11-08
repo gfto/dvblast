@@ -25,4 +25,4 @@ D: Most of the code
 N: Jean-Paul Saman
 E: jpsaman AT videolan DOT org
 C: jpsaman
-D: DVB-S2 bug fixes
+D: DVB-S2 bug fixes, syslog support
