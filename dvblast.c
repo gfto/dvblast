@@ -729,6 +729,8 @@ int main( int i_argc, char **pp_argv )
                 i_print_type = PRINT_XML;
             else
                 msg_Warn( NULL, "unrecognized print type %s", optarg );
+            /* Make stdout line-buffered */
+            setvbuf(stdout, NULL, _IOLBF, 0);
             break;
 
         case 'Q':
