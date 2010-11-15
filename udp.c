@@ -38,6 +38,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#include <bitstream/common.h>
 #include <bitstream/ietf/rtp.h>
 
 #include "dvblast.h"
@@ -45,11 +46,14 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
+#define UDP_LOCK_TIMEOUT 5000000 /* 5 s */
+
 static int i_handle;
 static bool b_udp = false;
 static int i_block_cnt;
 static uint8_t pi_ssrc[4] = { 0, 0, 0, 0 };
 static uint16_t i_cc = 0;
+static mtime_t i_last_packet = 0;
 
 /*****************************************************************************
  * udp_Open
@@ -263,6 +267,18 @@ block_t *udp_Read( mtime_t i_poll_timeout )
         ssize_t i_len;
         uint8_t p_rtp_hdr[RTP_HEADER_SIZE];
 
+        if ( !i_last_packet )
+        {
+            switch (i_print_type) {
+            case PRINT_XML:
+                printf("<STATUS type=\"lock\" status=\"1\"/>\n");
+                break;
+            default:
+                printf("frontend has acquired lock\n" );
+            }
+        }
+        i_last_packet = i_wallclock;
+
         if ( !b_udp )
         {
             /* FIXME : this is wrong if RTP header > 12 bytes */
@@ -289,8 +305,6 @@ block_t *udp_Read( mtime_t i_poll_timeout )
             goto err;
         }
 
-int meuh = i_len;
-
         if ( !b_udp )
         {
             uint8_t pi_new_ssrc[4];
@@ -311,6 +325,14 @@ int meuh = i_len;
                 memcpy( &addr.s_addr, pi_new_ssrc, 4 * sizeof(uint8_t) );
                 msg_Dbg( NULL, "new RTP source: %s", inet_ntoa( addr ) );
                 memcpy( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) );
+                switch (i_print_type) {
+                case PRINT_XML:
+                    printf("<STATUS type=\"source\" source=\"%s\"/>\n",
+                           inet_ntoa( addr ));
+                    break;
+                default:
+                    printf("new RTP source: %s\n", inet_ntoa( addr ) );
+                }
             }
             i_cc = rtp_get_cc(p_rtp_hdr) + 1;
 
@@ -326,14 +348,22 @@ int meuh = i_len;
         }
 
         i_wallclock = mdate();
-
-        if ( *pp_current )
-            msg_Dbg( NULL, "partial buffer received %d", meuh );
 err:
         block_DeleteChain( *pp_current );
         *pp_current = NULL;
 
         return p_ts;
+    }
+    else if ( i_last_packet && i_last_packet + UDP_LOCK_TIMEOUT < i_wallclock )
+    {
+        switch (i_print_type) {
+        case PRINT_XML:
+            printf("<STATUS type=\"lock\" status=\"0\"/>\n");
+            break;
+        default:
+            printf("frontend has lost lock\n" );
+        }
+        i_last_packet = 0;
     }
 
     return NULL;

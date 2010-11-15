@@ -368,7 +368,7 @@ static void FrontendPoll( void )
                     printf("<STATUS type=\"lock\" status=\"1\"/>\n");
                     break;
                 default:
-                    printf("frontend has acquired lock" );
+                    printf("frontend has acquired lock\n" );
                 }
                 i_frontend_timeout = 0;
                 i_last_packet = i_wallclock;
@@ -392,7 +392,7 @@ static void FrontendPoll( void )
                     printf("<STATUS type=\"lock\" status=\"0\"/>\n");
                     break;
                 default:
-                    printf("frontend has lost lock" );
+                    printf("frontend has lost lock\n" );
                 }
                 i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
             }

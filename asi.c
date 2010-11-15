@@ -38,6 +38,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#include <bitstream/common.h>
+
 #include "asi.h"
 
 #include "dvblast.h"
@@ -56,10 +58,12 @@
 #define ASI_DEVICE "/dev/asirx%u"
 #define ASI_TIMESTAMPS_FILE "/sys/class/asi/asirx%u/timestamps"
 #define ASI_BUFSIZE_FILE "/sys/class/asi/asirx%u/bufsize"
+#define ASI_LOCK_TIMEOUT 5000000 /* 5 s */
 
 static int i_handle;
 static int i_bufsize;
 static uint8_t p_pid_filter[8192 / 8];
+static mtime_t i_last_packet = 0;
 
 /*****************************************************************************
  * Local helpers
@@ -217,6 +221,18 @@ block_t *asi_Read( mtime_t i_poll_timeout )
         block_t *p_ts, **pp_current = &p_ts;
         int i, i_len;
 
+        if ( !i_last_packet )
+        {
+            switch (i_print_type) {
+            case PRINT_XML:
+                printf("<STATUS type=\"lock\" status=\"1\"/>\n");
+                break;
+            default:
+                printf("frontend has acquired lock\n" );
+            }
+        }
+        i_last_packet = i_wallclock;
+
         for ( i = 0; i < i_bufsize / TS_SIZE; i++ )
         {
             *pp_current = block_New();
@@ -247,6 +263,18 @@ block_t *asi_Read( mtime_t i_poll_timeout )
 
         return p_ts;
     }
+    else if ( i_last_packet && i_last_packet + ASI_LOCK_TIMEOUT < i_wallclock )
+    {
+        switch (i_print_type) {
+        case PRINT_XML:
+            printf("<STATUS type=\"lock\" status=\"0\"/>\n");
+            break;
+        default:
+            printf("frontend has lost lock\n" );
+        }
+        i_last_packet = 0;
+    }
+
     return NULL;
 }
 
@@ -272,7 +300,7 @@ int asi_SetFilter( uint16_t i_pid )
 void asi_UnsetFilter( int i_fd, uint16_t i_pid )
 {
 #ifdef USE_HARDWARE_FILTERING
-    p_pid_filter[ i_pid / 8 ] &= ~(0x01 << (i_pid % 8)); 
+    p_pid_filter[ i_pid / 8 ] &= ~(0x01 << (i_pid % 8));
     if ( ioctl( i_handle, ASI_IOC_RXSETPF, p_pid_filter ) < 0 )
         msg_Warn( NULL, "couldn't remove filter on PID %u", i_pid );
 #endif
