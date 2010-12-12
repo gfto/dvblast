@@ -22,7 +22,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
 ###############################################################################
 
-CONF_BASE="/usr/local/share/dvblast/dvbiscovery-"
+CONF_BASE="/usr/local/share/dvblast/dvbiscovery"
 #CONF_BASE="./"
 DVBLAST=dvblast
 LOCK_TIMEOUT=2500
@@ -114,11 +114,12 @@ signal_catch() {
 exec_dvblast() {
 	tmp_file=`mktemp`
 
-	$DVBLAST $diseqc $adapter -O $LOCK_TIMEOUT -Q $QUIT_TIMEOUT -q4 -x xml $opts 2>| $tmp_file &
+	$DVBLAST $diseqc $adapter -O $LOCK_TIMEOUT -Q $QUIT_TIMEOUT -q4 -x xml $opts >| $tmp_file &
 	childpid=$!
 	wait $childpid
 	if test $? -eq 0; then
 		cat $tmp_file
+		echo "</TS>"
 		rm $tmp_file
 		exit 0
 	fi
