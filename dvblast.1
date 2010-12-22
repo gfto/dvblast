@@ -1,4 +1,4 @@
-.TH DVBLAST "1" "January 2010" "DVBlast 1.3" "User Commands"
+.TH DVBLAST "1" "January 2010" "DVBlast 2.0" "User Commands"
 .SH NAME
 DVBlast \- Simple and powerful dvb streaming application
 .SH SYNOPSIS
@@ -26,6 +26,9 @@ Frontend bandwidth
 \fB\-c\fR, \fB\-\-config\-file\fR <config file>
 Use the given configuration file
 .TP
+\fB\-C\fR, \fB\-\-dvb-compliance\fR
+Pass through or build the mandatory DVB tables
+.TP
 \fB\-d\fR, \fB\-\-duplicate\fR <dest IP:port>
 Duplicate all received packets to a given destination
 .TP
@@ -35,22 +38,48 @@ Read packets from a multicast address instead of a DVB card
 \fB\-e\fR, \fB\-\-epg\-passthrough\fR
 Enable EPG pass through (EIT data)
 .TP
+\fB-\E\fR, \fB\-\-retention\fR <retention>
+Maximum retention allowed between input and output (default: 40 ms)
+.TP
 \fB\-f\fR, \fB\-\-frequency\fR <frequency>
 Frontend frequency
 .TP
-\fB\-F\fr, \fB\-\-fec\-inner\fR
+\fB\-F\fr, \fB\-\-fec\-inner\fR <FEC>
 Forward Error Correction used by satellite (FEC Inner)
 .br
 DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)
 .TP
+\fB\-G\fR, \fB\-\-guard\fR <interval>
+DVB-T guard interval
+.br
+DVB-T 32 (1/32)|16 (1/16)|8 (1/8)|4 (1/4)|-1 (auto, default)
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print the help message
+.TP
+\fB\-H\fR, \fB\-\-hierarchy\fR <hierarchy>
+DVB-T hierarchy (0, 1, 2, 4 or -1 auto, default)
+.TP
+\fB\-i\fR, \fB\-\-priority\fR <RT priority>
+Real time priority
+.TP
+\fB\-I\fR, \fB\-\-inversion\fR <inversion>
+Inversion (-1 auto, 0 off, 1 on)
+.TP
+\fB\-j\fR, \fB\-\-system-charset\fR <charset>
+Character set used for printing messages (default UTF-8)
+.TP
+\fB\-J\fR, \fB\-\-dvb-charset\fR <charset>
+Character set used in output DVB tables (default ISO_8859-1)
+.TP
+\fB\-K\fR, \fB\-\-fec-lp\fR
+DVB-T low priority FEC (default auto)
 .TP
 \fB\-l\fR, \fB\-\-logger\fR
 Send messages to syslog instead of stderr
 .TP
-\fB\-i\fR, \fB\-\-priority\fR <RT priority>
-Real time priority
+\fB\-L\fR, \fB\-\-latency\fR <latency>
+Maximum latency allowed between input and output (default: 100 ms)
 .TP
 \fB\-m\fR, \fB\-\-modulation\fR
 Modulation
@@ -61,17 +90,32 @@ DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)
 .br
 DVB-S2 qpsk|psk_8 (default legacy DVB-S)
 .TP
+\fB\-M\fR, \fB\-\-network-name\fR <name>
+DVB network name to declare in the NIT
+.TP
 \fB\-n\fR, \fB\-\-frontend\-number\fR <frontend number>
 The frontend number
+.TP
+\fB\-N\fR, \fB\-\-network-id\fR <ID>
+DVB network ID to declare in the NIT
 .TP
 \fB\-o\fR, \fB\-\-rtp-output\fR <SSRC IP>
 RTP output IP
 .TP
+\fB\-O\fR, \fB\-\-lock-timeout\fR <timeout>
+Timeout for the lock operation (in ms)
+.TP
 \fB\-p\fR, \fB\-\-force\-pulse\fR
 Force 22kHz pulses for high-band selection (DVB-S)
 .TP
+\fB\-P\fR, \fB\-\-pilot\fR
+DVB-S2 Pilot (-1 auto, 0 off, 1 on)
+.TP
 \fB\-q\fR
 Be quiet (less verbosity, repeat or use number for even quieter)
+.TP
+\fB\-Q\fR, \fB\-\-quit-timeout\fR <delay>
+When locked, quit after this delay (in ms), or after the first lock timeout
 .TP
 \fB\-r\fR, \fB\-\-remote\-socket\fR <remote socket>
 Remote socket to use
@@ -107,6 +151,12 @@ Only display the version
 .TP
 \fB\-W\fR, \fB\-\-slow\-cam\fR
 Add extra delays for slow CAMs
+.TP
+\fB\-x\fR, \fB\-\-print\fR
+Print interesting events on stdout in a given format
+.TP
+\fB\-X\fR, \fB\-\-transmission\fR <transmission>
+DVB-T transmission (2, 4, 8 or -1 auto, default)
 .SH SEE ALSO
 Read the README file for more information about the configuration of dvblast.
 .SH AUTHORS
