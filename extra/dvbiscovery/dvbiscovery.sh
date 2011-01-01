@@ -107,6 +107,7 @@ fi
 signal_catch() {
 	if test $childpid -ne 0; then
 		kill $childpid
+		wait $childpid
 	fi
 	exit 1
 }
