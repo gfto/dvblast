@@ -102,8 +102,8 @@ static void StartPID( output_t *p_output, uint16_t i_pid );
 static void StopPID( output_t *p_output, uint16_t i_pid );
 static void SelectPID( uint16_t i_sid, uint16_t i_pid );
 static void UnselectPID( uint16_t i_sid, uint16_t i_pid );
-static void SelectPSI( uint16_t i_sid, uint16_t i_pid );
-static void UnselectPSI( uint16_t i_sid, uint16_t i_pid );
+static void SelectPMT( uint16_t i_sid, uint16_t i_pid );
+static void UnselectPMT( uint16_t i_sid, uint16_t i_pid );
 static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
                      uint16_t i_sid,
                      const uint16_t *pi_pids, int i_nb_pids );
@@ -655,22 +655,24 @@ static void UnselectPID( uint16_t i_sid, uint16_t i_pid )
 }
 
 /*****************************************************************************
- * SelectPSI/UnselectPSI
+ * SelectPMT/UnselectPMT
  *****************************************************************************/
-static void SelectPSI( uint16_t i_sid, uint16_t i_pid )
+static void SelectPMT( uint16_t i_sid, uint16_t i_pid )
 {
     int i;
 
     p_pids[i_pid].i_psi_refcount++;
     p_pids[i_pid].b_pes = false;
 
-    for ( i = 0; i < i_nb_outputs; i++ )
+    if ( b_select_pmts )
+        SetPID( i_pid );
+    else for ( i = 0; i < i_nb_outputs; i++ )
         if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
               && pp_outputs[i]->config.i_sid == i_sid )
             SetPID( i_pid );
 }
 
-static void UnselectPSI( uint16_t i_sid, uint16_t i_pid )
+static void UnselectPMT( uint16_t i_sid, uint16_t i_pid )
 {
     int i;
 
@@ -679,7 +681,9 @@ static void UnselectPSI( uint16_t i_sid, uint16_t i_pid )
         psi_assemble_reset( &p_pids[i_pid].p_psi_buffer,
                             &p_pids[i_pid].i_psi_buffer_used );
 
-    for ( i = 0; i < i_nb_outputs; i++ )
+    if ( b_select_pmts )
+        UnsetPID( i_pid );
+    else for ( i = 0; i < i_nb_outputs; i++ )
         if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
               && pp_outputs[i]->config.i_sid == i_sid )
             UnsetPID( i_pid );
@@ -1443,7 +1447,7 @@ static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
 {
     int i_pmt;
 
-    UnselectPSI( i_sid, i_pid );
+    UnselectPMT( i_sid, i_pid );
 
     for ( i_pmt = 0; i_pmt < i_nb_sids; i_pmt++ )
     {
@@ -1652,7 +1656,7 @@ static void HandlePAT( mtime_t i_dts )
                 if ( p_old_program != NULL )
                     DeleteProgram( i_sid, patn_get_pid( p_old_program ) );
 
-                SelectPSI( i_sid, i_pid );
+                SelectPMT( i_sid, i_pid );
 
                 for ( i_pmt = 0; i_pmt < i_nb_sids; i_pmt++ )
                     if ( pp_sids[i_pmt]->i_sid == 0 )

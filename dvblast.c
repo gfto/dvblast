@@ -78,6 +78,7 @@ mtime_t i_frontend_timeout_duration = DEFAULT_FRONTEND_TIMEOUT;
 mtime_t i_quit_timeout = 0;
 mtime_t i_quit_timeout_duration = 0;
 int b_budget_mode = 0;
+int b_select_pmts = 0;
 int b_random_tsid = 0;
 uint16_t i_network_id = 0xffff;
 uint8_t *p_network_name;
@@ -379,7 +380,7 @@ static void DisplayVersion()
 void usage()
 {
     DisplayVersion();
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] [-u] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] [-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
@@ -408,6 +409,7 @@ void usage()
     msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
     msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
+    msg_Raw( NULL, "  -w --select-pmts      set a PID filter on all PMTs" );
     msg_Raw( NULL, "  -O --lock-timeout     timeout for the lock operation (in ms)" );
 
     msg_Raw( NULL, "Output:" );
@@ -480,6 +482,7 @@ int main( int i_argc, char **pp_argv )
         { "transmission",    required_argument, NULL, 'X' },
         { "lock-timeout",    required_argument, NULL, 'O' },
         { "budget-mode",     no_argument,       NULL, 'u' },
+        { "select-pmts",     no_argument,       NULL, 'w' },
         { "udp",             no_argument,       NULL, 'U' },
         { "unique-ts-id",    no_argument,       NULL, 'T' },
         { "latency",         required_argument, NULL, 'L' },
@@ -502,7 +505,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uUTL:E:d:D:A:lCeM:N:j:J:x:Q:hV", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lCeM:N:j:J:x:Q:hV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -640,6 +643,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'u':
             b_budget_mode = 1;
+            break;
+
+        case 'w':
+            b_select_pmts = 1;
             break;
 
         case 'U':

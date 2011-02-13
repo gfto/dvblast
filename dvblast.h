@@ -154,6 +154,7 @@ extern mtime_t i_frontend_timeout_duration;
 extern mtime_t i_quit_timeout;
 extern mtime_t i_quit_timeout_duration;
 extern int b_budget_mode;
+extern int b_select_pmts;
 extern int b_random_tsid;
 extern uint16_t i_network_id;
 extern uint8_t *p_network_name;
