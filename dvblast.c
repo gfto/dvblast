@@ -36,6 +36,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <getopt.h>
+#include <errno.h>
 
 #include "dvblast.h"
 #include "version.h"
@@ -450,6 +451,8 @@ int main( int i_argc, char **pp_argv )
     struct sched_param param;
     int i_error;
     int c;
+    struct sigaction sa;
+    sigset_t set;
 
     int b_enable_syslog = 0;
 
@@ -838,7 +841,17 @@ int main( int i_argc, char **pp_argv )
                                      &i_network_name_size );
     free( p_network_name_tmp );
 
-    signal( SIGHUP, SigHandler );
+    /* Set signal handlers */
+    memset( &sa, 0, sizeof(struct sigaction) );
+    sa.sa_handler = SigHandler;
+    sigfillset( &set );
+
+    if ( sigaction( SIGHUP, &sa, NULL ) == -1 )
+    {
+        msg_Err( NULL, "couldn't set signal handler: %s", strerror(errno) );
+        exit(EXIT_FAILURE);
+    }
+
     srand( time(NULL) * getpid() );
 
     demux_Open();
