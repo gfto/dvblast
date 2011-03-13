@@ -1025,11 +1025,23 @@ static void ApplicationInformationHandle( access_t * p_access, int i_session_id,
         d = GetLength( d, &l );
 
         {
-            char psz_name[l + 1];
+            char *psz_name = malloc(l + 1);
             memcpy( psz_name, d, l );
             psz_name[l] = '\0';
             msg_Info( p_access, "CAM: %s, %02X, %04X, %04X",
                       psz_name, i_type, i_manufacturer, i_code );
+            switch (i_print_type)
+            {
+            case PRINT_XML:
+                psz_name = dvb_string_xml_escape(psz_name);
+                printf("<STATUS type=\"cam\" status=\"1\" cam_name=\"%s\" cam_type=\"%d\" cam_manufacturer=\"%d\" cam_product=\"%d\" />\n",
+                       psz_name, i_type, i_manufacturer, i_code);
+                break;
+            default:
+                printf("CAM: name=%s type=%d manufacturer=%d product=%d\n",
+                       psz_name, i_type, i_manufacturer, i_code);
+            }
+            free(psz_name);
         }
         break;
     }
@@ -1986,6 +1998,15 @@ void en50221_Init( void )
  *****************************************************************************/
 void en50221_Reset( void )
 {
+    switch (i_print_type)
+    {
+    case PRINT_XML:
+        printf("<STATUS type=\"cam\" status=\"0\" />\n");
+        break;
+    default:
+        break;
+    }
+
     memset( p_slots, 0, sizeof(ci_slot_t) * MAX_CI_SLOTS );
 
     if( i_ca_type & CA_CI_LINK )

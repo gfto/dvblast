@@ -362,10 +362,10 @@ static void FrontendPoll( void )
             IF_UP( FE_HAS_LOCK )
             {
                 int32_t i_value = 0;
-                msg_Dbg( NULL, "frontend has acquired lock" );
+                msg_Info( NULL, "frontend has acquired lock" );
                 switch (i_print_type) {
                 case PRINT_XML:
-                    printf("<STATUS type=\"lock\" status=\"1\"/>\n");
+                    printf("<STATUS type=\"lock\" status=\"1\" />\n");
                     break;
                 default:
                     printf("frontend has acquired lock\n" );

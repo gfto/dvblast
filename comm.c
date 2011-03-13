@@ -41,7 +41,6 @@ int i_comm_fd = -1;
  *****************************************************************************/
 void comm_Open( void )
 {
-    int i_mask;
     int i_size = 65535;
     struct sockaddr_un sun_server;
 
@@ -57,18 +56,15 @@ void comm_Open( void )
     sun_server.sun_family = AF_UNIX;
     strncpy( sun_server.sun_path, psz_srv_socket, sizeof(sun_server.sun_path) );
     sun_server.sun_path[sizeof(sun_server.sun_path) - 1] = '\0';
-    i_mask = umask(077);
 
     if ( bind( i_comm_fd, (struct sockaddr *)&sun_server,
                SUN_LEN(&sun_server) ) < 0 )
     {
         msg_Err( NULL, "cannot bind comm socket (%s)", strerror(errno) );
-        umask( i_mask );
         close( i_comm_fd );
         i_comm_fd = -1;
         return;
     }
-    umask( i_mask );
 }
 
 /*****************************************************************************

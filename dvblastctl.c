@@ -136,17 +136,14 @@ int main( int i_argc, char **ppsz_argv )
     strncpy( sun_client.sun_path, psz_client_socket,
              sizeof(sun_client.sun_path) );
     sun_client.sun_path[sizeof(sun_client.sun_path) - 1] = '\0';
-    i_mask = umask(077);
 
     if ( bind( i_fd, (struct sockaddr *)&sun_client,
                SUN_LEN(&sun_client) ) < 0 )
     {
         msg_Err( NULL, "cannot bind (%s)", strerror(errno) );
-        umask( i_mask );
         close( i_fd );
         exit(255);
     }
-    umask( i_mask );
 
     memset( &sun_server, 0, sizeof(sun_server) );
     sun_server.sun_family = AF_UNIX;

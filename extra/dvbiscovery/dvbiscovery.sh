@@ -29,15 +29,16 @@ LOCK_TIMEOUT=2500
 QUIT_TIMEOUT=15000
 
 usage() {
-	echo "Usage: $0 [-a <adapter #>] [-S <diseqc sat num>] [-c <conf file>]" >&2
+	echo "Usage: $0 [-a <adapter #>] [-n <frontend #>] [-S <diseqc sat num>] [-c <conf file>]" >&2
 	exit 1
 }
 
 conf_file_passed=""
 adapter=""
+frontend=""
 diseqc=""
 
-TEMP=`getopt -o a:S:c: -n "$0" -- "$@"`
+TEMP=`getopt -o a:n:S:c: -n "$0" -- "$@"`
 
 if test $? -ne 0; then
 	usage
@@ -49,6 +50,10 @@ while :; do
 	case "$1" in
 		-a)
 			adapter="-a $2"
+			shift 2
+			;;
+		-n)
+			frontend="-n $2"
 			shift 2
 			;;
 		-c)
@@ -69,7 +74,7 @@ while :; do
 	esac
 done
 
-type=`$DVBLAST $diseqc $adapter -f 0 2>&1 | grep '^debug: Frontend' |  sed 's/^debug: Frontend ".*" type "\(.*\)" supports:$/\1/'`
+type=`$DVBLAST $diseqc $adapter $frontend -f 0 2>&1 | grep '^debug: Frontend' |  sed 's/^debug: Frontend ".*" type "\(.*\)" supports:$/\1/'`
 tune=""
 conf_file=""
 
@@ -115,7 +120,7 @@ signal_catch() {
 exec_dvblast() {
 	tmp_file=`mktemp`
 
-	$DVBLAST $diseqc $adapter -O $LOCK_TIMEOUT -Q $QUIT_TIMEOUT -q4 -x xml $opts >| $tmp_file &
+	$DVBLAST $diseqc $adapter $frontend -O $LOCK_TIMEOUT -Q $QUIT_TIMEOUT -q4 -x xml $opts >| $tmp_file &
 	childpid=$!
 	wait $childpid
 	if test $? -eq 0; then
