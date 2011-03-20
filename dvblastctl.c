@@ -56,7 +56,7 @@ int main( int i_argc, char **ppsz_argv )
 {
     char psz_client_socket[L_tmpnam];
     char *psz_srv_socket = NULL;
-    int i_fd, i_mask;
+    int i_fd;
     int i = 65535;
     ssize_t i_size;
     struct sockaddr_un sun_client, sun_server;
