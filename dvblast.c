@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvblast.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2010 VideoLAN
+ * Copyright (C) 2004, 2008-2011 VideoLAN
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
@@ -79,6 +79,7 @@ mtime_t i_frontend_timeout_duration = DEFAULT_FRONTEND_TIMEOUT;
 mtime_t i_quit_timeout = 0;
 mtime_t i_quit_timeout_duration = 0;
 int b_budget_mode = 0;
+int b_any_type = 0;
 int b_select_pmts = 0;
 int b_random_tsid = 0;
 uint16_t i_network_id = 0xffff;
@@ -381,7 +382,7 @@ static void DisplayVersion()
 void usage()
 {
     DisplayVersion();
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] [-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>" );
+    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] [-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] [-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] [-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] [-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] [-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-z] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] [-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>]" );
 
     msg_Raw( NULL, "Input:" );
     msg_Raw( NULL, "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
@@ -426,6 +427,7 @@ void usage()
     msg_Raw( NULL, "  -t --ttl <ttl>        TTL of the output stream" );
     msg_Raw( NULL, "  -T --unique-ts-id     generate random unique TS ID for each output" );
     msg_Raw( NULL, "  -U --udp              use raw UDP rather than RTP (required by some IPTV set top boxes)" );
+    msg_Raw( NULL, "  -z --any-type         pass through all ESs from the PMT, of any type" );
 
     msg_Raw( NULL, "Misc:" );
     msg_Raw( NULL, "  -h --help             display this full help" );
@@ -493,6 +495,7 @@ int main( int i_argc, char **pp_argv )
         { "duplicate",       required_argument, NULL, 'd' },
         { "rtp-input",       required_argument, NULL, 'D' },
         { "asi-adapter",     required_argument, NULL, 'A' },
+        { "any-type",        no_argument,       NULL, 'z' },
         { "dvb-compliance",  no_argument,       NULL, 'C' },
         { "epg-passthrough", no_argument,       NULL, 'e' },
         { "network-name",    no_argument,       NULL, 'M' },
@@ -508,7 +511,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lCeM:N:j:J:x:Q:hV", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lzCeM:N:j:J:x:Q:hV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -698,6 +701,10 @@ int main( int i_argc, char **pp_argv )
             pf_Reset = asi_Reset;
             pf_SetFilter = asi_SetFilter;
             pf_UnsetFilter = asi_UnsetFilter;
+            break;
+
+        case 'z':
+            b_any_type = 1;
             break;
 
         case 'C':

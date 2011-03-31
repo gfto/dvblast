@@ -12,6 +12,7 @@ Changes between 1.2 and 2.0:
   * Add support for NIT in DVB compliance mode
   * Syslog support with -l option
   * Override tuning parameters with new options
+  * Output all PMTs with -w, all ESs (even unknown) for a program with -z
 
 Changes between 1.1 and 1.2:
 ----------------------------

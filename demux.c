@@ -1,7 +1,7 @@
 /*****************************************************************************
  * demux.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2010 VideoLAN
+ * Copyright (C) 2004, 2008-2011 VideoLAN
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
@@ -1319,6 +1319,8 @@ bool demux_PIDIsSelected( uint16_t i_pid )
  *****************************************************************************/
 static bool PIDWouldBeSelected( uint8_t *p_es )
 {
+    if ( b_any_type ) return true;
+
     uint8_t i_type = pmtn_get_streamtype( p_es );
 
     switch ( i_type )

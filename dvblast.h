@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvblast.h
  *****************************************************************************
- * Copyright (C) 2004, 2008-2009 VideoLAN
+ * Copyright (C) 2004, 2008-2011 VideoLAN
  * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
@@ -154,6 +154,7 @@ extern mtime_t i_frontend_timeout_duration;
 extern mtime_t i_quit_timeout;
 extern mtime_t i_quit_timeout_duration;
 extern int b_budget_mode;
+extern int b_any_type;
 extern int b_select_pmts;
 extern int b_random_tsid;
 extern uint16_t i_network_id;
