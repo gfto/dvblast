@@ -26,7 +26,7 @@ CONF_BASE="/usr/local/share/dvblast/dvbiscovery"
 #CONF_BASE="./"
 DVBLAST=dvblast
 LOCK_TIMEOUT=2500
-QUIT_TIMEOUT=15000
+QUIT_TIMEOUT=20000
 
 usage() {
 	echo "Usage: $0 [-a <adapter #>] [-n <frontend #>] [-S <diseqc sat num>] [-c <conf file>]" >&2
