@@ -761,9 +761,11 @@ static void SPDUHandle( access_t * p_access, uint8_t i_slot,
     case ST_SESSION_NUMBER:
         if ( i_size <= 4 )
             return;
-        i_session_id = ((int)p_spdu[2] << 8) | p_spdu[3];
-        p_sessions[i_session_id - 1].pf_handle( p_access, i_session_id,
-                                                       p_spdu + 4, i_size - 4 );
+        i_session_id = (p_spdu[2] << 8) | p_spdu[3];
+        if ( i_session_id <= MAX_SESSIONS
+              && p_sessions[i_session_id - 1].pf_handle != NULL )
+            p_sessions[i_session_id - 1].pf_handle( p_access, i_session_id,
+                                                    p_spdu + 4, i_size - 4 );
         break;
 
     case ST_OPEN_SESSION_REQUEST:
@@ -1874,6 +1876,15 @@ static void ResetSlot( int i_slot )
     ci_slot_t *p_slot = &p_slots[i_slot];
     int i_session_id;
 
+    switch (i_print_type)
+    {
+    case PRINT_XML:
+        printf("<STATUS type=\"cam\" status=\"0\" />\n");
+        break;
+    default:
+        break;
+    }
+
     if ( ioctl( i_ca_handle, CA_RESET, 1 << i_slot ) != 0 )
         msg_Err( NULL, "en50221_Poll: couldn't reset slot %d", i_slot );
     p_slot->b_active = false;
@@ -1998,15 +2009,6 @@ void en50221_Init( void )
  *****************************************************************************/
 void en50221_Reset( void )
 {
-    switch (i_print_type)
-    {
-    case PRINT_XML:
-        printf("<STATUS type=\"cam\" status=\"0\" />\n");
-        break;
-    default:
-        break;
-    }
-
     memset( p_slots, 0, sizeof(ci_slot_t) * MAX_CI_SLOTS );
 
     if( i_ca_type & CA_CI_LINK )
