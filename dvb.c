@@ -525,7 +525,7 @@ static int FrontendDoDiseqc(void)
         msleep(100000); /* ... */
     }
 
-    else if ( ioctl( i_frontend, FE_SET_TONE, fe_tone ) < 0 )
+    if ( ioctl( i_frontend, FE_SET_TONE, fe_tone ) < 0 )
     {
         msg_Err( NULL, "FE_SET_TONE failed (%s)", strerror(errno) );
         exit(1);
