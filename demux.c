@@ -48,6 +48,9 @@
 #include <bitstream/dvb/si_print.h>
 #include <bitstream/mpeg/psi_print.h>
 
+extern bool b_enable_emm;
+extern bool b_enable_ecm;
+
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
@@ -61,6 +64,9 @@ typedef struct ts_pid_t
     bool b_pes;
     int8_t i_last_cc;
     int i_demux_fd;
+    /* b_emm is set to true when PID carries EMM packet
+       and should be outputed in all services */
+    bool b_emm;
 
     /* biTStream PSI section gathering */
     uint8_t *p_psi_buffer;
@@ -82,6 +88,8 @@ static int i_nb_sids = 0;
 
 static PSI_TABLE_DECLARE(pp_current_pat_sections);
 static PSI_TABLE_DECLARE(pp_next_pat_sections);
+static PSI_TABLE_DECLARE(pp_current_cat_sections);
+static PSI_TABLE_DECLARE(pp_next_cat_sections);
 static PSI_TABLE_DECLARE(pp_current_nit_sections);
 static PSI_TABLE_DECLARE(pp_next_nit_sections);
 static PSI_TABLE_DECLARE(pp_current_sdt_sections);
@@ -97,6 +105,7 @@ static mtime_t i_last_error = 0;
 static void demux_Handle( block_t *p_ts );
 static void SetDTS( block_t *p_list );
 static void SetPID( uint16_t i_pid );
+static void SetPID_EMM( uint16_t i_pid );
 static void UnsetPID( uint16_t i_pid );
 static void StartPID( output_t *p_output, uint16_t i_pid );
 static void StopPID( output_t *p_output, uint16_t i_pid );
@@ -144,6 +153,13 @@ void demux_Open( void )
     psi_table_init( pp_next_pat_sections );
     SetPID(PAT_PID);
     p_pids[PAT_PID].i_psi_refcount++;
+
+    if ( b_enable_emm ) {
+        psi_table_init( pp_current_cat_sections );
+        psi_table_init( pp_next_cat_sections );
+        SetPID_EMM(CAT_PID);
+        p_pids[CAT_PID].i_psi_refcount++;
+    }
 
     SetPID(NIT_PID);
     p_pids[NIT_PID].i_psi_refcount++;
@@ -291,6 +307,15 @@ static void demux_Handle( block_t *p_ts )
     }
 
     p_pids[i_pid].i_last_cc = i_cc;
+
+    if ( b_enable_emm ) {
+        for ( i = 0; i < i_nb_outputs; i++ )
+        {
+            output_t *p_output = pp_outputs[i];
+            if ( p_output->config.i_config & OUTPUT_VALID && p_pids[i_pid].b_emm )
+                output_Put( p_output, p_ts );
+        }
+    }
 
     /* Output */
     for ( i = 0; i < p_pids[i_pid].i_nb_outputs; i++ )
@@ -567,9 +592,16 @@ static void SetPID( uint16_t i_pid )
         p_pids[i_pid].i_demux_fd = pf_SetFilter( i_pid );
 }
 
+static void SetPID_EMM( uint16_t i_pid )
+{
+    SetPID( i_pid );
+    p_pids[i_pid].b_emm = true;
+}
+
 static void UnsetPID( uint16_t i_pid )
 {
     p_pids[i_pid].i_refcount--;
+    p_pids[i_pid].b_emm = false;
 
     if ( !b_budget_mode && !p_pids[i_pid].i_refcount
           && p_pids[i_pid].i_demux_fd != -1 )
@@ -1442,6 +1474,22 @@ void demux_ResendCAPMTs( void )
             en50221_AddPMT( pp_sids[i]->p_current_pmt );
 }
 
+/* Find CA descriptor that have PID i_ca_pid */
+static uint8_t *ca_desc_find( uint8_t *p_descs, uint16_t i_ca_pid )
+{
+    int j = 0;
+    uint8_t *p_desc;
+
+    while ( (p_desc = descs_get_desc( p_descs, j++ )) != NULL ) {
+        if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+            continue;
+        if ( desc09_get_pid( p_desc ) == i_ca_pid )
+            return p_desc;
+    }
+
+    return NULL;
+}
+
 /*****************************************************************************
  * DeleteProgram
  *****************************************************************************/
@@ -1472,6 +1520,19 @@ static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
                 if ( i_pcr_pid != PADDING_PID
                       && i_pcr_pid != p_sid->i_pmt_pid )
                     UnselectPID( i_sid, i_pcr_pid );
+
+                if ( b_enable_ecm )
+                {
+                    j = 0;
+                    uint8_t *p_desc;
+
+                    while ((p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL)
+                    {
+                        if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                            continue;
+                        UnselectPID( i_sid, desc09_get_pid( p_desc ) );
+                    }
+                }
 
                 j = 0;
                 while ( (p_es = pmt_get_es( p_pmt, j )) != NULL )
@@ -1756,6 +1817,171 @@ static void HandlePATSection( uint16_t i_pid, uint8_t *p_section,
 }
 
 /*****************************************************************************
+ * HandleCAT
+ *****************************************************************************/
+static void HandleCAT( mtime_t i_dts )
+{
+    bool b_display, b_change = false;
+    PSI_TABLE_DECLARE( pp_old_cat_sections );
+    uint8_t i_last_section = psi_table_get_lastsection( pp_next_cat_sections );
+    uint8_t i_last_section2;
+    uint8_t i, r;
+    uint8_t *p_desc;
+    int j, k;
+
+    if ( psi_table_validate( pp_current_cat_sections ) &&
+         psi_table_compare( pp_current_cat_sections, pp_next_cat_sections ) )
+    {
+        /* Identical CAT. Shortcut. */
+        psi_table_free( pp_next_cat_sections );
+        psi_table_init( pp_next_cat_sections );
+        goto out_cat;
+    }
+
+    if ( !cat_table_validate( pp_next_cat_sections ) )
+    {
+        msg_Warn( NULL, "invalid CAT received" );
+        switch (i_print_type) {
+        case PRINT_XML:
+            printf("<ERROR type=\"invalid_cat\"/>\n");
+            break;
+        default:
+            printf("invalid CAT received\n");
+        }
+        psi_table_free( pp_next_cat_sections );
+        psi_table_init( pp_next_cat_sections );
+        goto out_cat;
+    }
+
+    b_display = !psi_table_validate( pp_current_cat_sections )
+                 || psi_table_get_version( pp_current_cat_sections )
+                     != psi_table_get_version( pp_next_cat_sections );
+
+    /* Switch tables. */
+    psi_table_copy( pp_old_cat_sections, pp_current_cat_sections );
+    psi_table_copy( pp_current_cat_sections, pp_next_cat_sections );
+    psi_table_init( pp_next_cat_sections );
+
+    if ( !psi_table_validate( pp_old_cat_sections )
+          || psi_table_get_tableidext( pp_current_cat_sections )
+              != psi_table_get_tableidext( pp_old_cat_sections ) )
+    {
+        b_display = b_change = true;
+    }
+
+    if ( b_change )
+    {
+        for ( i = 0; i <= i_last_section; i++ )
+        {
+            uint8_t *p_section = psi_table_get_section( pp_current_cat_sections, i );
+
+            j = 0;
+            uint8_t *p_cat_descs = cat_alloc_descs( p_section );
+            while ( (p_desc = descs_get_desc( p_cat_descs, j++ )) != NULL )
+            {
+                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                    continue;
+
+                SetPID_EMM( desc09_get_pid( p_desc ) );
+            }
+            cat_free_descs( p_cat_descs );
+        }
+    }
+
+    if ( psi_table_validate( pp_old_cat_sections ) )
+    {
+        i_last_section = psi_table_get_lastsection( pp_old_cat_sections );
+        for ( i = 0; i <= i_last_section; i++ )
+        {
+            uint8_t *p_old_section = psi_table_get_section( pp_old_cat_sections, i );
+            j = 0;
+            uint8_t *p_old_cat_descs = cat_alloc_descs( p_old_section );
+            while ( (p_desc = descs_get_desc( p_old_cat_descs, j++ )) != NULL )
+            {
+                uint16_t emm_pid;
+                int pid_found = 0;
+
+                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                    continue;
+
+                emm_pid = desc09_get_pid( p_desc );
+
+                // Search in current sections if the pid exists
+                i_last_section2 = psi_table_get_lastsection( pp_current_cat_sections );
+                for ( r = 0; r <= i_last_section2; r++ )
+                {
+                    uint8_t *p_section = psi_table_get_section( pp_current_cat_sections, r );
+
+                    k = 0;
+                    uint8_t *p_cat_descs = cat_alloc_descs( p_section );
+                    while ( (p_desc = descs_get_desc( p_cat_descs, k++ )) != NULL )
+                    {
+                        if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                            continue;
+                        if ( ca_desc_find( p_cat_descs, emm_pid ) != NULL )
+                        {
+                            pid_found = 1;
+                            break;
+                        }
+                    }
+                    cat_free_descs( p_cat_descs );
+                }
+
+                if ( !pid_found )
+                {
+                    UnsetPID(emm_pid);
+                    b_display = true;
+                }
+            }
+            cat_free_descs( p_old_cat_descs );
+        }
+
+        psi_table_free( pp_old_cat_sections );
+    }
+
+    if ( b_display )
+    {
+        cat_table_print( pp_current_cat_sections, msg_Dbg, NULL, PRINT_TEXT );
+        if ( i_print_type != -1 )
+        {
+            cat_table_print( pp_current_cat_sections, demux_Print, NULL,
+                             i_print_type );
+            if ( i_print_type == PRINT_XML )
+                printf("\n");
+        }
+    }
+
+out_cat:
+    return;
+}
+
+/*****************************************************************************
+ * HandleCATSection
+ *****************************************************************************/
+static void HandleCATSection( uint16_t i_pid, uint8_t *p_section,
+                              mtime_t i_dts )
+{
+    if ( i_pid != CAT_PID || !cat_validate( p_section ) )
+    {
+        msg_Warn( NULL, "invalid CAT section received on PID %hu", i_pid );
+        switch (i_print_type) {
+        case PRINT_XML:
+            printf("<ERROR type=\"invalid_cat_section\"/>\n");
+            break;
+        default:
+            printf("invalid CAT section received on PID %hu\n", i_pid);
+        }
+        free( p_section );
+        return;
+    }
+
+    if ( !psi_table_section( pp_next_cat_sections, p_section ) )
+        return;
+
+    HandleCAT( i_dts );
+}
+
+/*****************************************************************************
  * HandlePMT
  *****************************************************************************/
 static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
@@ -1766,6 +1992,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
     bool b_needs_descrambling, b_needed_descrambling, b_is_selected;
     uint16_t i_pcr_pid;
     uint8_t *p_es;
+    uint8_t *p_desc;
     int i;
     uint16_t j;
 
@@ -1836,6 +2063,16 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
                         || psi_get_version( p_sid->p_current_pmt )
                             != psi_get_version( p_pmt );
 
+    if ( b_enable_ecm && b_new ) {
+        j = 0;
+        while ( (p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL )
+        {
+            if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                continue;
+            SelectPID( i_sid, desc09_get_pid( p_desc ) );
+        }
+    }
+
     if ( p_sid->p_current_pmt == NULL
           || i_pcr_pid != pmt_get_pcrpid( p_sid->p_current_pmt ) )
     {
@@ -1864,6 +2101,18 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
     if ( p_sid->p_current_pmt != NULL )
     {
+        if ( b_enable_ecm )
+        {
+            j = 0;
+            while ((p_desc = descs_get_desc( pmt_get_descs( p_sid->p_current_pmt ), j++ )) != NULL)
+            {
+                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                    continue;
+                if ( ca_desc_find( pmt_get_descs( p_pmt ), desc09_get_pid( p_desc ) ) == NULL )
+                    UnselectPID( i_sid, desc09_get_pid( p_desc ) );
+            }
+        }
+
         uint16_t i_current_pcr_pid = pmt_get_pcrpid( p_sid->p_current_pmt );
         if ( i_current_pcr_pid != i_pcr_pid
               && i_current_pcr_pid != PADDING_PID )
@@ -2219,6 +2468,11 @@ static void HandleSection( uint16_t i_pid, uint8_t *p_section, mtime_t i_dts )
     {
     case PAT_TABLE_ID:
         HandlePATSection( i_pid, p_section, i_dts );
+        break;
+
+    case CAT_TABLE_ID:
+        if ( b_enable_emm )
+            HandleCATSection( i_pid, p_section, i_dts );
         break;
 
     case PMT_TABLE_ID:

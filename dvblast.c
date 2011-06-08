@@ -95,6 +95,9 @@ volatile sig_atomic_t b_hup_received = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
 
+bool b_enable_emm = false;
+bool b_enable_ecm = false;
+
 uint8_t pi_ssrc_global[4] = { 0, 0, 0, 0 };
 static int b_udp_global = 0;
 static int b_dvb_global = 0;
@@ -138,7 +141,9 @@ static void config_Defaults( output_config_t *p_config )
 
     p_config->i_config = (b_udp_global ? OUTPUT_UDP : 0) |
                          (b_dvb_global ? OUTPUT_DVB : 0) |
-                         (b_epg_global ? OUTPUT_EPG : 0);
+                         (b_epg_global ? OUTPUT_EPG : 0) |
+                         (b_enable_emm ? OUTPUT_EMM : 0) |
+                         (b_enable_ecm ? OUTPUT_ECM : 0);
     p_config->i_max_retention = i_retention_global;
     p_config->i_output_latency = i_latency_global;
     p_config->i_tsid = -1;
@@ -187,6 +192,14 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
             p_config->i_config |= OUTPUT_DVB;
         else if ( IS_OPTION("epg") )
             p_config->i_config |= OUTPUT_EPG;
+        else if ( IS_OPTION("emm") )
+            p_config->i_config |= OUTPUT_EMM;
+        else if ( IS_OPTION("noemm") )
+            p_config->i_config &= ~OUTPUT_EMM;
+        else if ( IS_OPTION("ecm") )
+            p_config->i_config |= OUTPUT_ECM;
+        else if ( IS_OPTION("noecm") )
+            p_config->i_config &= ~OUTPUT_ECM;
         else if ( IS_OPTION("tsid=") )
             p_config->i_tsid = strtol( ARG_OPTION("tsid="), NULL, 0 );
         else if ( IS_OPTION("retention=") )
@@ -418,6 +431,8 @@ void usage()
     msg_Raw( NULL, "  -c --config-file <config file>" );
     msg_Raw( NULL, "  -C --dvb-compliance   pass through or build the mandatory DVB tables" );
     msg_Raw( NULL, "  -d --duplicate        duplicate all received packets to a given destination" );
+    msg_Raw( NULL, "  -W --emm-passthrough  pass through EMM data (CA system data)" );
+    msg_Raw( NULL, "  -Y --ecm-passthrough  pass through ECM data (CA program data)" );
     msg_Raw( NULL, "  -e --epg-passthrough  pass through DVB EIT schedule tables" );
     msg_Raw( NULL, "  -E --retention        maximum retention allowed between input and output (default: 40 ms)" );
     msg_Raw( NULL, "  -L --latency          maximum latency allowed between input and output (default: 100 ms)" );
@@ -497,6 +512,8 @@ int main( int i_argc, char **pp_argv )
         { "asi-adapter",     required_argument, NULL, 'A' },
         { "any-type",        no_argument,       NULL, 'z' },
         { "dvb-compliance",  no_argument,       NULL, 'C' },
+        { "emm-passthrough", no_argument,       NULL, 'W' },
+        { "ecm-passthrough", no_argument,       NULL, 'Y' },
         { "epg-passthrough", no_argument,       NULL, 'e' },
         { "network-name",    no_argument,       NULL, 'M' },
         { "network-id",      no_argument,       NULL, 'N' },
@@ -511,7 +528,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lzCeM:N:j:J:x:Q:hV", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lzCWYeM:N:j:J:x:Q:hV", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -709,6 +726,14 @@ int main( int i_argc, char **pp_argv )
 
         case 'C':
             b_dvb_global = 1;
+            break;
+
+        case 'W':
+            b_enable_emm = true;
+            break;
+
+        case 'Y':
+            b_enable_ecm = true;
             break;
 
         case 'e':
