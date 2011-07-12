@@ -917,7 +917,16 @@ int main( int i_argc, char **pp_argv )
         }
 
         if ( i_quit_timeout && i_quit_timeout <= i_wallclock )
+        {
+            switch (i_print_type) {
+            case PRINT_XML:
+                printf("</TS>\n");
+                break;
+            default:
+                break;
+            }
             exit(EXIT_SUCCESS);
+        }
 
         p_ts = pf_Read( i_poll_timeout );
         if ( p_ts != NULL )

@@ -197,6 +197,13 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
         if ( i_quit_timeout_duration )
         {
             msg_Err( NULL, "no lock" );
+            switch (i_print_type) {
+            case PRINT_XML:
+                printf("</TS>\n");
+                break;
+            default:
+                break;
+            }
             exit(EXIT_STATUS_FRONTEND_TIMEOUT);
         }
         msg_Warn( NULL, "no lock, tuning again" );
