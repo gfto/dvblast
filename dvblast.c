@@ -29,6 +29,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <string.h>
+#include <ctype.h>
 #include <pthread.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -283,7 +284,12 @@ static void config_ReadFile( char *psz_file )
         output_t *p_output;
         char *psz_token, *psz_parser;
 
-        if ( !strncmp( psz_line, "#", 1 ) )
+        psz_parser = strchr( psz_line, '#' );
+        if ( psz_parser != NULL )
+            *psz_parser-- = '\0';
+        while ( psz_parser >= psz_line && isblank( *psz_parser ) )
+            *psz_parser-- = '\0';
+        if ( psz_line[0] == '\0' )
             continue;
 
         config_Defaults( &config );
