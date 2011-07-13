@@ -13,6 +13,8 @@ Changes between 1.2 and 2.0:
   * Syslog support with -l option
   * Override tuning parameters with new options
   * Output all PMTs with -w, all ESs (even unknown) for a program with -z
+  * Add support for ECM and EMM packets pass-through
+  * Fix diseqc command with high-band tranponders
 
 Changes between 1.1 and 1.2:
 ----------------------------
