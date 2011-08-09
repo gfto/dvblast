@@ -1365,6 +1365,8 @@ static bool PIDWouldBeSelected( uint8_t *p_es )
     case 0x10: /* video MPEG-4 */
     case 0x11: /* audio AAC LATM */
     case 0x1b: /* video H264 */
+    case 0x81: /* ATSC A/52 */
+    case 0x87: /* ATSC Enhanced A/52 */
         return true;
         break;
 
@@ -1416,6 +1418,8 @@ static bool PIDCarriesPES( const uint8_t *p_es )
     case 0x10: /* video MPEG-4 */
     case 0x11: /* audio AAC LATM */
     case 0x1b: /* video H264 */
+    case 0x81: /* ATSC A/52 */
+    case 0x87: /* ATSC Enhanced A/52 */
         return true;
         break;
 

@@ -820,6 +820,18 @@ static struct dtv_properties dvbt_cmdseq = {
     .props = dvbt_cmdargs
 };
 
+static struct dtv_property atsc_cmdargs[] = {
+    { .cmd = DTV_FREQUENCY, .u.data = 0 },
+    { .cmd = DTV_MODULATION, .u.data = QAM_AUTO },
+    { .cmd = DTV_INVERSION, .u.data = INVERSION_AUTO },
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_ATSC },
+    { .cmd = DTV_TUNE },
+};
+static struct dtv_properties atsc_cmdseq = {
+    .num = sizeof(atsc_cmdargs)/sizeof(struct dtv_property),
+    .props = atsc_cmdargs
+};
+
 #define FREQUENCY 0
 #define MODULATION 1
 #define INVERSION 2
@@ -917,6 +929,18 @@ static void FrontendSet( bool b_init )
         msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d",
                  i_frequency, i_srate, i_inversion, i_fec, i_rolloff,
                  psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot );
+        break;
+
+    case FE_ATSC:
+        p = &atsc_cmdseq;
+        p->props[FREQUENCY].u.data = i_frequency;
+        p->props[INVERSION].u.data = GetInversion();
+        if ( psz_modulation != NULL )
+            p->props[MODULATION].u.data = GetModulation();
+
+        msg_Dbg( NULL, "tuning ATSC frontend to f=%d inversion=%d modulation=%s",
+                 i_frequency, i_inversion,
+                 psz_modulation == NULL ? "qam_auto" : psz_modulation );
         break;
 
     default:
