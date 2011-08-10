@@ -15,6 +15,8 @@ Changes between 1.2 and 2.0:
   * Output all PMTs with -w, all ESs (even unknown) for a program with -z
   * Add support for ECM and EMM packets pass-through
   * Fix diseqc command with high-band tranponders
+  * Add basic support for ATSC
+  * Add support for MRTG statistics
 
 Changes between 1.1 and 1.2:
 ----------------------------

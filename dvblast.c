@@ -49,6 +49,8 @@
 #include <bitstream/dvb/si.h>
 #include <bitstream/ietf/rtp.h>
 
+#include "mrtg-cnt.h"
+
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
@@ -106,6 +108,9 @@ static int b_epg_global = 0;
 static mtime_t i_latency_global = DEFAULT_OUTPUT_LATENCY;
 static mtime_t i_retention_global = DEFAULT_MAX_RETENTION;
 static int i_ttl_global = 64;
+
+/* TPS Input log filename */
+char * psz_mrtg_file = NULL;
 
 void (*pf_Open)( void ) = NULL;
 block_t * (*pf_Read)( mtime_t i_poll_timeout ) = NULL;
@@ -461,6 +466,7 @@ void usage()
     msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
     msg_Raw( NULL, "  -V --version          only display the version" );
+    msg_Raw( NULL, "  -Z --mrtg-file <file>   Log input packets and errors into mrtg-file" );
     exit(1);
 }
 
@@ -531,10 +537,11 @@ int main( int i_argc, char **pp_argv )
         { "quiet",           no_argument,       NULL, 'q' },
         { "help",            no_argument,       NULL, 'h' },
         { "version",         no_argument,       NULL, 'V' },
+        { "mrtg-file",       required_argument, NULL, 'Z' },
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lzCWYeM:N:j:J:x:Q:hV", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lzCWYeM:N:j:J:x:Q:hVZ:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -789,6 +796,10 @@ int main( int i_argc, char **pp_argv )
             exit(0);
             break;
 
+        case 'Z':
+            psz_mrtg_file = optarg;
+            break;
+
         case 'h':
         default:
             usage();
@@ -804,13 +815,14 @@ int main( int i_argc, char **pp_argv )
         DisplayVersion();
 
     msg_Warn( NULL, "restarting" );
-    switch (i_print_type) {
-    case PRINT_XML:
-        printf("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
-        printf("<TS>\n");
-        break;
-    default:
-        break;
+    switch (i_print_type) 
+    {
+        case PRINT_XML:
+            printf("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+            printf("<TS>\n");
+            break;
+        default:
+            break;
     }
 
     if ( b_udp_global )
@@ -893,6 +905,9 @@ int main( int i_argc, char **pp_argv )
     srand( time(NULL) * getpid() );
 
     demux_Open();
+ 
+    // init the mrtg logfile
+    mrtgInit(psz_mrtg_file);
 
     if ( i_priority > 0 )
     {
@@ -924,7 +939,8 @@ int main( int i_argc, char **pp_argv )
 
         if ( i_quit_timeout && i_quit_timeout <= i_wallclock )
         {
-            switch (i_print_type) {
+            switch (i_print_type) 
+            {
             case PRINT_XML:
                 printf("</TS>\n");
                 break;
@@ -935,13 +951,17 @@ int main( int i_argc, char **pp_argv )
         }
 
         p_ts = pf_Read( i_poll_timeout );
-        if ( p_ts != NULL )
+        if ( p_ts != NULL ) 
+        {
+	    mrtgAnalyse(p_ts);
             demux_Run( p_ts );
+        }
         i_poll_timeout = output_Send();
         if ( i_poll_timeout == -1 || i_poll_timeout > MAX_POLL_TIMEOUT )
             i_poll_timeout = MAX_POLL_TIMEOUT;
     }
 
+    mrtgClose();
     if ( b_enable_syslog )
         msg_Disconnect();
     return EXIT_SUCCESS;
