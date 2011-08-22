@@ -249,7 +249,7 @@ void hexDump( uint8_t *p_data, uint32_t i_len )
         }
 
         sprintf( &p_outline[53], "%16s", p_hrdata );
-        msg_Dbg( NULL, p_outline );
+        msg_Dbg( NULL, "%s", p_outline );
     }
 
     free( p_hrdata );

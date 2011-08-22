@@ -526,7 +526,7 @@ static int FrontendDoDiseqc(void)
         if( ioctl( i_frontend, FE_DISEQC_SEND_BURST,
                    i_satnum == 0xB ? SEC_MINI_B : SEC_MINI_A ) < 0 )
         {
-            msg_Err( NULL, "ioctl FE_SEND_BURST failed (%m)", strerror(errno) );
+            msg_Err( NULL, "ioctl FE_SEND_BURST failed (%s)", strerror(errno) );
             exit(1);
         }
         msleep(100000); /* ... */
