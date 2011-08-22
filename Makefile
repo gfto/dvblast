@@ -6,7 +6,6 @@ TOPDIR = `basename ${PWD}`
 
 CFLAGS += -Wall -O3 -fomit-frame-pointer
 CFLAGS += -g
-CFLAGS += -I/usr/src/kernel/linux-2.6.29.1/include
 LDLIBS += -lrt
 LDLIBS_DVBLAST += -lpthread
 
