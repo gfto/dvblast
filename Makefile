@@ -4,7 +4,7 @@
 VERSION = 2.0.0
 TOPDIR = `basename ${PWD}`
 
-CFLAGS += -Wall -O3 -fomit-frame-pointer
+CFLAGS += -Wall -Wformat-security -O3 -fomit-frame-pointer
 CFLAGS += -g
 LDLIBS += -lrt
 LDLIBS_DVBLAST += -lpthread

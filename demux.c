@@ -1638,6 +1638,7 @@ char *demux_Iconv(void *_unused, const char *psz_encoding,
  * This code is from biTStream's examples and is under the WTFPL (see
  * LICENSE.WTFPL).
  *****************************************************************************/
+__attribute__ ((format(printf, 2, 3)))
 static void demux_Print(void *_unused, const char *psz_format, ...)
 {
     char psz_fmt[strlen(psz_format) + 2];

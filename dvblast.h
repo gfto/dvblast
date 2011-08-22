@@ -192,11 +192,11 @@ void msg_Connect( const char *ident );
 void msg_Disconnect( void );
 
 /* */
-void msg_Info( void *_unused, const char *psz_format, ... );
-void msg_Err( void *_unused, const char *psz_format, ... );
-void msg_Warn( void *_unused, const char *psz_format, ... );
-void msg_Dbg( void *_unused, const char *psz_format, ... );
-void msg_Raw( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3))) void msg_Info( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3))) void msg_Err( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3))) void msg_Warn( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3))) void msg_Dbg( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3))) void msg_Raw( void *_unused, const char *psz_format, ... );
 
 /* */
 mtime_t mdate( void );
