@@ -52,7 +52,7 @@ static int i_handle;
 static bool b_udp = false;
 static int i_block_cnt;
 static uint8_t pi_ssrc[4] = { 0, 0, 0, 0 };
-static uint16_t i_cc = 0;
+static uint16_t i_seqnum = 0;
 static mtime_t i_last_packet = 0;
 
 /*****************************************************************************
@@ -316,7 +316,7 @@ block_t *udp_Read( mtime_t i_poll_timeout )
             rtp_get_ssrc(p_rtp_hdr, pi_new_ssrc);
             if ( !memcmp( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) ) )
             {
-                if ( rtp_get_cc(p_rtp_hdr) != i_cc )
+                if ( rtp_get_seqnum(p_rtp_hdr) != i_seqnum )
                     msg_Warn( NULL, "RTP discontinuity" );
             }
             else
@@ -334,7 +334,7 @@ block_t *udp_Read( mtime_t i_poll_timeout )
                     printf("new RTP source: %s\n", inet_ntoa( addr ) );
                 }
             }
-            i_cc = rtp_get_cc(p_rtp_hdr) + 1;
+            i_seqnum = rtp_get_seqnum(p_rtp_hdr) + 1;
 
             i_len -= RTP_HEADER_SIZE;
         }

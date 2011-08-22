@@ -118,7 +118,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
 
     /* Init run-time values */
     p_output->p_packets = p_output->p_last_packet = NULL;
-    p_output->i_cc = rand() & 0xffff;
+    p_output->i_seqnum = rand() & 0xffff;
     p_output->i_pat_cc = rand() & 0xf;
     p_output->i_pmt_cc = rand() & 0xf;
     p_output->i_nit_cc = rand() & 0xf;
@@ -260,7 +260,7 @@ static void output_Flush( output_t *p_output )
 
         rtp_set_hdr( p_rtp_hdr );
         rtp_set_type( p_rtp_hdr, RTP_TYPE_TS );
-        rtp_set_cc( p_rtp_hdr, p_output->i_cc++ );
+        rtp_set_seqnum( p_rtp_hdr, p_output->i_seqnum++ );
         rtp_set_timestamp( p_rtp_hdr,
                            p_output->i_ref_timestamp
                             + (p_packet->i_dts - p_output->i_ref_wallclock)
