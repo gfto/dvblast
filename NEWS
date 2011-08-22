@@ -17,6 +17,7 @@ Changes between 1.2 and 2.0:
   * Fix diseqc command with high-band tranponders
   * Add basic support for ATSC
   * Add support for MRTG statistics
+  * Add detailed information for TS errors
 
 Changes between 1.1 and 1.2:
 ----------------------------

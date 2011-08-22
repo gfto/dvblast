@@ -126,6 +126,7 @@ static void NewPMT( output_t *p_output );
 static void NewNIT( output_t *p_output );
 static void NewSDT( output_t *p_output );
 static void HandlePSIPacket( uint8_t *p_ts, mtime_t i_dts );
+static const char *get_pid_desc(uint16_t i_pid, uint16_t *i_sid);
 
 /*****************************************************************************
  * demux_Open
@@ -225,15 +226,22 @@ static void demux_Handle( block_t *p_ts )
           && !ts_check_duplicate( i_cc, p_pids[i_pid].i_last_cc )
           && ts_check_discontinuity( i_cc, p_pids[i_pid].i_last_cc ) )
     {
-        msg_Warn( NULL, "TS discontinuity" );
+        unsigned int expected_cc = (p_pids[i_pid].i_last_cc + 1) & 0x0f;
+        uint16_t i_sid = 0;
+        const char *pid_desc = get_pid_desc(i_pid, &i_sid);
+
+        msg_Warn( NULL, "TS discontinuity on pid %4hu expected_cc %2u got %2u (%s, sid %d)",
+                i_pid, expected_cc, i_cc, pid_desc, i_sid );
+
         switch ( i_print_type )
         {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_discontinuity\" pid=\"%hu\"/>\n",
-                   i_pid);
+            printf("<ERROR type=\"invalid_discontinuity\" pid=\"%hu\" expected_cc=\"%u\" got_cc=\"%u\" pid_carries=\"%s\" sid=\"%u\" />\n",
+                   i_pid, expected_cc, i_cc, pid_desc, i_sid );
             break;
         case PRINT_TEXT:
-            printf("TS discontinuity (PID=%hu)", i_pid);
+            printf("TS discontinuity (PID=%hu) (expected_cc=%u) (got_cc=%u) (PID_carries=%s) (sid=%d)",
+                   i_pid, expected_cc, i_cc, pid_desc, i_sid );
             break;
         default:
             break;
@@ -242,15 +250,20 @@ static void demux_Handle( block_t *p_ts )
 
     if ( ts_get_transporterror( p_ts->p_ts ) )
     {
-        msg_Warn( NULL, "transport_error_indicator" );
+        uint16_t i_sid = 0;
+        const char *pid_desc = get_pid_desc(i_pid, &i_sid);
+
+        msg_Warn( NULL, "transport_error_indicator on pid %hu (%s, sid %u)",
+                   i_pid, pid_desc, i_sid );
         switch ( i_print_type )
         {
         case PRINT_XML:
-            printf("<ERROR type=\"transport_error\" pid=\"%hu\"/>\n",
-                   i_pid);
+            printf("<ERROR type=\"transport_error\" pid=\"%hu\" pid_carries=\"%s\" sid=\"%u\" />\n",
+                   i_pid, pid_desc, i_sid );
             break;
         case PRINT_TEXT:
-            printf("transport_error_indicator (PID=%hu)", i_pid);
+            printf("transport_error_indicator (PID=%hu) (PID_carries=%s) (sid=%u)",
+                   i_pid, pid_desc, i_sid );
             break;
         default:
             break;
@@ -2547,4 +2560,170 @@ static void HandlePSIPacket( uint8_t *p_ts, mtime_t i_dts )
         if ( p_section != NULL )
             HandleSection( i_pid, p_section, i_dts );
     }
+}
+
+/*****************************************************************************
+ * PID info functions
+ *****************************************************************************/
+static const char *h222_stream_type_desc(uint8_t i_stream_type) {
+    /* See ISO/IEC 13818-1 : 2000 (E) | Table 2-29 - Stream type assignments, Page 66 (48) */
+    if (i_stream_type == 0 || (i_stream_type > 0x1c && i_stream_type < 0x7e))
+        return "Reserved stream";
+    switch (i_stream_type) {
+        case 0x01: return "11172-2 video (MPEG-1)";
+        case 0x02: return "H.262/13818-2 video (MPEG-2) or 11172-2 constrained video";
+        case 0x03: return "11172-3 audio (MPEG-1)";
+        case 0x04: return "13818-3 audio (MPEG-2)";
+        case 0x05: return "H.222.0/13818-1  private sections";
+        case 0x06: return "H.222.0/13818-1 PES private data";
+        case 0x07: return "13522 MHEG";
+        case 0x08: return "H.222.0/13818-1 Annex A - DSM CC";
+        case 0x09: return "H.222.1";
+        case 0x0A: return "13818-6 type A";
+        case 0x0B: return "13818-6 type B";
+        case 0x0C: return "13818-6 type C";
+        case 0x0D: return "13818-6 type D";
+        case 0x0E: return "H.222.0/13818-1 auxiliary";
+        case 0x0F: return "13818-7 Audio with ADTS transport syntax";
+        case 0x10: return "14496-2 Visual (MPEG-4 part 2 video)";
+        case 0x11: return "14496-3 Audio with LATM transport syntax (14496-3/AMD 1)";
+        case 0x12: return "14496-1 SL-packetized or FlexMux stream in PES packets";
+        case 0x13: return "14496-1 SL-packetized or FlexMux stream in 14496 sections";
+        case 0x14: return "ISO/IEC 13818-6 Synchronized Download Protocol";
+        case 0x15: return "Metadata in PES packets";
+        case 0x16: return "Metadata in metadata_sections";
+        case 0x17: return "Metadata in 13818-6 Data Carousel";
+        case 0x18: return "Metadata in 13818-6 Object Carousel";
+        case 0x19: return "Metadata in 13818-6 Synchronized Download Protocol";
+        case 0x1A: return "13818-11 MPEG-2 IPMP stream";
+        case 0x1B: return "H.264/14496-10 video (MPEG-4/AVC)";
+        case 0x42: return "AVS Video";
+        case 0x7F: return "IPMP stream";
+        default  : return "Unknown stream";
+    }
+}
+
+static const char *get_pid_desc(uint16_t i_pid, uint16_t *i_sid) {
+    int i, j, k;
+    uint8_t i_last_section;
+    uint8_t *p_desc;
+    uint16_t i_nit_pid = NIT_PID, i_pcr_pid = 0;
+
+    /* Simple cases */
+    switch (i_pid)
+    {
+        case 0x00: return "PAT";
+        case 0x01: return "CAT";
+        case 0x11: return "SDT";
+        case 0x12: return "EPG";
+        case 0x14: return "TDT/TOT";
+    }
+
+    /* Detect NIT pid */
+    if ( psi_table_validate( pp_current_pat_sections ) )
+    {
+        i_last_section = psi_table_get_lastsection( pp_current_pat_sections );
+        for ( i = 0; i <= i_last_section; i++ )
+        {
+            uint8_t *p_section = psi_table_get_section( pp_current_pat_sections, i );
+            uint8_t *p_program;
+
+            j = 0;
+            while ( (p_program = pat_get_program( p_section, j++ )) != NULL )
+            {
+                /* Programs with PID == 0 are actually NIT */
+                if ( patn_get_program( p_program ) == 0 )
+                {
+                    i_nit_pid = patn_get_pid( p_program );
+                    break;
+                }
+            }
+        }
+    }
+
+    /* Detect EMM pids */
+    if ( b_enable_emm && psi_table_validate( pp_current_cat_sections ) )
+    {
+        i_last_section = psi_table_get_lastsection( pp_current_cat_sections );
+        for ( i = 0; i <= i_last_section; i++ )
+        {
+            uint8_t *p_section = psi_table_get_section( pp_current_cat_sections, i );
+
+            j = 0;
+            uint8_t *p_cat_descs = cat_alloc_descs( p_section );
+            while ( (p_desc = descs_get_desc( p_cat_descs, j++ )) != NULL )
+            {
+                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                    continue;
+
+                if ( desc09_get_pid( p_desc ) == i_pid ) {
+                    cat_free_descs( p_cat_descs );
+                    return "EMM";
+                }
+            }
+            cat_free_descs( p_cat_descs );
+        }
+    }
+
+    /* Detect streams in PMT */
+    for ( k = 0; k < i_nb_sids; k++ )
+    {
+        sid_t *p_sid = pp_sids[k];
+        if ( p_sid->i_pmt_pid == i_pid )
+        {
+            if ( i_sid )
+                *i_sid = p_sid->i_sid;
+            return "PMT";
+        }
+
+        if ( p_sid->i_sid && p_sid->p_current_pmt != NULL )
+        {
+            uint8_t *p_current_pmt = p_sid->p_current_pmt;
+            uint8_t *p_current_es;
+
+            /* The PCR PID can be alone or PCR can be carried in some other PIDs (mostly video)
+               so just remember the pid and if it is alone it will be reported as PCR, otherwise
+               stream type of the PID will be reported */
+            if ( i_pid == pmt_get_pcrpid( p_current_pmt ) ) {
+                if ( i_sid )
+                    *i_sid = p_sid->i_sid;
+                i_pcr_pid = pmt_get_pcrpid( p_current_pmt );
+            }
+
+            /* Look for ECMs */
+            j = 0;
+            while ((p_desc = descs_get_desc( pmt_get_descs( p_current_pmt ), j++ )) != NULL)
+            {
+                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                    continue;
+
+                if ( desc09_get_pid( p_desc ) == i_pid ) {
+                    if ( i_sid )
+                        *i_sid = p_sid->i_sid;
+                    return "ECM";
+                }
+            }
+
+            /* Detect stream types */
+            j = 0;
+            while ( (p_current_es = pmt_get_es( p_current_pmt, j++ )) != NULL )
+            {
+                if ( pmtn_get_pid( p_current_es ) == i_pid )
+                {
+                    if ( i_sid )
+                        *i_sid = p_sid->i_sid;
+                    return h222_stream_type_desc( pmtn_get_streamtype( p_current_es ) );
+                }
+            }
+        }
+    }
+
+    /* Are there any other PIDs? */
+    if (i_pid == i_nit_pid)
+        return "NIT";
+
+    if (i_pid == i_pcr_pid)
+        return "PCR";
+
+    return "...";
 }
