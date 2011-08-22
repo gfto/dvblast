@@ -29,6 +29,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -54,7 +55,8 @@ void usage()
 
 int main( int i_argc, char **ppsz_argv )
 {
-    char psz_client_socket[L_tmpnam];
+    char psz_client_socket[PATH_MAX] = {0};
+    char *client_socket_tmpl = "dvblastctl.clientsock.XXXXXX";
     char *psz_srv_socket = NULL;
     int i_fd;
     int i = 65535;
@@ -116,10 +118,18 @@ int main( int i_argc, char **ppsz_argv )
           && ppsz_argv[optind + 2] == NULL )
         usage();
 
-#warning expect brain-dead gcc warning about tmpnam here
-    if ( tmpnam(psz_client_socket) == NULL )
-    {
-        msg_Err( NULL, "cannot build UNIX socket (%s)", strerror(errno) );
+    /* Create client socket name */
+    char *tmpdir = getenv("TMPDIR");
+    snprintf( psz_client_socket, PATH_MAX - 1, "%s/%s",
+       tmpdir ? tmpdir : "/tmp", client_socket_tmpl );
+    psz_client_socket[PATH_MAX - 1] = '\0';
+
+    int tmp_fd = mkstemp(psz_client_socket);
+    if ( tmp_fd > -1 ) {
+        close(tmp_fd);
+        unlink(psz_client_socket);
+    } else {
+        msg_Err( NULL, "cannot build UNIX socket %s (%s)", psz_client_socket, strerror(errno) );
         return -1;
     }
 
