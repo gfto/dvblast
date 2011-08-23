@@ -3,9 +3,15 @@
 
 VERSION = 2.0.0
 TOPDIR = `basename ${PWD}`
+GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
 
 CFLAGS += -Wall -Wformat-security -O3 -fomit-frame-pointer
 CFLAGS += -g
+ifneq "$(GIT_VER)" ""
+CFLAGS += -DVERSION_EXTRA=\"git-$(GIT_VER)\"
+else
+CFLAGS += -DVERSION_EXTRA=\"release\"
+endif
 LDLIBS += -lrt
 LDLIBS_DVBLAST += -lpthread
 

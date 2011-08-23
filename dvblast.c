@@ -396,7 +396,7 @@ static void SigHandler( int i_signal )
  *****************************************************************************/
 static void DisplayVersion()
 {
-    msg_Raw( NULL, "DVBlast %d.%d.%d%s", VERSION_MAJOR, VERSION_MINOR,
+    msg_Raw( NULL, "DVBlast %d.%d.%d (%s)", VERSION_MAJOR, VERSION_MINOR,
                                          VERSION_REVISION, VERSION_EXTRA );
 }
 
