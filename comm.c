@@ -82,7 +82,7 @@ void comm_Read( void )
                        (struct sockaddr *)&sun_client, &sun_length );
     if ( i_size < COMM_HEADER_SIZE )
     {
-        msg_Err( NULL, "cannot read comm socket (%d:%s)\n", i_size,
+        msg_Err( NULL, "cannot read comm socket (%zd:%s)\n", i_size,
                  strerror(errno) );
         return;
     }
@@ -164,7 +164,7 @@ void comm_Read( void )
     p_answer[1] = i_answer;
     p_answer[2] = 0;
     p_answer[3] = 0;
-    msg_Dbg( NULL, "answering %d to %d with size %d", i_answer, i_command,
+    msg_Dbg( NULL, "answering %d to %d with size %zd", i_answer, i_command,
              i_answer_size );
 
     if ( sendto( i_comm_fd, p_answer, i_answer_size + COMM_HEADER_SIZE, 0,

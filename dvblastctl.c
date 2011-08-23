@@ -244,7 +244,7 @@ int main( int i_argc, char **ppsz_argv )
     unlink( psz_client_socket );
     if ( i_size < COMM_HEADER_SIZE )
     {
-        msg_Err( NULL, "cannot recv comm socket (%d:%s)", i_size,
+        msg_Err( NULL, "cannot recv comm socket (%zd:%s)", i_size,
                  strerror(errno) );
         exit(255);
     }
