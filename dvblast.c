@@ -95,6 +95,7 @@ const char *psz_dvb_charset = "ISO_8859-1";
 print_type_t i_print_type = -1;
 
 volatile sig_atomic_t b_hup_received = 0;
+volatile sig_atomic_t b_exit_now = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
 
@@ -388,7 +389,10 @@ static void config_ReadFile( char *psz_file )
  *****************************************************************************/
 static void SigHandler( int i_signal )
 {
-    b_hup_received = 1;
+    if ( i_signal == SIGHUP )
+        b_hup_received = 1;
+    if ( i_signal == SIGINT )
+        b_exit_now = 1;
 }
 
 /*****************************************************************************
@@ -896,7 +900,7 @@ int main( int i_argc, char **pp_argv )
     sa.sa_handler = SigHandler;
     sigfillset( &set );
 
-    if ( sigaction( SIGHUP, &sa, NULL ) == -1 )
+    if ( sigaction( SIGHUP, &sa, NULL ) == -1 || sigaction( SIGINT, &sa, NULL ) == -1 )
     {
         msg_Err( NULL, "couldn't set signal handler: %s", strerror(errno) );
         exit(EXIT_FAILURE);
@@ -929,6 +933,12 @@ int main( int i_argc, char **pp_argv )
     for ( ; ; )
     {
         block_t *p_ts;
+
+        if ( b_exit_now )
+        {
+            msg_Info( NULL, "Shutdown was requested." );
+            break;
+        }
 
         if ( b_hup_received )
         {
