@@ -161,6 +161,8 @@ int mrtgAnalyse(block_t * p_ts)
 
 int mrtgInit(char *mrtg_file)
 {
+    if ( !mrtg_file )
+        return -1;
 
     /* Open MRTG file */
     msg_Dbg(NULL, "Opening mrtg file %s.\n", mrtg_file);
