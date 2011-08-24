@@ -99,6 +99,10 @@ static int i_demux_fd;
 static int i_nb_errors = 0;
 static mtime_t i_last_error = 0;
 
+#ifdef HAVE_ICONV
+static iconv_t iconv_handle = (iconv_t)-1;
+#endif
+
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
@@ -176,6 +180,47 @@ void demux_Open( void )
     SetPID(RST_PID);
 
     SetPID(TDT_PID);
+}
+
+/*****************************************************************************
+ * demux_Close
+ *****************************************************************************/
+void demux_Close( void )
+{
+    int i, j;
+
+    psi_table_free( pp_current_pat_sections );
+    psi_table_free( pp_next_pat_sections );
+    psi_table_free( pp_current_cat_sections );
+    psi_table_free( pp_next_cat_sections );
+    psi_table_free( pp_current_nit_sections );
+    psi_table_free( pp_next_nit_sections );
+    psi_table_free( pp_current_sdt_sections );
+    psi_table_free( pp_next_sdt_sections );
+
+    for ( i = 0; i < 8192; i++ )
+    {
+        free( p_pids[i].p_psi_buffer );
+        for ( j = 0; j < p_pids[i].i_nb_outputs; j++ )
+        {
+            free( p_pids[i].pp_outputs );
+        }
+    }
+
+    for ( i = 0; i < i_nb_sids; i++ )
+    {
+        sid_t *p_sid = pp_sids[i];
+        free( p_sid->p_current_pmt );
+        free( p_sid );
+    }
+    free( pp_sids );
+
+#ifdef HAVE_ICONV
+    if (iconv_handle != (iconv_t)-1) {
+        iconv_close(iconv_handle);
+        iconv_handle = (iconv_t)-1;
+    }
+#endif
 }
 
 /*****************************************************************************
@@ -1590,7 +1635,6 @@ char *demux_Iconv(void *_unused, const char *psz_encoding,
 {
 #ifdef HAVE_ICONV
     static const char *psz_current_encoding = "";
-    static iconv_t iconv_handle = (iconv_t)-1;
 
     char *psz_string, *p;
     size_t i_out_length;

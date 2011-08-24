@@ -232,6 +232,7 @@ void demux_ResendCAPMTs( void );
 bool demux_PIDIsSelected( uint16_t i_pid );
 char *demux_Iconv(void *_unused, const char *psz_encoding,
                   char *p_string, size_t i_length);
+void demux_Close( void );
 
 
 output_t *output_Create( const output_config_t *p_config );
@@ -241,6 +242,7 @@ void output_Put( output_t *p_output, block_t *p_block );
 mtime_t output_Send( void );
 output_t *output_Find( const output_config_t *p_config );
 void output_Change( output_t *p_output, const output_config_t *p_config );
+void outputs_Close( int i_num_outputs );
 
 void comm_Open( void );
 void comm_Read( void );

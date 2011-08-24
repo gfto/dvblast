@@ -972,6 +972,10 @@ int main( int i_argc, char **pp_argv )
     }
 
     mrtgClose();
+    outputs_Close( i_nb_outputs );
+    demux_Close();
+    free( p_network_name );
+
     if ( b_enable_syslog )
         msg_Disconnect();
     return EXIT_SUCCESS;

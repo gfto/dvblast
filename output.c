@@ -478,3 +478,26 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
         }
     }
 }
+
+/*****************************************************************************
+ * outputs_Close : Close all outputs and free allocated memory
+ *****************************************************************************/
+void outputs_Close( int i_num_outputs )
+{
+    int i;
+
+    for ( i = 0; i < i_num_outputs; i++ )
+    {
+        output_t *p_output = pp_outputs[i];
+
+        msg_Dbg( NULL, "removing %s", p_output->config.psz_displayname );
+
+        if ( p_output->p_packets )
+            output_Flush( p_output );
+        output_Close( p_output );
+
+        free( p_output );
+    }
+
+    free( pp_outputs );
+}
