@@ -54,7 +54,6 @@ extern bool b_enable_ecm;
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
-#define MAX_PIDS                8192
 #define MIN_SECTION_FRAGMENT    PSI_HEADER_SIZE_SYNTAX1
 
 typedef struct ts_pid_t
@@ -143,7 +142,7 @@ void demux_Open( void )
 
     pf_Open();
 
-    for ( i = 0; i < 8192; i++ )
+    for ( i = 0; i < MAX_PIDS; i++ )
     {
         p_pids[i].i_last_cc = -1;
         p_pids[i].i_demux_fd = -1;
@@ -198,7 +197,7 @@ void demux_Close( void )
     psi_table_free( pp_current_sdt_sections );
     psi_table_free( pp_next_sdt_sections );
 
-    for ( i = 0; i < 8192; i++ )
+    for ( i = 0; i < MAX_PIDS; i++ )
     {
         free( p_pids[i].p_psi_buffer );
         for ( j = 0; j < p_pids[i].i_nb_outputs; j++ )
