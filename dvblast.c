@@ -94,7 +94,7 @@ const char *psz_native_charset = "UTF-8";
 const char *psz_dvb_charset = "ISO_8859-1";
 print_type_t i_print_type = -1;
 
-volatile sig_atomic_t b_hup_received = 0;
+volatile sig_atomic_t b_conf_reload = 0;
 volatile sig_atomic_t b_exit_now = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
@@ -390,7 +390,7 @@ static void config_ReadFile( char *psz_file )
 static void SigHandler( int i_signal )
 {
     if ( i_signal == SIGHUP )
-        b_hup_received = 1;
+        b_conf_reload = 1;
     if ( i_signal == SIGINT )
         b_exit_now = 1;
 }
@@ -940,10 +940,10 @@ int main( int i_argc, char **pp_argv )
             break;
         }
 
-        if ( b_hup_received )
+        if ( b_conf_reload )
         {
-            b_hup_received = 0;
-            msg_Warn( NULL, "HUP received, reloading" );
+            b_conf_reload = 0;
+            msg_Info( NULL, "Configuration reload was requested." );
             config_ReadFile( psz_conf_file );
         }
 

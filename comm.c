@@ -103,7 +103,7 @@ void comm_Read( void )
     switch ( i_command )
     {
     case CMD_RELOAD:
-        b_hup_received = 1;
+        b_conf_reload = 1;
         i_answer = RET_OK;
         i_answer_size = 0;
         break;
