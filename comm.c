@@ -148,10 +148,10 @@ void comm_Read( void )
         break;
 
     case CMD_SHUTDOWN:
-        msg_Err( NULL, "shutdown via comm" );
-        exit(EXIT_SUCCESS);
-        /* this is a bit violent, but hey, closing everything cleanly
-         * would do approximately the same */
+        b_exit_now = 1;
+        i_answer = RET_OK;
+        i_answer_size = 0;
+        break;
 
     default:
         msg_Err( NULL, "wrong command %u", i_command );

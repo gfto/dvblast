@@ -166,6 +166,7 @@ extern uint8_t *p_network_name;
 extern size_t i_network_name_size;
 extern mtime_t i_wallclock;
 extern volatile int b_hup_received;
+extern volatile int b_exit_now;
 extern int i_comm_fd;
 extern char *psz_udp_src;
 extern int i_asi_adapter;
