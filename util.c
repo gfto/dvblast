@@ -336,6 +336,25 @@ struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
 }
 
 /*****************************************************************************
+ * psi_pack_section: return psi section
+ *  Note: Allocates the return value. The caller must free it.
+ *****************************************************************************/
+uint8_t *psi_pack_section( uint8_t *p_section, unsigned int *pi_size ) {
+    uint8_t *p_flat_section;
+    uint16_t psi_length = psi_get_length( p_section ) + PSI_HEADER_SIZE;
+    *pi_size = 0;
+
+    p_flat_section = malloc( psi_length );
+    if ( !p_flat_section )
+        return NULL;
+
+    *pi_size = psi_length;
+    memcpy( p_flat_section, p_section, psi_length );
+
+    return p_flat_section;
+}
+
+/*****************************************************************************
  * psi_pack_sections: return psi sections as array
  *  Note: Allocates the return value. The caller must free it.
  *****************************************************************************/

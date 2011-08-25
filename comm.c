@@ -79,6 +79,7 @@ void comm_Read( void )
     uint8_t i_command, i_answer;
     uint8_t *p_packed_section;
     unsigned int i_packed_section_size;
+    uint8_t *p_input = p_buffer + COMM_HEADER_SIZE;
 
     i_size = recvfrom( i_comm_fd, p_buffer, COMM_BUFFER_SIZE, 0,
                        (struct sockaddr *)&sun_client, &sun_length );
@@ -193,6 +194,31 @@ void comm_Read( void )
 
         break;
     }
+
+    case CMD_GET_PMT:
+    {
+        if ( i_size < COMM_HEADER_SIZE + 2 )
+        {
+            msg_Err( NULL, "command packet is too short (%zd)\n", i_size );
+            return;
+        }
+
+        uint16_t i_sid = (uint16_t)((p_input[0] << 8) | p_input[1]);
+        p_packed_section = demux_get_packed_PMT(i_sid, &i_packed_section_size);
+
+        if ( p_packed_section && i_packed_section_size )
+        {
+            i_answer = RET_PMT;
+            i_answer_size = i_packed_section_size;
+            memcpy( p_answer + COMM_HEADER_SIZE, p_packed_section, i_packed_section_size );
+            free( p_packed_section );
+        } else {
+            i_answer = RET_NODATA;
+        }
+
+        break;
+    }
+
     default:
         msg_Err( NULL, "wrong command %u", i_command );
         i_answer = RET_HUH;

@@ -40,6 +40,7 @@
 #define CMD_GET_CAT 11
 #define CMD_GET_NIT 12
 #define CMD_GET_SDT 13
+#define CMD_GET_PMT 14 /* arg: service_id (uint16_t) */
 
 #define RET_OK 0
 #define RET_ERR 1
@@ -53,6 +54,7 @@
 #define RET_CAT 9
 #define RET_NIT 10
 #define RET_SDT 11
+#define RET_PMT 12
 #define RET_HUH 255
 
 struct ret_frontend_status

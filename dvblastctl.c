@@ -87,7 +87,7 @@ void usage()
 {
     msg_Raw( NULL, "DVBlastctl %d.%d.%d (%s)", VERSION_MAJOR, VERSION_MINOR,
              VERSION_REVISION, VERSION_EXTRA );
-    msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice|get_pat|get_cat|get_nit|get_sdt [<CAM slot>] [-x <text|xml>] [<text/choice>]" );
+    msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice|get_pat|get_cat|get_nit|get_sdt|get_pmt [<ServiceID>] [<CAM slot>] [-x <text|xml>] [<text/choice>]" );
     exit(1);
 }
 
@@ -101,6 +101,7 @@ int main( int i_argc, char **ppsz_argv )
     ssize_t i_size;
     struct sockaddr_un sun_client, sun_server;
     uint8_t p_buffer[COMM_BUFFER_SIZE];
+    uint8_t *p_data = p_buffer + COMM_HEADER_SIZE;
 
     for ( ; ; )
     {
@@ -150,6 +151,7 @@ int main( int i_argc, char **ppsz_argv )
           && strcmp(ppsz_argv[optind], "get_cat")
           && strcmp(ppsz_argv[optind], "get_nit")
           && strcmp(ppsz_argv[optind], "get_sdt")
+          && strcmp(ppsz_argv[optind], "get_pmt")
           && strcmp(ppsz_argv[optind], "mmi_status")
           && strcmp(ppsz_argv[optind], "mmi_slot_status")
           && strcmp(ppsz_argv[optind], "mmi_open")
@@ -160,6 +162,7 @@ int main( int i_argc, char **ppsz_argv )
         usage();
 
     if ( (!strcmp(ppsz_argv[optind], "mmi_slot_status")
+           || !strcmp(ppsz_argv[optind], "get_pmt")
            || !strcmp(ppsz_argv[optind], "mmi_open")
            || !strcmp(ppsz_argv[optind], "mmi_close")
            || !strcmp(ppsz_argv[optind], "mmi_get")
@@ -233,7 +236,13 @@ int main( int i_argc, char **ppsz_argv )
         p_buffer[1] = CMD_GET_NIT;
     else if ( !strcmp(ppsz_argv[optind], "get_sdt") )
         p_buffer[1] = CMD_GET_SDT;
-    else if ( !strcmp(ppsz_argv[optind], "mmi_status") )
+    else if ( !strcmp(ppsz_argv[optind], "get_pmt") ) {
+        uint16_t i_sid = atoi(ppsz_argv[optind + 1]);
+        p_buffer[1] = CMD_GET_PMT;
+        i_size = COMM_HEADER_SIZE + 2;
+        p_data[0] = (uint8_t)((i_sid >> 8) & 0xff);
+        p_data[1] = (uint8_t)(i_sid & 0xff);
+    } else if ( !strcmp(ppsz_argv[optind], "mmi_status") )
         p_buffer[1] = CMD_MMI_STATUS;
     else
     {
@@ -375,6 +384,13 @@ int main( int i_argc, char **ppsz_argv )
 
         psi_table_free( pp_sections );
         free( pp_sections );
+        exit(0);
+        break;
+    }
+
+    case RET_PMT:
+    {
+        pmt_print( p_data, psi_print, NULL, psi_iconv, NULL, i_print_type );
         exit(0);
         break;
     }

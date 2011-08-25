@@ -2791,3 +2791,14 @@ uint8_t *demux_get_current_packed_NIT( unsigned int *pi_pack_size ) {
 uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size ) {
     return psi_pack_sections( pp_current_sdt_sections, pi_pack_size );
 }
+
+uint8_t *demux_get_packed_PMT( uint16_t i_sid, unsigned int *pi_pack_size ) {
+    int i;
+    for ( i = 0; i < i_nb_sids; i++ ) {
+        sid_t *p_sid = pp_sids[i];
+        if ( p_sid->i_sid && p_sid->i_sid == i_sid && pmt_validate( p_sid->p_current_pmt ) ) {
+            return psi_pack_section( p_sid->p_current_pmt, pi_pack_size );
+        }
+    }
+    return NULL;
+}

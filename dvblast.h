@@ -206,6 +206,7 @@ void hexDump( uint8_t *p_data, uint32_t i_len );
 struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
                                    uint16_t i_default_port );
 
+uint8_t *psi_pack_section( uint8_t *p_sections, unsigned int *pi_size );
 uint8_t *psi_pack_sections( uint8_t **pp_sections, unsigned int *pi_size );
 uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size );
 
@@ -241,6 +242,7 @@ uint8_t *demux_get_current_packed_PAT( unsigned int *pi_pack_size );
 uint8_t *demux_get_current_packed_CAT( unsigned int *pi_pack_size );
 uint8_t *demux_get_current_packed_NIT( unsigned int *pi_pack_size );
 uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size );
+uint8_t *demux_get_packed_PMT( uint16_t service_id, unsigned int *pi_pack_size );
 
 output_t *output_Create( const output_config_t *p_config );
 int output_Init( output_t *p_output, const output_config_t *p_config );

@@ -19,6 +19,7 @@ Changes between 1.2 and 2.0:
   * Add support for MRTG statistics
   * Add detailed information for TS errors
   * Add support for getting PAT/CAT/NIT/SDT tables in dvblastctl
+  * Add support for getting PMT table for chosen service in dvblastctl
 
 Changes between 1.1 and 1.2:
 ----------------------------
