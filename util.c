@@ -37,6 +37,8 @@
 #include <errno.h>
 #include <syslog.h>
 
+#include <bitstream/mpeg/psi.h>
+
 #include "dvblast.h"
 
 /*****************************************************************************
@@ -333,3 +335,69 @@ struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
     return p_res;
 }
 
+/*****************************************************************************
+ * psi_pack_sections: return psi sections as array
+ *  Note: Allocates the return value. The caller must free it.
+ *****************************************************************************/
+uint8_t *psi_pack_sections( uint8_t **pp_sections, unsigned int *pi_size ) {
+    uint8_t i_last_section;
+    uint8_t *p_flat_section;
+    unsigned int i, i_pos = 0;
+
+    if ( !psi_table_validate( pp_sections ) )
+        return NULL;
+
+    i_last_section = psi_table_get_lastsection( pp_sections );
+
+    /* Calculate total size */
+    *pi_size = 0;
+    for ( i = 0; i <= i_last_section; i++ )
+    {
+        uint8_t *p_section = psi_table_get_section( pp_sections, i );
+        *pi_size += psi_get_length( p_section ) + PSI_HEADER_SIZE;
+    }
+
+    p_flat_section = malloc( *pi_size );
+    if ( !p_flat_section )
+        return NULL;
+
+    for ( i = 0; i <= i_last_section; i++ )
+    {
+        uint8_t *p_section = psi_table_get_section( pp_sections, i );
+        uint16_t psi_length = psi_get_length( p_section ) + PSI_HEADER_SIZE;
+
+        memcpy( p_flat_section + i_pos, p_section, psi_length );
+        i_pos += psi_length;
+    }
+
+    return p_flat_section;
+
+}
+
+/*****************************************************************************
+ * psi_unpack_sections: return psi sections
+ *  Note: Allocates psi_table, the result must be psi_table_free()'ed
+ *****************************************************************************/
+uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
+    uint8_t **pp_sections;
+    unsigned int i, i_offset = 0;
+
+    pp_sections = psi_table_allocate();
+    psi_table_init( pp_sections );
+
+    for ( i = 0; i < PSI_TABLE_MAX_SECTIONS; i++ ) {
+        uint8_t *p_section = p_flat_sections + i_offset;
+        uint16_t i_section_len = psi_get_length( p_section ) + PSI_HEADER_SIZE;
+
+        /* Must use allocated section not p_flat_section + offset directly! */
+        uint8_t *p_section_local = psi_private_allocate();
+        memcpy( p_section_local, p_section, i_section_len );
+        psi_table_section( pp_sections, p_section_local );
+
+        i_offset += i_section_len;
+        if ( i_offset >= i_size - 1 )
+            break;
+    }
+
+    return pp_sections;
+}

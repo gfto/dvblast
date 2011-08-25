@@ -2772,3 +2772,22 @@ static const char *get_pid_desc(uint16_t i_pid, uint16_t *i_sid) {
 
     return "...";
 }
+
+/*****************************************************************************
+ * Functions that return packed sections
+ *****************************************************************************/
+uint8_t *demux_get_current_packed_PAT( unsigned int *pi_pack_size ) {
+    return psi_pack_sections( pp_current_pat_sections, pi_pack_size );
+}
+
+uint8_t *demux_get_current_packed_CAT( unsigned int *pi_pack_size ) {
+    return psi_pack_sections( pp_current_cat_sections, pi_pack_size );
+}
+
+uint8_t *demux_get_current_packed_NIT( unsigned int *pi_pack_size ) {
+    return psi_pack_sections( pp_current_nit_sections, pi_pack_size );
+}
+
+uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size ) {
+    return psi_pack_sections( pp_current_sdt_sections, pi_pack_size );
+}

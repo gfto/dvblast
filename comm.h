@@ -19,6 +19,8 @@
 #include <linux/dvb/frontend.h>
 #include <linux/dvb/ca.h>
 
+#include <bitstream/mpeg/psi.h>
+
 #define COMM_HEADER_SIZE 8
 #define COMM_BUFFER_SIZE (COMM_HEADER_SIZE + ((PSI_PRIVATE_MAX_SIZE + PSI_HEADER_SIZE) * (PSI_TABLE_MAX_SECTIONS / 2)))
 #define COMM_HEADER_MAGIC 0x48
@@ -34,6 +36,10 @@
 #define CMD_MMI_CLOSE 7 /* arg: slot */
 #define CMD_MMI_RECV 8 /* arg: slot */
 #define CMD_MMI_SEND 9 /* arg: slot, en50221_mmi_object_t */
+#define CMD_GET_PAT 10
+#define CMD_GET_CAT 11
+#define CMD_GET_NIT 12
+#define CMD_GET_SDT 13
 
 #define RET_OK 0
 #define RET_ERR 1
@@ -42,6 +48,11 @@
 #define RET_MMI_SLOT_STATUS 4
 #define RET_MMI_RECV 5
 #define RET_MMI_WAIT 6
+#define RET_NODATA 7
+#define RET_PAT 8
+#define RET_CAT 9
+#define RET_NIT 10
+#define RET_SDT 11
 #define RET_HUH 255
 
 struct ret_frontend_status

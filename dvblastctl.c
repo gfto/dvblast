@@ -22,11 +22,13 @@
  *****************************************************************************/
 
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <inttypes.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
@@ -37,6 +39,11 @@
 #include <errno.h>
 #include <getopt.h>
 
+#include <bitstream/mpeg/psi.h>
+#include <bitstream/dvb/si.h>
+#include <bitstream/dvb/si_print.h>
+#include <bitstream/mpeg/psi_print.h>
+
 #include "dvblast.h"
 #include "en50221.h"
 #include "comm.h"
@@ -45,11 +52,42 @@
 int i_verbose = 3;
 int i_syslog = 0;
 
+print_type_t i_print_type = PRINT_TEXT;
+
+/*****************************************************************************
+ * The following two functinos are from biTStream's examples and are under the
+ * WTFPL (see LICENSE.WTFPL).
+ ****************************************************************************/
+__attribute__ ((format(printf, 2, 3)))
+static void psi_print(void *_unused, const char *psz_format, ...)
+{
+    char psz_fmt[strlen(psz_format) + 2];
+    va_list args;
+    va_start(args, psz_format);
+    strcpy(psz_fmt, psz_format);
+    strcat(psz_fmt, "\n");
+    vprintf(psz_fmt, args);
+}
+
+static char *iconv_append_null(const char *p_string, size_t i_length)
+{
+    char *psz_string = malloc(i_length + 1);
+    memcpy(psz_string, p_string, i_length);
+    psz_string[i_length] = '\0';
+    return psz_string;
+}
+
+char *psi_iconv(void *_unused, const char *psz_encoding,
+                  char *p_string, size_t i_length)
+{
+    return iconv_append_null(p_string, i_length);
+}
+
 void usage()
 {
     msg_Raw( NULL, "DVBlastctl %d.%d.%d (%s)", VERSION_MAJOR, VERSION_MINOR,
              VERSION_REVISION, VERSION_EXTRA );
-    msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice [<CAM slot>] [<text/choice>]" );
+    msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice|get_pat|get_cat|get_nit|get_sdt [<CAM slot>] [-x <text|xml>] [<text/choice>]" );
     exit(1);
 }
 
@@ -71,17 +109,29 @@ int main( int i_argc, char **ppsz_argv )
         static const struct option long_options[] =
         {
             {"remote-socket", required_argument, NULL, 'r'},
+            {"print", required_argument, NULL, 'x'},
             {"help", no_argument, NULL, 'h'},
             {0, 0, 0, 0}
         };
 
-        if ( (c = getopt_long(i_argc, ppsz_argv, "r:h", long_options, NULL)) == -1 )
+        if ( (c = getopt_long(i_argc, ppsz_argv, "r:x:h", long_options, NULL)) == -1 )
             break;
 
         switch ( c )
         {
         case 'r':
             psz_srv_socket = optarg;
+            break;
+
+        case 'x':
+            if ( !strcmp(optarg, "text") )
+                i_print_type = PRINT_TEXT;
+            else if ( !strcmp(optarg, "xml") )
+                i_print_type = PRINT_XML;
+            else
+                msg_Warn( NULL, "unrecognized print type %s", optarg );
+            /* Make stdout line-buffered */
+            setvbuf(stdout, NULL, _IOLBF, 0);
             break;
 
         case 'h':
@@ -96,6 +146,10 @@ int main( int i_argc, char **ppsz_argv )
     if ( strcmp(ppsz_argv[optind], "reload")
           && strcmp(ppsz_argv[optind], "shutdown")
           && strcmp(ppsz_argv[optind], "fe_status")
+          && strcmp(ppsz_argv[optind], "get_pat")
+          && strcmp(ppsz_argv[optind], "get_cat")
+          && strcmp(ppsz_argv[optind], "get_nit")
+          && strcmp(ppsz_argv[optind], "get_sdt")
           && strcmp(ppsz_argv[optind], "mmi_status")
           && strcmp(ppsz_argv[optind], "mmi_slot_status")
           && strcmp(ppsz_argv[optind], "mmi_open")
@@ -171,6 +225,14 @@ int main( int i_argc, char **ppsz_argv )
         p_buffer[1] = CMD_SHUTDOWN;
     else if ( !strcmp(ppsz_argv[optind], "fe_status") )
         p_buffer[1] = CMD_FRONTEND_STATUS;
+    else if ( !strcmp(ppsz_argv[optind], "get_pat") )
+        p_buffer[1] = CMD_GET_PAT;
+    else if ( !strcmp(ppsz_argv[optind], "get_cat") )
+        p_buffer[1] = CMD_GET_CAT;
+    else if ( !strcmp(ppsz_argv[optind], "get_nit") )
+        p_buffer[1] = CMD_GET_NIT;
+    else if ( !strcmp(ppsz_argv[optind], "get_sdt") )
+        p_buffer[1] = CMD_GET_SDT;
     else if ( !strcmp(ppsz_argv[optind], "mmi_status") )
         p_buffer[1] = CMD_MMI_STATUS;
     else
@@ -288,6 +350,34 @@ int main( int i_argc, char **ppsz_argv )
         msg_Err( NULL, "internal error" );
         exit(255);
         break;
+
+    case RET_NODATA:
+        msg_Err( NULL, "no data" );
+        exit(255);
+        break;
+
+    case RET_PAT:
+    case RET_CAT:
+    case RET_NIT:
+    case RET_SDT:
+    {
+        uint8_t *p_flat_data = p_buffer + COMM_HEADER_SIZE;
+        unsigned int i_flat_data_size = i_size - COMM_HEADER_SIZE;
+        uint8_t **pp_sections = psi_unpack_sections( p_flat_data, i_flat_data_size );
+
+        switch( p_buffer[1] )
+        {
+            case RET_PAT: pat_table_print( pp_sections, psi_print, NULL, i_print_type ); break;
+            case RET_CAT: cat_table_print( pp_sections, psi_print, NULL, i_print_type ); break;
+            case RET_NIT: nit_table_print( pp_sections, psi_print, NULL, psi_iconv, NULL, i_print_type ); break;
+            case RET_SDT: sdt_table_print( pp_sections, psi_print, NULL, psi_iconv, NULL, i_print_type ); break;
+        }
+
+        psi_table_free( pp_sections );
+        free( pp_sections );
+        exit(0);
+        break;
+    }
 
     case RET_FRONTEND_STATUS:
     {

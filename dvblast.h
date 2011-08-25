@@ -206,6 +206,9 @@ void hexDump( uint8_t *p_data, uint32_t i_len );
 struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
                                    uint16_t i_default_port );
 
+uint8_t *psi_pack_sections( uint8_t **pp_sections, unsigned int *pi_size );
+uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size );
+
 void dvb_Open( void );
 void dvb_Reset( void );
 block_t * dvb_Read( mtime_t i_poll_timeout );
@@ -234,6 +237,10 @@ char *demux_Iconv(void *_unused, const char *psz_encoding,
                   char *p_string, size_t i_length);
 void demux_Close( void );
 
+uint8_t *demux_get_current_packed_PAT( unsigned int *pi_pack_size );
+uint8_t *demux_get_current_packed_CAT( unsigned int *pi_pack_size );
+uint8_t *demux_get_current_packed_NIT( unsigned int *pi_pack_size );
+uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size );
 
 output_t *output_Create( const output_config_t *p_config );
 int output_Init( output_t *p_output, const output_config_t *p_config );

@@ -77,6 +77,8 @@ void comm_Read( void )
     ssize_t i_size, i_answer_size = 0;
     uint8_t p_buffer[COMM_BUFFER_SIZE], p_answer[COMM_BUFFER_SIZE];
     uint8_t i_command, i_answer;
+    uint8_t *p_packed_section;
+    unsigned int i_packed_section_size;
 
     i_size = recvfrom( i_comm_fd, p_buffer, COMM_BUFFER_SIZE, 0,
                        (struct sockaddr *)&sun_client, &sun_length );
@@ -153,6 +155,44 @@ void comm_Read( void )
         i_answer_size = 0;
         break;
 
+    case CMD_GET_PAT:
+    case CMD_GET_CAT:
+    case CMD_GET_NIT:
+    case CMD_GET_SDT:
+    {
+#define CASE_TABLE(x) \
+        case CMD_GET_##x: \
+        { \
+            i_answer = RET_##x; \
+            p_packed_section = demux_get_current_packed_##x(&i_packed_section_size); \
+            break; \
+        }
+        switch ( i_command )
+        {
+            CASE_TABLE(PAT)
+            CASE_TABLE(CAT)
+            CASE_TABLE(NIT)
+            CASE_TABLE(SDT)
+        }
+#undef CASE_TABLE
+
+        if ( p_packed_section && i_packed_section_size )
+        {
+            if ( i_packed_section_size <= COMM_BUFFER_SIZE - COMM_HEADER_SIZE )
+            {
+                i_answer_size = i_packed_section_size;
+                memcpy( p_answer + COMM_HEADER_SIZE, p_packed_section, i_packed_section_size );
+            } else {
+                msg_Err( NULL, "section size is too big (%u)\n", i_packed_section_size );
+                i_answer = RET_NODATA;
+            }
+            free( p_packed_section );
+        } else {
+            i_answer = RET_NODATA;
+        }
+
+        break;
+    }
     default:
         msg_Err( NULL, "wrong command %u", i_command );
         i_answer = RET_HUH;
