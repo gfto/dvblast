@@ -80,6 +80,7 @@ void comm_Read( void )
     uint8_t *p_packed_section;
     unsigned int i_packed_section_size;
     uint8_t *p_input = p_buffer + COMM_HEADER_SIZE;
+    uint8_t *p_output = p_answer + COMM_HEADER_SIZE;
 
     i_size = recvfrom( i_comm_fd, p_buffer, COMM_BUFFER_SIZE, 0,
                        (struct sockaddr *)&sun_client, &sun_length );
@@ -216,6 +217,33 @@ void comm_Read( void )
             i_answer = RET_NODATA;
         }
 
+        break;
+    }
+
+    case CMD_GET_PIDS:
+    {
+        i_answer = RET_PIDS;
+        i_answer_size = sizeof(struct cmd_pid_info);
+        demux_get_PIDS_info( p_output );
+        break;
+    }
+
+    case CMD_GET_PID:
+    {
+        if ( i_size < COMM_HEADER_SIZE + 2 )
+        {
+            msg_Err( NULL, "command packet is too short (%zd)\n", i_size );
+            return;
+        }
+
+        uint16_t i_pid = (uint16_t)((p_input[0] << 8) | p_input[1]);
+        if ( i_pid >= MAX_PIDS ) {
+            i_answer = RET_NODATA;
+        } else {
+            i_answer = RET_PID;
+            i_answer_size = sizeof(ts_pid_info_t);
+            demux_get_PID_info( i_pid, p_output );
+        }
         break;
     }
 

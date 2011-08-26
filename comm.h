@@ -41,6 +41,8 @@
 #define CMD_GET_NIT 12
 #define CMD_GET_SDT 13
 #define CMD_GET_PMT 14 /* arg: service_id (uint16_t) */
+#define CMD_GET_PIDS 15
+#define CMD_GET_PID 16 /* arg: pid (uint16_t) */
 
 #define RET_OK 0
 #define RET_ERR 1
@@ -55,6 +57,8 @@
 #define RET_NIT 10
 #define RET_SDT 11
 #define RET_PMT 12
+#define RET_PIDS 13
+#define RET_PID 14
 #define RET_HUH 255
 
 struct ret_frontend_status
@@ -83,4 +87,9 @@ struct cmd_mmi_send
 {
     uint8_t i_slot;
     en50221_mmi_object_t object;
+};
+
+struct cmd_pid_info
+{
+    ts_pid_info_t pids[MAX_PIDS];
 };

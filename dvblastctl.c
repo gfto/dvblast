@@ -53,6 +53,7 @@ int i_verbose = 3;
 int i_syslog = 0;
 
 print_type_t i_print_type = PRINT_TEXT;
+mtime_t now;
 
 /*****************************************************************************
  * The following two functinos are from biTStream's examples and are under the
@@ -83,11 +84,60 @@ char *psi_iconv(void *_unused, const char *psz_encoding,
     return iconv_append_null(p_string, i_length);
 }
 
+void print_pids_header( void )
+{
+    if ( i_print_type == PRINT_XML )
+        printf("<PIDS>\n");
+}
+
+void print_pids_footer( void )
+{
+    if ( i_print_type == PRINT_XML )
+        printf("</PIDS>\n");
+}
+
+void print_pid(uint16_t i_pid, ts_pid_info_t *p_info)
+{
+    if ( p_info->i_packets == 0 )
+        return;
+    if ( i_print_type == PRINT_TEXT )
+        printf("pid %d packn %lu ccerr %lu tserr %lu scramble %d Bps %lu seen %"PRId64"\n",
+            i_pid,
+            p_info->i_packets,
+            p_info->i_cc_errors,
+            p_info->i_transport_errors,
+            p_info->i_scrambling,
+            p_info->i_bytes_per_sec,
+            now - p_info->i_last_packet_ts
+        );
+    else
+        printf("<PID pid=\"%d\" packn=\"%lu\" ccerr=\"%lu\" tserr=\"%lu\" scramble=\"%d\" Bps=\"%lu\" seen=\"%"PRId64"\" />\n",
+            i_pid,
+            p_info->i_packets,
+            p_info->i_cc_errors,
+            p_info->i_transport_errors,
+            p_info->i_scrambling,
+            p_info->i_bytes_per_sec,
+            now - p_info->i_last_packet_ts
+        );
+}
+
+void print_pids( uint8_t *p_data )
+{
+    int i_pid;
+    print_pids_header();
+    for ( i_pid = 0; i_pid < MAX_PIDS; i_pid++ ) {
+        ts_pid_info_t *p_info = (ts_pid_info_t *)(p_data + i_pid * sizeof(ts_pid_info_t));
+        print_pid( i_pid, p_info );
+    }
+    print_pids_footer();
+}
+
 void usage()
 {
     msg_Raw( NULL, "DVBlastctl %d.%d.%d (%s)", VERSION_MAJOR, VERSION_MINOR,
              VERSION_REVISION, VERSION_EXTRA );
-    msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice|get_pat|get_cat|get_nit|get_sdt|get_pmt [<ServiceID>] [<CAM slot>] [-x <text|xml>] [<text/choice>]" );
+    msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice|get_pat|get_cat|get_nit|get_sdt|get_pmt|get_pids|get_pid [<PID>] [<ServiceID>] [<CAM slot>] [-x <text|xml>] [<text/choice>]" );
     exit(1);
 }
 
@@ -102,6 +152,7 @@ int main( int i_argc, char **ppsz_argv )
     struct sockaddr_un sun_client, sun_server;
     uint8_t p_buffer[COMM_BUFFER_SIZE];
     uint8_t *p_data = p_buffer + COMM_HEADER_SIZE;
+    uint16_t i_pid = 0;
 
     for ( ; ; )
     {
@@ -152,6 +203,8 @@ int main( int i_argc, char **ppsz_argv )
           && strcmp(ppsz_argv[optind], "get_nit")
           && strcmp(ppsz_argv[optind], "get_sdt")
           && strcmp(ppsz_argv[optind], "get_pmt")
+          && strcmp(ppsz_argv[optind], "get_pid")
+          && strcmp(ppsz_argv[optind], "get_pids")
           && strcmp(ppsz_argv[optind], "mmi_status")
           && strcmp(ppsz_argv[optind], "mmi_slot_status")
           && strcmp(ppsz_argv[optind], "mmi_open")
@@ -163,6 +216,7 @@ int main( int i_argc, char **ppsz_argv )
 
     if ( (!strcmp(ppsz_argv[optind], "mmi_slot_status")
            || !strcmp(ppsz_argv[optind], "get_pmt")
+           || !strcmp(ppsz_argv[optind], "get_pid")
            || !strcmp(ppsz_argv[optind], "mmi_open")
            || !strcmp(ppsz_argv[optind], "mmi_close")
            || !strcmp(ppsz_argv[optind], "mmi_get")
@@ -242,6 +296,14 @@ int main( int i_argc, char **ppsz_argv )
         i_size = COMM_HEADER_SIZE + 2;
         p_data[0] = (uint8_t)((i_sid >> 8) & 0xff);
         p_data[1] = (uint8_t)(i_sid & 0xff);
+    } else if ( !strcmp(ppsz_argv[optind], "get_pids") )
+        p_buffer[1] = CMD_GET_PIDS;
+    else if ( !strcmp(ppsz_argv[optind], "get_pid") ) {
+        i_pid = (uint16_t)atoi(ppsz_argv[optind + 1]);
+        p_buffer[1] = CMD_GET_PID;
+        i_size = COMM_HEADER_SIZE + 2;
+        p_data[0] = (uint8_t)((i_pid >> 8) & 0xff);
+        p_data[1] = (uint8_t)(i_pid & 0xff);
     } else if ( !strcmp(ppsz_argv[optind], "mmi_status") )
         p_buffer[1] = CMD_MMI_STATUS;
     else
@@ -340,6 +402,8 @@ int main( int i_argc, char **ppsz_argv )
         exit(255);
     }
 
+    now = mdate();
+
     switch ( p_buffer[1] )
     {
     case RET_OK:
@@ -391,6 +455,22 @@ int main( int i_argc, char **ppsz_argv )
     case RET_PMT:
     {
         pmt_print( p_data, psi_print, NULL, psi_iconv, NULL, i_print_type );
+        exit(0);
+        break;
+    }
+
+    case RET_PID:
+    {
+        print_pids_header();
+        print_pid( i_pid, (ts_pid_info_t *)p_data );
+        print_pids_footer();
+        exit(0);
+        break;
+    }
+
+    case RET_PIDS:
+    {
+        print_pids( p_data );
         exit(0);
         break;
     }
