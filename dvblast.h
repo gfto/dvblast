@@ -132,6 +132,20 @@ typedef struct output_t
     uint16_t i_tsid;
 } output_t;
 
+typedef struct ts_pid_info {
+    mtime_t  i_first_packet_ts;         /* Time of the first seen packet */
+    mtime_t  i_last_packet_ts;          /* Time of the last seen packet */
+    unsigned long i_packets;            /* How much packets have been seen */
+    unsigned long i_cc_errors;          /* Countinuity counter errors */
+    unsigned long i_transport_errors;   /* Transport errors */
+    unsigned long i_bytes_per_sec;      /* How much bytes were process last second */
+    uint8_t  i_scrambling;              /* Scrambling bits from the last ts packet */
+    /* 0 = Not scrambled
+       1 = Reserved for future use
+       2 = Scrambled with even key
+       3 = Scrambled with odd key */
+} ts_pid_info_t;
+
 extern int i_syslog;
 extern int i_verbose;
 extern output_t **pp_outputs;
@@ -244,6 +258,8 @@ uint8_t *demux_get_current_packed_CAT( unsigned int *pi_pack_size );
 uint8_t *demux_get_current_packed_NIT( unsigned int *pi_pack_size );
 uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size );
 uint8_t *demux_get_packed_PMT( uint16_t service_id, unsigned int *pi_pack_size );
+void demux_get_PID_info( uint16_t i_pid, uint8_t *p_data );
+void demux_get_PIDS_info( uint8_t *p_data );
 
 output_t *output_Create( const output_config_t *p_config );
 int output_Init( output_t *p_output, const output_config_t *p_config );

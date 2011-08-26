@@ -67,6 +67,11 @@ typedef struct ts_pid_t
        and should be outputed in all services */
     bool b_emm;
 
+    /* PID info and stats */
+    mtime_t i_bytes_ts;
+    unsigned long i_packets_passed;
+    ts_pid_info_t info;
+
     /* biTStream PSI section gathering */
     uint8_t *p_psi_buffer;
     uint16_t i_psi_buffer_used;
@@ -266,6 +271,24 @@ static void demux_Handle( block_t *p_ts )
         return;
     }
 
+    if ( i_pid != PADDING_PID )
+        p_pids[i_pid].info.i_scrambling = ts_get_scrambling( p_ts->p_ts );
+
+    p_pids[i_pid].info.i_last_packet_ts = i_wallclock;
+    p_pids[i_pid].info.i_packets++;
+
+    p_pids[i_pid].i_packets_passed++;
+
+    /* Calculate bytes_per_sec */
+    if ( i_wallclock > p_pids[i_pid].i_bytes_ts + 1000000 ) {
+        p_pids[i_pid].info.i_bytes_per_sec = p_pids[i_pid].i_packets_passed * TS_SIZE;
+        p_pids[i_pid].i_packets_passed = 0;
+        p_pids[i_pid].i_bytes_ts = i_wallclock;
+    }
+
+    if ( p_pids[i_pid].info.i_first_packet_ts == 0 )
+        p_pids[i_pid].info.i_first_packet_ts = i_wallclock;
+
     if ( i_pid != PADDING_PID && p_pids[i_pid].i_last_cc != -1
           && !ts_check_duplicate( i_cc, p_pids[i_pid].i_last_cc )
           && ts_check_discontinuity( i_cc, p_pids[i_pid].i_last_cc ) )
@@ -273,6 +296,8 @@ static void demux_Handle( block_t *p_ts )
         unsigned int expected_cc = (p_pids[i_pid].i_last_cc + 1) & 0x0f;
         uint16_t i_sid = 0;
         const char *pid_desc = get_pid_desc(i_pid, &i_sid);
+
+        p_pids[i_pid].info.i_cc_errors++;
 
         msg_Warn( NULL, "TS discontinuity on pid %4hu expected_cc %2u got %2u (%s, sid %d)",
                 i_pid, expected_cc, i_cc, pid_desc, i_sid );
@@ -296,6 +321,8 @@ static void demux_Handle( block_t *p_ts )
     {
         uint16_t i_sid = 0;
         const char *pid_desc = get_pid_desc(i_pid, &i_sid);
+
+        p_pids[i_pid].info.i_transport_errors++;
 
         msg_Warn( NULL, "transport_error_indicator on pid %hu (%s, sid %u)",
                    i_pid, pid_desc, i_sid );
@@ -2800,4 +2827,15 @@ uint8_t *demux_get_packed_PMT( uint16_t i_sid, unsigned int *pi_pack_size ) {
         }
     }
     return NULL;
+}
+
+inline void demux_get_PID_info( uint16_t i_pid, uint8_t *p_data ) {
+    ts_pid_info_t *p_info = (ts_pid_info_t *)p_data;
+    *p_info = p_pids[i_pid].info;
+}
+
+inline void demux_get_PIDS_info( uint8_t *p_data ) {
+    int i_pid;
+    for (i_pid = 0; i_pid < MAX_PIDS; i_pid++ )
+        demux_get_PID_info( i_pid, p_data + ( i_pid * sizeof(ts_pid_info_t) ) );
 }
