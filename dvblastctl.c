@@ -59,7 +59,7 @@ int main( int i_argc, char **ppsz_argv )
     char *client_socket_tmpl = "dvblastctl.clientsock.XXXXXX";
     char *psz_srv_socket = NULL;
     int i_fd;
-    int i = 65535;
+    int i = COMM_MAX_MSG_CHUNK;
     ssize_t i_size;
     struct sockaddr_un sun_client, sun_server;
     uint8_t p_buffer[COMM_BUFFER_SIZE];
@@ -239,7 +239,21 @@ int main( int i_argc, char **ppsz_argv )
         exit(255);
     }
 
-    i_size = recv( i_fd, p_buffer, COMM_BUFFER_SIZE, 0 );
+    uint32_t i_packet_size = 0, i_received = 0;
+    do {
+        i_size = recv( i_fd, p_buffer + i_received, COMM_MAX_MSG_CHUNK, 0 );
+        if ( i_size == -1 )
+            break;
+        if ( !i_packet_size ) {
+            i_packet_size = *((uint32_t *)&p_buffer[4]);
+            if ( i_packet_size > COMM_BUFFER_SIZE ) {
+                i_size = -1;
+                break;
+            }
+        }
+        i_received += i_size;
+    } while ( i_received < i_packet_size );
+
     close( i_fd );
     unlink( psz_client_socket );
     if ( i_size < COMM_HEADER_SIZE )

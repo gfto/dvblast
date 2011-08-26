@@ -19,9 +19,11 @@
 #include <linux/dvb/frontend.h>
 #include <linux/dvb/ca.h>
 
-#define COMM_BUFFER_SIZE 4096
-#define COMM_HEADER_SIZE 4
+#define COMM_HEADER_SIZE 8
+#define COMM_BUFFER_SIZE (COMM_HEADER_SIZE + ((PSI_PRIVATE_MAX_SIZE + PSI_HEADER_SIZE) * (PSI_TABLE_MAX_SECTIONS / 2)))
 #define COMM_HEADER_MAGIC 0x48
+
+#define COMM_MAX_MSG_CHUNK 65535
 
 #define CMD_RELOAD 1
 #define CMD_SHUTDOWN 2

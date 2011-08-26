@@ -41,7 +41,7 @@ int i_comm_fd = -1;
  *****************************************************************************/
 void comm_Open( void )
 {
-    int i_size = 65535;
+    int i_size = COMM_MAX_MSG_CHUNK;
     struct sockaddr_un sun_server;
 
     if ( (i_comm_fd = socket( AF_UNIX, SOCK_DGRAM, 0 )) == -1 )
@@ -164,10 +164,27 @@ void comm_Read( void )
     p_answer[1] = i_answer;
     p_answer[2] = 0;
     p_answer[3] = 0;
+    uint32_t *p_size = (uint32_t *)&p_answer[4];
+    *p_size = i_answer_size + COMM_HEADER_SIZE;
+
     msg_Dbg( NULL, "answering %d to %d with size %zd", i_answer, i_command,
              i_answer_size );
 
-    if ( sendto( i_comm_fd, p_answer, i_answer_size + COMM_HEADER_SIZE, 0,
-                 (struct sockaddr *)&sun_client, sun_length ) < 0 )
-        msg_Err( NULL, "cannot send comm socket (%s)", strerror(errno) );
+#define min(a, b) (a < b ? a : b)
+    ssize_t i_sended = 0;
+    ssize_t i_to_send = i_answer_size + COMM_HEADER_SIZE;
+    do {
+        ssize_t i_sent = sendto( i_comm_fd, p_answer + i_sended,
+                     min(i_to_send, COMM_MAX_MSG_CHUNK), 0,
+                     (struct sockaddr *)&sun_client, sun_length );
+
+        if ( i_sent < 0 ) {
+            msg_Err( NULL, "cannot send comm socket (%s)", strerror(errno) );
+            break;
+        }
+
+        i_sended += i_sent;
+        i_to_send -= i_sent;
+    } while ( i_to_send > 0 );
+#undef min
 }
