@@ -98,6 +98,7 @@ volatile sig_atomic_t b_conf_reload = 0;
 volatile sig_atomic_t b_exit_now = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
+char *psz_syslog_ident = NULL;
 
 bool b_enable_emm = false;
 bool b_enable_ecm = false;
@@ -465,6 +466,7 @@ void usage()
     msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8)" );
     msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default ISO_8859-1)" );
     msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
+    msg_Raw( NULL, "  -g --logger-ident     program name that will be used in syslog messages" );
     msg_Raw( NULL, "  -x --print            print interesting events on stdout in a given format" );
     msg_Raw( NULL, "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
@@ -536,6 +538,7 @@ int main( int i_argc, char **pp_argv )
         { "system-charset",  required_argument, NULL, 'j' },
         { "dvb-charset",     required_argument, NULL, 'J' },
         { "logger",          no_argument,       NULL, 'l' },
+        { "logger-ident",    required_argument, NULL, 'g' },
         { "print",           required_argument, NULL, 'x' },
         { "quit-timeout",    required_argument, NULL, 'Q' },
         { "quiet",           no_argument,       NULL, 'q' },
@@ -545,7 +548,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lzCWYeM:N:j:J:x:Q:hVZ:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:x:Q:hVZ:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -781,6 +784,10 @@ int main( int i_argc, char **pp_argv )
             b_enable_syslog = 1;
             break;
 
+        case 'g':
+            psz_syslog_ident = optarg;
+            break;
+
         case 'x':
             if ( !strcmp(optarg, "text") )
                 i_print_type = PRINT_TEXT;
@@ -813,7 +820,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     if ( b_enable_syslog )
-        msg_Connect( pp_argv[0] );
+        msg_Connect( psz_syslog_ident ? psz_syslog_ident : pp_argv[0] );
 
     if ( i_verbose )
         DisplayVersion();

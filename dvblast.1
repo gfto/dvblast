@@ -3,7 +3,7 @@
 DVBlast \- Simple and powerful dvb streaming application
 .SH SYNOPSIS
 .B dvblast
-[\fI-q\fR] \fI-c <config_file>\fR [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR] [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend number>\fR] [\fI-S <diseqc>\fR] \fI-f <frequency>\fR [\fI-F <fec inner>\fR] [\fI-R <rolloff>\fR] ] [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation\fR] [\fI-u\fR] [\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-W\fR] [\fI-Y\fR] [\fI-e\fR] [\fI-T\fR] [\fI-l\fR]
+[\fI-q\fR] \fI-c <config_file>\fR [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR] [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend number>\fR] [\fI-S <diseqc>\fR] \fI-f <frequency>\fR [\fI-F <fec inner>\fR] [\fI-R <rolloff>\fR] ] [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation\fR] [\fI-u\fR] [\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-W\fR] [\fI-Y\fR] [\fI-e\fR] [\fI-T\fR] [\fI-l\fR] [\fI-g <logger_ident>\fR]
 .SH DESCRIPTION
 DVBlast is a simple and powerful streaming application based on the linux-dvb API.
 It opens a DVB device, tunes it, places PID filters, configures a CAM module, and demultiplexes the packets to several RTP outputs.
@@ -83,6 +83,9 @@ DVB-T low priority FEC (default auto)
 .TP
 \fB\-l\fR, \fB\-\-logger\fR
 Send messages to syslog instead of stderr
+.TP
+\fB\-g\fR, \fB\-\-logger-ident\fR <logger_ident>
+Set the program name that will appear in syslog (default: dvblast /the executable name/).
 .TP
 \fB\-L\fR, \fB\-\-latency\fR <latency>
 Maximum latency allowed between input and output (default: 100 ms)
