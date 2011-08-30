@@ -152,6 +152,7 @@ extern output_t **pp_outputs;
 extern int i_nb_outputs;
 extern output_t output_dup;
 extern char *psz_srv_socket;
+extern int i_comm_fd;
 extern int i_adapter;
 extern int i_fenum;
 extern int i_frequency;

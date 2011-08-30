@@ -978,5 +978,9 @@ int main( int i_argc, char **pp_argv )
 
     if ( b_enable_syslog )
         msg_Disconnect();
+
+    if ( psz_srv_socket && i_comm_fd > -1 )
+        unlink( psz_srv_socket );
+
     return EXIT_SUCCESS;
 }
