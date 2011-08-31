@@ -477,6 +477,7 @@ int main( int i_argc, char **ppsz_argv )
 
     case RET_FRONTEND_STATUS:
     {
+        int ret = 1;
         struct ret_frontend_status *p_ret =
             (struct ret_frontend_status *)&p_buffer[COMM_HEADER_SIZE];
         if ( i_size != COMM_HEADER_SIZE + sizeof(struct ret_frontend_status) )
@@ -485,9 +486,15 @@ int main( int i_argc, char **ppsz_argv )
             exit(255);
         }
 
+        if ( i_print_type == PRINT_XML )
+            printf("<FRONTEND>\n");
+
 #define PRINT_TYPE( x ) \
     do { \
-        printf("type: %s\n", STRINGIFY(x) ); \
+        if ( i_print_type == PRINT_XML ) \
+            printf( " <TYPE type=\"%s\"/>\n", STRINGIFY(x) ); \
+        else \
+            printf( "type: %s\n", STRINGIFY(x) ); \
     } while(0)
         switch ( p_ret->info.type )
         {
@@ -499,8 +506,13 @@ int main( int i_argc, char **ppsz_argv )
         }
 #undef PRINT_TYPE
 
-#define PRINT_INFO( x )                                                 \
-        printf( STRINGIFY(x) ": %u\n", p_ret->info.x );
+#define PRINT_INFO( x ) \
+    do { \
+        if ( i_print_type == PRINT_XML ) \
+            printf( " <SETTING %s=\"%u\"/>\n", STRINGIFY(x), p_ret->info.x ); \
+        else \
+            printf( "%s: %u\n", STRINGIFY(x), p_ret->info.x ); \
+    } while(0)
         PRINT_INFO( frequency_min );
         PRINT_INFO( frequency_max );
         PRINT_INFO( frequency_stepsize );
@@ -511,11 +523,19 @@ int main( int i_argc, char **ppsz_argv )
         PRINT_INFO( notifier_delay );
 #undef PRINT_INFO
 
-        printf("\ncapability list:\n");
+        if ( i_print_type == PRINT_TEXT )
+            printf("\ncapability list:\n");
 
-#define PRINT_CAPS( x )                                                 \
-        if ( p_ret->info.caps & (FE_##x) )                              \
-            printf( STRINGIFY(x) "\n" );
+#define PRINT_CAPS( x ) \
+    do { \
+        if ( p_ret->info.caps & (FE_##x) ) { \
+            if ( i_print_type == PRINT_XML ) { \
+                printf( " <CAPABILITY %s=\"1\"/>\n", STRINGIFY(x) ); \
+            } else { \
+                printf( "%s\n", STRINGIFY(x) ); \
+            } \
+        } \
+    } while(0)
         PRINT_CAPS( IS_STUPID );
         PRINT_CAPS( CAN_INVERSION_AUTO );
         PRINT_CAPS( CAN_FEC_1_2 );
@@ -556,11 +576,19 @@ int main( int i_argc, char **ppsz_argv )
 #endif
 #undef PRINT_CAPS
 
-        printf("\nstatus:\n");
+        if ( i_print_type == PRINT_TEXT )
+            printf("\nstatus:\n");
 
-#define PRINT_STATUS( x )                                               \
-        if ( p_ret->i_status & (FE_##x) )                               \
-            printf( STRINGIFY(x) "\n" );
+#define PRINT_STATUS( x ) \
+    do { \
+        if ( p_ret->i_status & (FE_##x) ) { \
+            if ( i_print_type == PRINT_XML ) { \
+                printf( " <STATUS status=\"%s\"/>\n", STRINGIFY(x) ); \
+            } else { \
+                printf( "%s\n", STRINGIFY(x) ); \
+            } \
+        } \
+    } while(0)
         PRINT_STATUS( HAS_SIGNAL );
         PRINT_STATUS( HAS_CARRIER );
         PRINT_STATUS( HAS_VITERBI );
@@ -571,13 +599,23 @@ int main( int i_argc, char **ppsz_argv )
 
         if ( p_ret->i_status & FE_HAS_LOCK )
         {
-            printf("\nBit error rate: %d\n", p_ret->i_ber);
-            printf("Signal strength: %d\n", p_ret->i_strength);
-            printf("SNR: %d\n", p_ret->i_snr);
-            exit(0);
+            if ( i_print_type == PRINT_XML )
+            {
+                printf(" <VALUE bit_error_rate=\"%d\"/>\n", p_ret->i_ber);
+                printf(" <VALUE signal_strength=\"%d\"/>\n", p_ret->i_strength);
+                printf(" <VALUE SNR=\"%d\"/>\n", p_ret->i_snr);
+            } else {
+                printf("\nBit error rate: %d\n", p_ret->i_ber);
+                printf("Signal strength: %d\n", p_ret->i_strength);
+                printf("SNR: %d\n", p_ret->i_snr);
+            }
+            ret = 0;
         }
 
-        exit(1);
+        if ( i_print_type == PRINT_XML )
+            printf("</FRONTEND>\n" );
+
+        exit(ret);
         break;
     }
 
