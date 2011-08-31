@@ -485,14 +485,19 @@ int main( int i_argc, char **ppsz_argv )
             exit(255);
         }
 
+#define PRINT_TYPE( x ) \
+    do { \
+        printf("type: %s\n", STRINGIFY(x) ); \
+    } while(0)
         switch ( p_ret->info.type )
         {
-        case FE_QPSK: printf("type: QPSK\n"); break;
-        case FE_QAM: printf("type: QAM\n"); break;
-        case FE_OFDM: printf("type: OFDM\n"); break;
-        case FE_ATSC: printf("type: ATSC\n"); break;
-        default: printf("type: UNKNOWN\n"); break;
+        case FE_QPSK: PRINT_TYPE(QPSK); break;
+        case FE_QAM : PRINT_TYPE(QAM); break;
+        case FE_OFDM: PRINT_TYPE(OFDM); break;
+        case FE_ATSC: PRINT_TYPE(ATSC); break;
+        default     : PRINT_TYPE(UNKNOWN); break;
         }
+#undef PRINT_TYPE
 
 #define PRINT_INFO( x )                                                 \
         printf( STRINGIFY(x) ": %u\n", p_ret->info.x );
