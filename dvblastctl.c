@@ -490,6 +490,7 @@ int main( int i_argc, char **ppsz_argv )
         case FE_QPSK: printf("type: QPSK\n"); break;
         case FE_QAM: printf("type: QAM\n"); break;
         case FE_OFDM: printf("type: OFDM\n"); break;
+        case FE_ATSC: printf("type: ATSC\n"); break;
         default: printf("type: UNKNOWN\n"); break;
         }
 
