@@ -804,6 +804,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'V':
+            DisplayVersion();
             exit(0);
             break;
 
