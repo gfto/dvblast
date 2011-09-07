@@ -419,6 +419,7 @@ void usage()
         "[-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] "
         "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] "
         "[-z] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] "
+        "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] "
         "[-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>]" );
 
     msg_Raw( NULL, "Input:" );
