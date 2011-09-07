@@ -502,6 +502,10 @@ int main( int i_argc, char **pp_argv )
     if ( i_argc == 1 )
         usage();
 
+    /*
+     * The only short options left are: Bky0123456789
+     * Use them wisely.
+     */
     static const struct option long_options[] =
     {
         { "config-file",     required_argument, NULL, 'c' },
