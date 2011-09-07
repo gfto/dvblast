@@ -5,10 +5,14 @@ DVBlast \- Simple and powerful dvb streaming application
 .B dvblast
 [\fI-q\fR] [\fI-c <config_file>\fR] [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR]
 [\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend_number>\fR] [\fI-S <diseqc>\fR]
-[\fI-f <frequency>\fR] [\fI-F <fec_inner>\fR] [\fI-R <rolloff>\fR] ] [\fI-s <symbol_rate>\fR]
-[\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-m <modulation>\fR] [\fI-u\fR]
-[\fI-W\fR] [\fI-U\fR] [\fI-d <dest_IP:port>\fR] [\fI-W\fR] [\fI-Y\fR] [\fI-e\fR] [\fI-T\fR]
-[\fI-l\fR] [\fI-g <logger_ident>\fR]
+[\fI-f <frequency>\fR] [\fI-D <src_host>[:<src_port>][[@<src_mcast>][:<port>]][/<opts>]\fR] [\fI-A <ASI_adapter>\fR]
+[\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-I <inversion>\fR]
+[\fI-F <fec_inner>\fR] [\fI-m <modulation>\fR] [\fI-R <rolloff>\fR] [\fI-P <pilot>\fR] [\fI-K <fec_lp>\fR]
+[\fI-G <guard_interval>\fR] [\fI-H <hierarchy>\fR] [\fI-X <transmission>\fR] [\fI-O <lock_timeout>\fR]
+[\fI-u\fR] [\fI-w\fR] [\fI-U\fR] [\fI-L <latency>\fR] [\fI-E <retention>\fR] [\fI-d <dest_IP>[<:port>][/<opts>]\fR]
+[\fI-z\fR] [\fI-C\fR] [\fI-e\fR] [\fI-M <network_name\fR] [\fI-N <network_ID>\fR] [\fI-T\fR] [\fI-j <system_charset>\fR]
+[\fI-W\fR] [\fI-Y\fR] [\fI-l\fR] [\fI-g <logger ident>\fR] [\fI-Z <mrtg_file>\fR] [\fI-V\fR] [\fI-h\fR]
+[\fI-J <DVB_charset>\fR] [\fI-Q <quit_timeout>\fR] [\fI-x <text|xml>\fR]
 .SH DESCRIPTION
 DVBlast is a simple and powerful streaming application based on the linux-dvb API.
 It opens a DVB device, tunes it, places PID filters, configures a CAM module, and demultiplexes the packets to several RTP outputs.
@@ -125,7 +129,7 @@ Force 22kHz pulses for high-band selection (DVB-S)
 \fB\-P\fR, \fB\-\-pilot\fR
 DVB-S2 Pilot (-1 auto, 0 off, 1 on)
 .TP
-\fB\-q\fR
+\fB\-q\fR, \fB\-\-quiet\fR
 Be quiet (less verbosity, repeat or use number for even quieter)
 .TP
 \fB\-Q\fR, \fB\-\-quit-timeout\fR <delay>
@@ -174,6 +178,10 @@ DVB-T transmission (2, 4, 8 or -1 auto, default
 .TP
 \fB\-z\fR, \fB\-\-any\-type\fR
 pass through all ESs from the PMT, of any type
+.TP
+\fB\-Z\fR, \fB\-\-mrtg-file\fR <mrtg_file>
+Every 10 seconds log statistics in <mrtg_file>. The file has 4 numbers in it
+and the format is: <passed_bytes> <error_packets> <packets_with_seq_errors> <scrambled_packets>
 .SH SEE ALSO
 Read the README file for more information about the configuration of dvblast.
 .SH AUTHORS
