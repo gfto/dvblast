@@ -15,12 +15,14 @@ http://git.videolan.org/?p=dvblast.git
 Installing DVBlast
 ==================
 
-No autotools yet... You have to tweak the Makefile by hand, especially
-if your kernel is S2API-enabled but not your distribution (indicate the
-path of your kernel where appropriate). Compile the program with `make`
-and install with `make install`.
+Compile the program with `make` and install with `make install`. Your
+kernel must support DVB S2API which was merged in Linux 2.6.28 and released
+on 24 Dec 2008.
 
-DVBlast no longer requires libdvbpsi runtime and libdvbpsi-devel for
+DVBlast 2.0 no longer requires libdvbpsi runtime and libdvbpsi-devel for
 compilation. Instead you must install biTStream on your build machine
 (no runtime library needed). biTStream is currently available via SVN at:
 svn://svn.videolan.org/bitstream/trunk
+
+Just checkout the biTStream repository and run `make install` before
+trying to compile DVBlast.
