@@ -1,5 +1,17 @@
 $Id$
 
+Getting DVBlast
+===============
+
+Offically released DVBlast versions can be downloaded at:
+ftp://ftp.videolan.org/pub/videolan/dvblast/
+
+DVBlast is developed using git. To get the latest version clone
+the repository at: git://git.videolan.org/dvblast.git
+
+To see the latest developments visit the following url:
+http://git.videolan.org/?p=dvblast.git
+
 Installing DVBlast
 ==================
 
