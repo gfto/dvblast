@@ -11,8 +11,8 @@ DVBlast \- Simple and powerful dvb streaming application
 [\fI-G <guard_interval>\fR] [\fI-H <hierarchy>\fR] [\fI-X <transmission>\fR] [\fI-O <lock_timeout>\fR]
 [\fI-u\fR] [\fI-w\fR] [\fI-U\fR] [\fI-L <latency>\fR] [\fI-E <retention>\fR] [\fI-d <dest_IP>[<:port>][/<opts>]\fR]
 [\fI-z\fR] [\fI-C\fR] [\fI-e\fR] [\fI-M <network_name\fR] [\fI-N <network_ID>\fR] [\fI-T\fR] [\fI-j <system_charset>\fR]
-[\fI-W\fR] [\fI-Y\fR] [\fI-l\fR] [\fI-g <logger ident>\fR] [\fI-Z <mrtg_file>\fR] [\fI-V\fR] [\fI-h\fR]
-[\fI-J <DVB_charset>\fR] [\fI-Q <quit_timeout>\fR] [\fI-x <text|xml>\fR]
+ [\fI-W\fR] [\fI-Y\fR] [\fI-l\fR] [\fI-g <logger ident>\fR] [\fI-Z <mrtg_file>\fR] [\fI-V\fR] [\fI-h\fR]
+[\fI-J <DVB_charset>\fR] [\fI-B <provider_name>\fR] [\fI-Q <quit_timeout>\fR] [\fI-x <text|xml>\fR]
 .SH DESCRIPTION
 DVBlast is a simple and powerful streaming application based on the linux-dvb API.
 It opens a DVB device, tunes it, places PID filters, configures a CAM module, and demultiplexes the packets to several RTP outputs.
@@ -31,6 +31,11 @@ Read packets from an ASI adapter (0-n)
 .TP
 \fB\-b\fR, \fB\-\-bandwidth\fR <bandwidth>
 Frontend bandwidth
+.TP
+\fB\-B\fR, \fB\-\-provider-name\fR <name>
+Service provider name to declare in the SDT. If you want to change
+provider name per output use /srvprovider= output option in the config
+file.
 .TP
 \fB\-c\fR, \fB\-\-config\-file\fR <config file>
 Use the given configuration file

@@ -92,6 +92,7 @@ char *psz_udp_src = NULL;
 int i_asi_adapter = 0;
 const char *psz_native_charset = "UTF-8";
 const char *psz_dvb_charset = "ISO_8859-1";
+const char *psz_provider_name = NULL;
 print_type_t i_print_type = -1;
 
 volatile sig_atomic_t b_conf_reload = 0;
@@ -269,6 +270,9 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
 #undef IS_OPTION
 #undef ARG_OPTION
     }
+
+    if ( !p_config->psz_service_provider && psz_provider_name )
+        p_config->psz_service_provider = strdup( psz_provider_name );
 
 end:
     i_mtu = p_config->i_family == AF_INET6 ? DEFAULT_IPV6_MTU :
@@ -497,6 +501,7 @@ void usage()
     msg_Raw( NULL, "  -L --latency          maximum latency allowed between input and output (default: 100 ms)" );
     msg_Raw( NULL, "  -M --network-name     DVB network name to declare in the NIT" );
     msg_Raw( NULL, "  -N --network-id       DVB network ID to declare in the NIT" );
+    msg_Raw( NULL, "  -B --provider-name    Service provider name to declare in the SDT" );
     msg_Raw( NULL, "  -o --rtp-output <SSRC IP>" );
     msg_Raw( NULL, "  -t --ttl <ttl>        TTL of the output stream" );
     msg_Raw( NULL, "  -T --unique-ts-id     generate random unique TS ID for each output" );
@@ -538,7 +543,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: Bky0123456789
+     * The only short options left are: ky0123456789
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -584,6 +589,7 @@ int main( int i_argc, char **pp_argv )
         { "network-id",      no_argument,       NULL, 'N' },
         { "system-charset",  required_argument, NULL, 'j' },
         { "dvb-charset",     required_argument, NULL, 'J' },
+        { "provider-name",   required_argument, NULL, 'B' },
         { "logger",          no_argument,       NULL, 'l' },
         { "logger-ident",    required_argument, NULL, 'g' },
         { "print",           required_argument, NULL, 'x' },
@@ -595,7 +601,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:x:Q:hVZ:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -825,6 +831,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'J':
             psz_dvb_charset = optarg;
+            break;
+
+        case 'B':
+            psz_provider_name = optarg;
             break;
 
         case 'l':
