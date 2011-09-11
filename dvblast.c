@@ -128,6 +128,8 @@ void config_Init( output_config_t *p_config )
     memset( p_config, 0, sizeof(output_config_t) );
 
     p_config->psz_displayname = NULL;
+    p_config->psz_service_name = NULL;
+    p_config->psz_service_provider = NULL;
 
     p_config->i_family = AF_UNSPEC;
     p_config->connect_addr.ss_family = AF_UNSPEC;
@@ -140,6 +142,8 @@ void config_Init( output_config_t *p_config )
 void config_Free( output_config_t *p_config )
 {
     free( p_config->psz_displayname );
+    free( p_config->psz_service_name );
+    free( p_config->psz_service_provider );
     free( p_config->pi_pids );
 }
 
@@ -157,6 +161,24 @@ static void config_Defaults( output_config_t *p_config )
     p_config->i_tsid = -1;
     p_config->i_ttl = i_ttl_global;
     memcpy( p_config->pi_ssrc, pi_ssrc_global, 4 * sizeof(uint8_t) );
+}
+
+static char *config_stropt( char *psz_string )
+{
+    char *ret, *tmp;
+    if ( !psz_string || strlen( psz_string ) == 0 )
+        return NULL;
+    ret = tmp = strdup( psz_string );
+    while (*tmp) {
+        if (*tmp == '_')
+            *tmp = ' ';
+        if (*tmp == '/') {
+            *tmp = '\0';
+            break;
+        }
+        tmp++;
+    }
+    return ret;
 }
 
 bool config_ParseHost( output_config_t *p_config, char *psz_string )
@@ -224,6 +246,18 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
             p_config->i_mtu = strtol( ARG_OPTION("mtu="), NULL, 0 );
         else if ( IS_OPTION("ifindex=") )
             p_config->i_if_index_v6 = strtol( ARG_OPTION("ifindex="), NULL, 0 );
+        else if ( IS_OPTION("srvname=")  )
+        {
+            if ( p_config->psz_service_name )
+                free( p_config->psz_service_name );
+            p_config->psz_service_name = config_stropt( ARG_OPTION("srvname=") );
+        }
+        else if ( IS_OPTION("srvprovider=") )
+        {
+            if ( !p_config->psz_service_provider )
+                free( p_config->psz_service_provider );
+            p_config->psz_service_provider = config_stropt( ARG_OPTION("srvprovider=") );
+        }
         else if ( IS_OPTION("ssrc=") )
         {
             in_addr_t i_addr = inet_addr( ARG_OPTION("ssrc=") );

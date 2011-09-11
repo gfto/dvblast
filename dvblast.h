@@ -92,6 +92,8 @@ typedef struct output_config_t
     uint64_t i_config;
 
     /* output config */
+    char *psz_service_name;
+    char *psz_service_provider;
     uint8_t pi_ssrc[4];
     mtime_t i_output_latency, i_max_retention;
     int i_ttl;
@@ -216,6 +218,8 @@ __attribute__ ((format(printf, 2, 3))) void msg_Dbg( void *_unused, const char *
 __attribute__ ((format(printf, 2, 3))) void msg_Raw( void *_unused, const char *psz_format, ... );
 
 /* */
+bool streq(char *a, char *b);
+char * xstrdup(char *str);
 mtime_t mdate( void );
 void msleep( mtime_t delay );
 void hexDump( uint8_t *p_data, uint32_t i_len );

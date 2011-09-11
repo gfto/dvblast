@@ -147,6 +147,11 @@ Available options include :
  /mtu=XXXX (sets the maximum UDP packet size)
  /ecm or /noecm (pass-through ECM packets or not)
  /emm or /noemm (pass-through EMM packets or not)
+ /srvname=Some_Channel (set service name in SDT)
+ /srvprovider=Some_Provider (set provider name in SDT)
+
+When setting text options like /srvname or /srvprovider, remember
+that the underscore character (_) will be replaced by space ( ).
 
 Several options can be appended, for instance:
 

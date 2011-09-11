@@ -481,9 +481,18 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     bool b_pid_change = false, b_tsid_change = false;
     bool b_dvb_change = !!((p_output->config.i_config ^ p_config->i_config)
                              & OUTPUT_DVB);
+    bool b_service_name_change =
+        (!streq(p_output->config.psz_service_name, p_config->psz_service_name) ||
+         !streq(p_output->config.psz_service_provider, p_config->psz_service_provider));
     int i;
 
     p_output->config.i_config = p_config->i_config;
+
+    /* Change output settings related to service_name and service_provider . */
+    free( p_output->config.psz_service_name );
+    free( p_output->config.psz_service_provider );
+    p_output->config.psz_service_name = xstrdup( p_config->psz_service_name );
+    p_output->config.psz_service_provider = xstrdup( p_config->psz_service_provider );
 
     if ( p_config->i_tsid != -1 && p_output->config.i_tsid != p_config->i_tsid )
     {
@@ -627,6 +636,9 @@ out_change:
 
         if ( b_pid_change )
             NewPMT( p_output );
+
+        if ( !b_sid_change && b_service_name_change )
+            NewSDT( p_output );
     }
 }
 
@@ -1349,9 +1361,60 @@ static void NewSDT( output_t *p_output )
     sdtn_set_running( p_service, sdtn_get_running(p_current_service) );
     /* Do not set free_ca */
     sdtn_set_desclength( p_service, sdtn_get_desclength(p_current_service) );
-    memcpy( descs_get_desc( sdtn_get_descs(p_service), 0 ),
-            descs_get_desc( sdtn_get_descs(p_current_service), 0 ),
-            sdtn_get_desclength(p_current_service) );
+
+    char *p_new_provider = p_output->config.psz_service_provider;
+    char *p_new_service  = p_output->config.psz_service_name;
+
+    if ( !p_new_provider && !p_new_service ) {
+        /* Copy all descriptors unchanged */
+        memcpy( descs_get_desc( sdtn_get_descs(p_service), 0 ),
+                descs_get_desc( sdtn_get_descs(p_current_service), 0 ),
+                sdtn_get_desclength(p_current_service) );
+    } else {
+        int j = 0, i_total_desc_len = 0;
+        uint8_t *p_desc;
+        uint8_t *p_new_desc = descs_get_desc( sdtn_get_descs(p_service), 0 );
+        while ( (p_desc = descs_get_desc( sdtn_get_descs( p_current_service ), j++ )) != NULL )
+        {
+            /* Regenerate descriptor 48 (service name) */
+            if ( desc_get_tag( p_desc ) == 0x48 && desc48_validate( p_desc ) )
+            {
+                uint8_t i_old_provider_len, i_old_service_len, i_new_desc_len = 0;
+                char *p_new_provider = p_output->config.psz_service_provider;
+                char *p_new_service  = p_output->config.psz_service_name;
+                const uint8_t *p_old_provider = desc48_get_provider( p_desc, &i_old_provider_len );
+                const uint8_t *p_old_service = desc48_get_service( p_desc, &i_old_service_len );
+
+                desc48_init( p_new_desc );
+                desc48_set_type( p_new_desc, desc48_get_type( p_desc ) );
+
+                if ( p_new_provider ) {
+                    desc48_set_provider( p_new_desc, (uint8_t *)p_new_provider, strlen( p_new_provider ) );
+                    i_new_desc_len += strlen( p_new_provider );
+                } else {
+                    desc48_set_provider( p_new_desc, p_old_provider, i_old_provider_len );
+                    i_new_desc_len += i_old_provider_len;
+                }
+
+                if ( p_new_service ) {
+                    desc48_set_service( p_new_desc, (uint8_t *)p_new_service, strlen( p_new_service ) );
+                    i_new_desc_len += strlen( p_new_service );
+                } else {
+                    desc48_set_service( p_new_desc, p_old_service, i_old_service_len );
+                    i_new_desc_len += i_old_service_len;
+                }
+                desc_set_length( p_new_desc, i_new_desc_len );
+                i_total_desc_len += DESC48_HEADER_SIZE + 2 + i_new_desc_len;
+            } else {
+                /* Copy single descriptor */
+                int i_desc_len = DESC_HEADER_SIZE + desc_get_length( p_desc );
+                memcpy( p_new_desc, p_desc, i_desc_len );
+                p_new_desc += i_desc_len;
+                i_total_desc_len += i_desc_len;
+            }
+        }
+        sdtn_set_desclength( p_service, i_total_desc_len );
+    }
 
     p_service = sdt_get_service( p, 1 );
     if ( p_service == NULL )
