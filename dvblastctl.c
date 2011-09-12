@@ -328,43 +328,45 @@ int main( int i_argc, char **ppsz_argv )
     sun_server.sun_path[sizeof(sun_server.sun_path) - 1] = '\0';
 
     p_buffer[0] = COMM_HEADER_MAGIC;
+    p_buffer[1] = opt.cmd;
     p_buffer[2] = 0;
     p_buffer[3] = 0;
     i_size = COMM_HEADER_SIZE;
 
-    if ( !strcmp(ppsz_argv[optind], "reload") )
-        p_buffer[1] = CMD_RELOAD;
-    else if ( !strcmp(ppsz_argv[optind], "shutdown") )
-        p_buffer[1] = CMD_SHUTDOWN;
-    else if ( !strcmp(ppsz_argv[optind], "fe_status") )
-        p_buffer[1] = CMD_FRONTEND_STATUS;
-    else if ( !strcmp(ppsz_argv[optind], "get_pat") )
-        p_buffer[1] = CMD_GET_PAT;
-    else if ( !strcmp(ppsz_argv[optind], "get_cat") )
-        p_buffer[1] = CMD_GET_CAT;
-    else if ( !strcmp(ppsz_argv[optind], "get_nit") )
-        p_buffer[1] = CMD_GET_NIT;
-    else if ( !strcmp(ppsz_argv[optind], "get_sdt") )
-        p_buffer[1] = CMD_GET_SDT;
-    else if ( !strcmp(ppsz_argv[optind], "get_pmt") ) {
+    /* Handle commands that send parameters */
+    switch ( opt.cmd )
+    {
+    case CMD_INVALID:
+    case CMD_RELOAD:
+    case CMD_SHUTDOWN:
+    case CMD_FRONTEND_STATUS:
+    case CMD_MMI_STATUS:
+    case CMD_MMI_SEND:
+    case CMD_GET_PAT:
+    case CMD_GET_CAT:
+    case CMD_GET_NIT:
+    case CMD_GET_SDT:
+    case CMD_GET_PIDS:
+        /* These commands need no special handling because they have no parameters */
+        break;
+    case CMD_GET_PMT:
+    {
         uint16_t i_sid = atoi(p_arg1);
-        p_buffer[1] = CMD_GET_PMT;
         i_size = COMM_HEADER_SIZE + 2;
         p_data[0] = (uint8_t)((i_sid >> 8) & 0xff);
         p_data[1] = (uint8_t)(i_sid & 0xff);
-    } else if ( !strcmp(ppsz_argv[optind], "get_pids") )
-        p_buffer[1] = CMD_GET_PIDS;
-    else if ( !strcmp(ppsz_argv[optind], "get_pid") ) {
+        break;
+    }
+    case CMD_GET_PID:
+    {
         i_pid = (uint16_t)atoi(p_arg1);
-        p_buffer[1] = CMD_GET_PID;
         i_size = COMM_HEADER_SIZE + 2;
         p_data[0] = (uint8_t)((i_pid >> 8) & 0xff);
         p_data[1] = (uint8_t)(i_pid & 0xff);
-    } else if ( !strcmp(ppsz_argv[optind], "mmi_status") )
-        p_buffer[1] = CMD_MMI_STATUS;
-    else if ( !strcmp(ppsz_argv[optind], "mmi_send_text") ) {
+    }
+    case CMD_MMI_SEND_TEXT:
+    {
         struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
-        p_buffer[1] = CMD_MMI_SEND_TEXT;
         p_cmd->i_slot = atoi(p_arg1);
 
         en50221_mmi_object_t object;
@@ -392,30 +394,26 @@ int main( int i_argc, char **ppsz_argv )
         i_size += COMM_HEADER_SIZE
                    + ((void *)&p_cmd->object - (void *)p_cmd);
     }
-    else if ( !strcmp(ppsz_argv[optind], "mmi_send_choice") ) {
+    case CMD_MMI_SEND_CHOICE:
+    {
         struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
-        p_buffer[1] = CMD_MMI_SEND_CHOICE;
         p_cmd->i_slot = atoi(p_arg1);
 
         i_size = COMM_HEADER_SIZE + sizeof(struct cmd_mmi_send);
         p_cmd->object.i_object_type = EN50221_MMI_MENU_ANSW;
         p_cmd->object.u.menu_answ.i_choice = atoi(p_arg2);
     }
-    else
+    case CMD_MMI_SLOT_STATUS:
+    case CMD_MMI_OPEN:
+    case CMD_MMI_CLOSE:
+    case CMD_MMI_RECV:
     {
         p_buffer[4] = atoi(p_arg1);
         i_size = COMM_HEADER_SIZE + 1;
-
-        if ( !strcmp(ppsz_argv[optind], "mmi_slot_status") )
-            p_buffer[1] = CMD_MMI_SLOT_STATUS;
-        else if ( !strcmp(ppsz_argv[optind], "mmi_open") )
-            p_buffer[1] = CMD_MMI_OPEN;
-        else if ( !strcmp(ppsz_argv[optind], "mmi_close") )
-            p_buffer[1] = CMD_MMI_CLOSE;
-        else if ( !strcmp(ppsz_argv[optind], "mmi_get") )
-            p_buffer[1] = CMD_MMI_RECV;
+    }
     }
 
+    /* Send command and receive answer */
     if ( sendto( i_fd, p_buffer, i_size, 0, (struct sockaddr *)&sun_server,
                  SUN_LEN(&sun_server) ) < 0 )
     {
@@ -449,6 +447,7 @@ int main( int i_argc, char **ppsz_argv )
         exit(255);
     }
 
+    /* Process answer */
     if ( p_buffer[0] != COMM_HEADER_MAGIC )
     {
         msg_Err( NULL, "wrong protocol version 0x%x", p_buffer[0] );
@@ -457,7 +456,8 @@ int main( int i_argc, char **ppsz_argv )
 
     now = mdate();
 
-    switch ( p_buffer[1] )
+    ctl_cmd_answer_t c_answer = p_buffer[1];
+    switch ( c_answer )
     {
     case RET_OK:
         exit(0);
@@ -491,12 +491,13 @@ int main( int i_argc, char **ppsz_argv )
         unsigned int i_flat_data_size = i_size - COMM_HEADER_SIZE;
         uint8_t **pp_sections = psi_unpack_sections( p_flat_data, i_flat_data_size );
 
-        switch( p_buffer[1] )
+        switch( c_answer )
         {
             case RET_PAT: pat_table_print( pp_sections, psi_print, NULL, i_print_type ); break;
             case RET_CAT: cat_table_print( pp_sections, psi_print, NULL, i_print_type ); break;
             case RET_NIT: nit_table_print( pp_sections, psi_print, NULL, psi_iconv, NULL, i_print_type ); break;
             case RET_SDT: sdt_table_print( pp_sections, psi_print, NULL, psi_iconv, NULL, i_print_type ); break;
+            default: break; /* Can't happen */
         }
 
         psi_table_free( pp_sections );
@@ -798,7 +799,7 @@ int main( int i_argc, char **ppsz_argv )
     }
 
     default:
-        msg_Err( NULL, "wrong answer %u", p_buffer[1] );
+        msg_Err( NULL, "wrong answer %u", c_answer );
         exit(255);
     }
 }
