@@ -362,6 +362,45 @@ int main( int i_argc, char **ppsz_argv )
         p_data[1] = (uint8_t)(i_pid & 0xff);
     } else if ( !strcmp(ppsz_argv[optind], "mmi_status") )
         p_buffer[1] = CMD_MMI_STATUS;
+    else if ( !strcmp(ppsz_argv[optind], "mmi_send_text") ) {
+        struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
+        p_buffer[1] = CMD_MMI_SEND_TEXT;
+        p_cmd->i_slot = atoi(p_arg1);
+
+        en50221_mmi_object_t object;
+        object.i_object_type = EN50221_MMI_ANSW;
+        if ( !p_arg2 || p_arg2[0] == '\0' )
+        {
+             object.u.answ.b_ok = 0;
+             object.u.answ.psz_answ = "";
+        }
+        else
+        {
+             object.u.answ.b_ok = 1;
+             object.u.answ.psz_answ = p_arg2;
+        }
+        i_size = COMM_BUFFER_SIZE - COMM_HEADER_SIZE
+                  - ((void *)&p_cmd->object - (void *)p_cmd);
+        if ( en50221_SerializeMMIObject( (uint8_t *)&p_cmd->object,
+                                         &i_size, &object ) == -1 )
+        {
+            msg_Err( NULL, "buffer too small" );
+            close( i_fd );
+            unlink( psz_client_socket );
+            exit(255);
+        }
+        i_size += COMM_HEADER_SIZE
+                   + ((void *)&p_cmd->object - (void *)p_cmd);
+    }
+    else if ( !strcmp(ppsz_argv[optind], "mmi_send_choice") ) {
+        struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
+        p_buffer[1] = CMD_MMI_SEND_CHOICE;
+        p_cmd->i_slot = atoi(p_arg1);
+
+        i_size = COMM_HEADER_SIZE + sizeof(struct cmd_mmi_send);
+        p_cmd->object.i_object_type = EN50221_MMI_MENU_ANSW;
+        p_cmd->object.u.menu_answ.i_choice = atoi(p_arg2);
+    }
     else
     {
         p_buffer[4] = atoi(p_arg1);
@@ -375,50 +414,6 @@ int main( int i_argc, char **ppsz_argv )
             p_buffer[1] = CMD_MMI_CLOSE;
         else if ( !strcmp(ppsz_argv[optind], "mmi_get") )
             p_buffer[1] = CMD_MMI_RECV;
-        else
-        {
-            if ( !strcmp(ppsz_argv[optind], "mmi_send_text") )
-            {
-                struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
-                p_buffer[1] = CMD_MMI_SEND_TEXT;
-                p_cmd->i_slot = atoi(p_arg1);
-
-                en50221_mmi_object_t object;
-                object.i_object_type = EN50221_MMI_ANSW;
-                if ( !p_arg2 || p_arg2[0] == '\0' )
-                {
-                     object.u.answ.b_ok = 0;
-                     object.u.answ.psz_answ = "";
-                }
-                else
-                {
-                     object.u.answ.b_ok = 1;
-                     object.u.answ.psz_answ = p_arg2;
-                }
-                i_size = COMM_BUFFER_SIZE - COMM_HEADER_SIZE
-                          - ((void *)&p_cmd->object - (void *)p_cmd);
-                if ( en50221_SerializeMMIObject( (uint8_t *)&p_cmd->object,
-                                                 &i_size, &object ) == -1 )
-                {
-                    msg_Err( NULL, "buffer too small" );
-                    close( i_fd );
-                    unlink( psz_client_socket );
-                    exit(255);
-                }
-                i_size += COMM_HEADER_SIZE
-                           + ((void *)&p_cmd->object - (void *)p_cmd);
-            }
-            else /* mmi_send_choice */
-            {
-                struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
-                p_buffer[1] = CMD_MMI_SEND_CHOICE;
-                p_cmd->i_slot = atoi(p_arg1);
-
-                i_size = COMM_HEADER_SIZE + sizeof(struct cmd_mmi_send);
-                p_cmd->object.i_object_type = EN50221_MMI_MENU_ANSW;
-                p_cmd->object.u.menu_answ.i_choice = atoi(p_arg2);
-            }
-        }
     }
 
     if ( sendto( i_fd, p_buffer, i_size, 0, (struct sockaddr *)&sun_server,
