@@ -632,11 +632,6 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'r':
-            if ( pf_Open != dvb_Open && pf_Open != NULL )
-            {
-                msg_Err( NULL, "-r is only available for linux-dvb input" );
-                usage();
-            }
             psz_srv_socket = optarg;
             break;
 
@@ -764,11 +759,6 @@ int main( int i_argc, char **pp_argv )
             psz_udp_src = optarg;
             if ( pf_Open != NULL )
                 usage();
-            if ( psz_srv_socket != NULL )
-            {
-                msg_Err( NULL, "-r is only available for linux-dvb input" );
-                usage();
-            }
             pf_Open = udp_Open;
             pf_Read = udp_Read;
             pf_Reset = udp_Reset;
@@ -780,11 +770,6 @@ int main( int i_argc, char **pp_argv )
             i_asi_adapter = strtol( optarg, NULL, 0 );
             if ( pf_Open != NULL )
                 usage();
-            if ( psz_srv_socket != NULL )
-            {
-                msg_Err( NULL, "-r is only available for linux-dvb input" );
-                usage();
-            }
             pf_Open = asi_Open;
             pf_Read = asi_Read;
             pf_Reset = asi_Reset;

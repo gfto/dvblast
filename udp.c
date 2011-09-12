@@ -240,13 +240,19 @@ void udp_Open( void )
  *****************************************************************************/
 block_t *udp_Read( mtime_t i_poll_timeout )
 {
-    struct pollfd pfd;
-    int i_ret;
+    struct pollfd pfd[2];
+    int i_ret, i_nb_fd = 1;
 
-    pfd.fd = i_handle;
-    pfd.events = POLLIN;
+    pfd[0].fd = i_handle;
+    pfd[0].events = POLLIN;
+    if ( i_comm_fd != -1 )
+    {
+        pfd[1].fd = i_comm_fd;
+        pfd[1].events = POLLIN;
+        i_nb_fd++;
+    }
 
-    i_ret = poll( &pfd, 1, (i_poll_timeout + 999) / 1000 );
+    i_ret = poll( pfd, i_nb_fd, (i_poll_timeout + 999) / 1000 );
 
     i_wallclock = mdate();
 
@@ -258,7 +264,7 @@ block_t *udp_Read( mtime_t i_poll_timeout )
         return NULL;
     }
 
-    if ( pfd.revents )
+    if ( pfd[0].revents )
     {
         struct iovec p_iov[i_block_cnt + 1];
         block_t *p_ts, **pp_current = &p_ts;
@@ -364,6 +370,9 @@ err:
         }
         i_last_packet = 0;
     }
+
+    if ( i_comm_fd != -1 && pfd[1].revents )
+        comm_Read();
 
     return NULL;
 }

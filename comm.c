@@ -103,6 +103,23 @@ void comm_Read( void )
 
     i_command = p_buffer[1];
 
+    if ( i_frequency == 0 ) /* ASI or UDP, disable DVB only commands */
+    {
+        switch ( i_command )
+        {
+            case CMD_FRONTEND_STATUS:
+            case CMD_MMI_STATUS:
+            case CMD_MMI_SLOT_STATUS:
+            case CMD_MMI_OPEN:
+            case CMD_MMI_CLOSE:
+            case CMD_MMI_RECV:
+            case CMD_MMI_SEND:
+                i_answer = RET_NODATA;
+                i_answer_size = 0;
+                goto return_answer;
+        }
+    }
+
     switch ( i_command )
     {
     case CMD_RELOAD:
@@ -253,6 +270,7 @@ void comm_Read( void )
         break;
     }
 
+ return_answer:
     p_answer[0] = COMM_HEADER_MAGIC;
     p_answer[1] = i_answer;
     p_answer[2] = 0;

@@ -173,13 +173,19 @@ void asi_Open( void )
  *****************************************************************************/
 block_t *asi_Read( mtime_t i_poll_timeout )
 {
-    struct pollfd pfd;
-    int i_ret;
+    struct pollfd pfd[2];
+    int i_ret, i_nb_fd = 1;
 
-    pfd.fd = i_handle;
-    pfd.events = POLLIN | POLLPRI;
+    pfd[0].fd = i_handle;
+    pfd[0].events = POLLIN;
+    if ( i_comm_fd != -1 )
+    {
+        pfd[1].fd = i_comm_fd;
+        pfd[1].events = POLLIN;
+        i_nb_fd++;
+    }
 
-    i_ret = poll( &pfd, 1, (i_poll_timeout + 999) / 1000 );
+    i_ret = poll( pfd, i_nb_fd, (i_poll_timeout + 999) / 1000 );
 
     i_wallclock = mdate();
 
@@ -191,7 +197,7 @@ block_t *asi_Read( mtime_t i_poll_timeout )
         return NULL;
     }
 
-    if ( (pfd.revents & POLLPRI) )
+    if ( (pfd[0].revents & POLLPRI) )
     {
         unsigned int i_val;
 
@@ -214,7 +220,7 @@ block_t *asi_Read( mtime_t i_poll_timeout )
         }
     }
 
-    if ( (pfd.revents & POLLIN) )
+    if ( (pfd[0].revents & POLLIN) )
     {
         struct iovec p_iov[i_bufsize / TS_SIZE];
         block_t *p_ts, **pp_current = &p_ts;
@@ -273,6 +279,9 @@ block_t *asi_Read( mtime_t i_poll_timeout )
         }
         i_last_packet = 0;
     }
+
+    if ( i_comm_fd != -1 && pfd[1].revents )
+        comm_Read();
 
     return NULL;
 }
