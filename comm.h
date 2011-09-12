@@ -44,6 +44,8 @@ typedef enum {
     CMD_GET_PMT             = 14, /* arg: service_id (uint16_t) */
     CMD_GET_PIDS            = 15,
     CMD_GET_PID             = 16, /* arg: pid (uint16_t) */
+    CMD_MMI_SEND_TEXT       = 17, /* arg: slot, en50221_mmi_object_t */
+    CMD_MMI_SEND_CHOICE     = 18, /* arg: slot, en50221_mmi_object_t */
 } ctl_cmd_t;
 
 typedef enum {

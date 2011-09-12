@@ -114,6 +114,8 @@ void comm_Read( void )
             case CMD_MMI_CLOSE:
             case CMD_MMI_RECV:
             case CMD_MMI_SEND:
+            case CMD_MMI_SEND_TEXT:
+            case CMD_MMI_SEND_CHOICE:
                 i_answer = RET_NODATA;
                 i_answer_size = 0;
                 goto return_answer;
@@ -163,6 +165,8 @@ void comm_Read( void )
         break;
 
     case CMD_MMI_SEND:
+    case CMD_MMI_SEND_TEXT:
+    case CMD_MMI_SEND_CHOICE:
         i_answer = en50221_SendMMIObject( p_buffer + COMM_HEADER_SIZE,
                                           i_size - COMM_HEADER_SIZE );
         break;

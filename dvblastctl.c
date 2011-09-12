@@ -320,12 +320,12 @@ int main( int i_argc, char **ppsz_argv )
             p_buffer[1] = CMD_MMI_RECV;
         else
         {
-            struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
-            p_buffer[1] = CMD_MMI_SEND;
-            p_cmd->i_slot = atoi(ppsz_argv[optind + 1]);
-
             if ( !strcmp(ppsz_argv[optind], "mmi_send_text") )
             {
+                struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
+                p_buffer[1] = CMD_MMI_SEND_TEXT;
+                p_cmd->i_slot = atoi(p_arg1);
+
                 en50221_mmi_object_t object;
                 object.i_object_type = EN50221_MMI_ANSW;
                 if ( ppsz_argv[optind + 2] == NULL
@@ -354,6 +354,10 @@ int main( int i_argc, char **ppsz_argv )
             }
             else /* mmi_send_choice */
             {
+                struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
+                p_buffer[1] = CMD_MMI_SEND_CHOICE;
+                p_cmd->i_slot = atoi(p_arg1);
+
                 i_size = COMM_HEADER_SIZE + sizeof(struct cmd_mmi_send);
                 p_cmd->object.i_object_type = EN50221_MMI_MENU_ANSW;
                 p_cmd->object.u.menu_answ.i_choice
