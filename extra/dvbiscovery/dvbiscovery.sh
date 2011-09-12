@@ -3,7 +3,6 @@
 # dvbiscovery.sh
 ###############################################################################
 # Copyright (C) 2010 VideoLAN
-# $Id$
 #
 # Authors: Christophe Massiot <massiot@via.ecp.fr>
 #

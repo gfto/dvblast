@@ -2,7 +2,6 @@
  * output.c
  *****************************************************************************
  * Copyright (C) 2004, 2008-2010 VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>

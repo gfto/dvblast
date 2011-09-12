@@ -2,7 +2,6 @@
  * version.h
  *****************************************************************************
  * Copyright (C) 2004, 2008-2010 VideoLAN
- * $Id$
  *
  * Authors: Andy Gatward <a.j.gatward@reading.ac.uk>
  *

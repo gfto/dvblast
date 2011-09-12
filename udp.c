@@ -2,7 +2,6 @@
  * udp.c: UDP input for DVBlast
  *****************************************************************************
  * Copyright (C) 2009 VideoLAN
- * $Id: udp.c 9 2007-03-15 16:58:05Z cmassiot $
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

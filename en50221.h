@@ -2,7 +2,6 @@
  * en50221.h
  *****************************************************************************
  * Copyright (C) 2008 VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

@@ -2,7 +2,6 @@
  * dvblast.h
  *****************************************************************************
  * Copyright (C) 2004, 2008-2011 VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>

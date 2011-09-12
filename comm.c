@@ -2,7 +2,6 @@
  * comm.c: Handles the communication socket (linux-dvb only)
  *****************************************************************************
  * Copyright (C) 2008 VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

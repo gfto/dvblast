@@ -2,7 +2,6 @@
  * asi.c: support for Computer Modules ASI cards
  *****************************************************************************
  * Copyright (C) 2004, 2009 VideoLAN
- * $Id: asi.c 9 2007-03-15 16:58:05Z cmassiot $
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *

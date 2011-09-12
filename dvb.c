@@ -2,7 +2,6 @@
  * dvb.c: linux-dvb input for DVBlast
  *****************************************************************************
  * Copyright (C) 2008-2010 VideoLAN
- * $Id$
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
