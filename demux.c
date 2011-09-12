@@ -1378,7 +1378,8 @@ static void NewSDT( output_t *p_output )
             /* Regenerate descriptor 48 (service name) */
             if ( desc_get_tag( p_desc ) == 0x48 && desc48_validate( p_desc ) )
             {
-                uint8_t i_old_provider_len, i_old_service_len, i_new_desc_len = 0;
+                uint8_t i_old_provider_len, i_old_service_len;
+                uint8_t i_new_desc_len = 3; /* 1 byte - type, 1 byte provider_len, 1 byte service_len */
                 char *p_new_provider = p_output->config.psz_service_provider;
                 char *p_new_service  = p_output->config.psz_service_name;
                 const uint8_t *p_old_provider = desc48_get_provider( p_desc, &i_old_provider_len );
@@ -1403,7 +1404,8 @@ static void NewSDT( output_t *p_output )
                     i_new_desc_len += i_old_service_len;
                 }
                 desc_set_length( p_new_desc, i_new_desc_len );
-                i_total_desc_len += DESC48_HEADER_SIZE + 2 + i_new_desc_len;
+                i_total_desc_len += DESC_HEADER_SIZE + i_new_desc_len;
+                p_new_desc += DESC_HEADER_SIZE + i_new_desc_len;
             } else {
                 /* Copy single descriptor */
                 int i_desc_len = DESC_HEADER_SIZE + desc_get_length( p_desc );
