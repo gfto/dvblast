@@ -134,9 +134,34 @@ void print_pids( uint8_t *p_data )
 
 void usage()
 {
-    msg_Raw( NULL, "DVBlastctl %d.%d.%d (%s)", VERSION_MAJOR, VERSION_MINOR,
+    printf("DVBlastctl %d.%d.%d (%s)\n", VERSION_MAJOR, VERSION_MINOR,
              VERSION_REVISION, VERSION_EXTRA );
-    msg_Raw( NULL, "Usage: dvblastctl -r <remote socket> reload|shutdown|fe_status|mmi_status|mmi_open|mmi_close|mmi_get|mmi_send_text|mmi_send_choice|get_pat|get_cat|get_nit|get_sdt|get_pmt|get_pids|get_pid [<PID>] [<ServiceID>] [<CAM slot>] [-x <text|xml>] [<text/choice>]" );
+    printf("Usage: dvblastctl -r <remote socket> [-x <text|xml>] [cmd]\n");
+    printf("Options:\n");
+    printf("  -r --remote-socket <name>       Set socket name to <name>.\n" );
+    printf("  -x --print <text|xml>           Choose output format for info commands.\n" );
+    printf("Control commands:\n");
+    printf("  reload                          Reload configuration.\n");
+    printf("  shutdown                        Shutdown DVBlast.\n");
+    printf("Status commands:\n");
+    printf("  fe_status                       Read frontend status information.\n");
+    printf("  mmi_status                      Read CAM status.\n");
+    printf("MMI commands:\n");
+    printf("  mmi_slot_status <slot>          Read MMI slot status.\n");
+    printf("  mmi_open <slot>                 Open MMI slot.\n");
+    printf("  mmi_close <slot>                Close MMI slot.\n");
+    printf("  mmi_get <slot>                  Read MMI slot.\n");
+    printf("  mmi_send_text <slot> <text>     Send text to MMI slot.\n");
+    printf("  mmi_send_choice <slot> <choice> Send choice to MMI slot.\n");
+    printf("Demux info commands:\n");
+    printf("  get_pat                         Return last PAT table.\n");
+    printf("  get_cat                         Return last CAT table.\n");
+    printf("  get_nit                         Return last NIT table.\n");
+    printf("  get_sdt                         Return last SDT table.\n");
+    printf("  get_pmt <service_id>            Return last PMT table.\n");
+    printf("  get_pids                        Return info about all pids.\n");
+    printf("  get_pid <pid>                   Return info for chosen pid only.\n");
+    printf("\n");
     exit(1);
 }
 
