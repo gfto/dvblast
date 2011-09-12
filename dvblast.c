@@ -456,7 +456,7 @@ void usage()
         "[-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] "
         "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] "
         "[-z] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] "
-        "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] "
+        "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] [-B <provider_name>]"
         "[-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>]" );
 
     msg_Raw( NULL, "Input:" );
@@ -519,7 +519,7 @@ void usage()
     msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
     msg_Raw( NULL, "  -V --version          only display the version" );
-    msg_Raw( NULL, "  -Z --mrtg-file <file>   Log input packets and errors into mrtg-file" );
+    msg_Raw( NULL, "  -Z --mrtg-file <file> Log input packets and errors into mrtg-file" );
     exit(1);
 }
 

@@ -10,16 +10,20 @@ DVBlast \- Simple and powerful dvb streaming application
 [\fI-F <fec_inner>\fR] [\fI-m <modulation>\fR] [\fI-R <rolloff>\fR] [\fI-P <pilot>\fR] [\fI-K <fec_lp>\fR]
 [\fI-G <guard_interval>\fR] [\fI-H <hierarchy>\fR] [\fI-X <transmission>\fR] [\fI-O <lock_timeout>\fR]
 [\fI-u\fR] [\fI-w\fR] [\fI-U\fR] [\fI-L <latency>\fR] [\fI-E <retention>\fR] [\fI-d <dest_IP>[<:port>][/<opts>]\fR]
-[\fI-z\fR] [\fI-C\fR] [\fI-e\fR] [\fI-M <network_name\fR] [\fI-N <network_ID>\fR] [\fI-T\fR] [\fI-j <system_charset>\fR]
- [\fI-W\fR] [\fI-Y\fR] [\fI-l\fR] [\fI-g <logger ident>\fR] [\fI-Z <mrtg_file>\fR] [\fI-V\fR] [\fI-h\fR]
+[\fI-z\fR] [\fI-C\fR] [\fI-e\fR] [\fI-M <network_name>\fR] [\fI-N <network_ID>\fR] [\fI-T\fR] [\fI-j <system_charset>\fR]
+[\fI-W\fR] [\fI-Y\fR] [\fI-l\fR] [\fI-g <logger ident>\fR] [\fI-Z <mrtg_file>\fR] [\fI-V\fR] [\fI-h\fR]
 [\fI-J <DVB_charset>\fR] [\fI-B <provider_name>\fR] [\fI-Q <quit_timeout>\fR] [\fI-x <text|xml>\fR]
 .SH DESCRIPTION
-DVBlast is a simple and powerful streaming application based on the linux-dvb API.
-It opens a DVB device, tunes it, places PID filters, configures a CAM module, and demultiplexes the packets to several RTP outputs.
+DVBlast is a simple and powerful streaming application based on the linux-dvb
+API. It opens a DVB device, tunes it, places PID filters, configures a CAM
+module, and demultiplexes the packets to several RTP outputs.
 
-DVBlast is designed to be the core of a custom IRD or CID, based on a PC with Linux-supported DVB cards.
+DVBlast is designed to be the core of a custom IRD or CID, based on a PC with
+Linux-supported DVB cards.
 
-DVBlast does not do any kind of processing on the elementary streams, such as transcoding, PID remapping or remultiplexing. it does not stream from plain files, only DVB devices. If you were looking for these features, switch to VLC.
+DVBlast does not do any kind of processing on the elementary streams, such as
+transcoding, PID remapping or remultiplexing. it does not stream from plain
+files, only DVB devices. If you were looking for these features, switch to VLC.
 .SH OPTIONS
 .PP
 .TP
@@ -192,4 +196,6 @@ Read the README file for more information about the configuration of dvblast.
 .SH AUTHORS
 Writen by Marian Ďurkovič, Andy Gatward, Christophe Massiot and Jean-Paul Saman
 .SH LICENCE
-This program is free software; you can redistribute it and/or modify it under the terms of version 2 of the GNU General Public License as published by the Free Software Foundation.
+This program is free software; you can redistribute it and/or modify it under
+the terms of version 2 of the GNU General Public License as published by the
+Free Software Foundation.
