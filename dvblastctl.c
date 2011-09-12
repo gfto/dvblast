@@ -132,6 +132,38 @@ void print_pids( uint8_t *p_data )
     print_pids_footer();
 }
 
+struct dvblastctl_option {
+    char *      opt;
+    int         nparams;
+    ctl_cmd_t   cmd;
+};
+
+static const struct dvblastctl_option options[] =
+{
+    { "reload",             0, CMD_RELOAD },
+    { "shutdown",           0, CMD_SHUTDOWN },
+
+    { "fe_status",          0, CMD_FRONTEND_STATUS },
+    { "mmi_status",         0, CMD_MMI_STATUS },
+
+    { "mmi_slot_status",    1, CMD_MMI_SLOT_STATUS }, /* arg: slot */
+    { "mmi_open",           1, CMD_MMI_OPEN },        /* arg: slot */
+    { "mmi_close",          1, CMD_MMI_CLOSE },       /* arg: slot */
+    { "mmi_get",            1, CMD_MMI_RECV },        /* arg: slot */
+    { "mmi_send_text",      1, CMD_MMI_SEND },        /* arg: slot, en50221_mmi_object_t */
+    { "mmi_send_choice",    2, CMD_MMI_SEND },        /* arg: slot, en50221_mmi_object_t */
+
+    { "get_pat",            0, CMD_GET_PAT },
+    { "get_cat",            0, CMD_GET_CAT },
+    { "get_nit",            0, CMD_GET_NIT },
+    { "get_sdt",            0, CMD_GET_SDT },
+    { "get_pmt",            1, CMD_GET_PMT }, /* arg: service_id (uint16_t) */
+    { "get_pids",           0, CMD_RELOAD },
+    { "get_pid",            1, CMD_RELOAD },  /* arg: pid (uint16_t) */
+
+    { NULL, 0, 0 }
+};
+
 void usage()
 {
     printf("DVBlastctl %d.%d.%d (%s)\n", VERSION_MAJOR, VERSION_MINOR,
@@ -170,13 +202,14 @@ int main( int i_argc, char **ppsz_argv )
     char psz_client_socket[PATH_MAX] = {0};
     char *client_socket_tmpl = "dvblastctl.clientsock.XXXXXX";
     char *psz_srv_socket = NULL;
-    int i_fd;
-    int i = COMM_MAX_MSG_CHUNK;
+    int i_fd, i;
+    char *p_cmd, *p_arg1 = NULL, *p_arg2 = NULL;
     ssize_t i_size;
     struct sockaddr_un sun_client, sun_server;
     uint8_t p_buffer[COMM_BUFFER_SIZE];
     uint8_t *p_data = p_buffer + COMM_HEADER_SIZE;
     uint16_t i_pid = 0;
+    struct dvblastctl_option opt = { 0, 0, 0 };
 
     for ( ; ; )
     {
@@ -216,42 +249,40 @@ int main( int i_argc, char **ppsz_argv )
         }
     }
 
-    if ( ppsz_argv[optind] == NULL || psz_srv_socket == NULL )
-        usage();
+    /* Validate commands */
+#define usage_error(msg, ...) \
+        do { \
+            msg_Err( NULL, msg, ##__VA_ARGS__ ); \
+            usage(); \
+        } while(0)
+    p_cmd  = ppsz_argv[optind];
+    p_arg1 = ppsz_argv[optind + 1];
+    p_arg2 = ppsz_argv[optind + 2];
 
-    if ( strcmp(ppsz_argv[optind], "reload")
-          && strcmp(ppsz_argv[optind], "shutdown")
-          && strcmp(ppsz_argv[optind], "fe_status")
-          && strcmp(ppsz_argv[optind], "get_pat")
-          && strcmp(ppsz_argv[optind], "get_cat")
-          && strcmp(ppsz_argv[optind], "get_nit")
-          && strcmp(ppsz_argv[optind], "get_sdt")
-          && strcmp(ppsz_argv[optind], "get_pmt")
-          && strcmp(ppsz_argv[optind], "get_pid")
-          && strcmp(ppsz_argv[optind], "get_pids")
-          && strcmp(ppsz_argv[optind], "mmi_status")
-          && strcmp(ppsz_argv[optind], "mmi_slot_status")
-          && strcmp(ppsz_argv[optind], "mmi_open")
-          && strcmp(ppsz_argv[optind], "mmi_close")
-          && strcmp(ppsz_argv[optind], "mmi_get")
-          && strcmp(ppsz_argv[optind], "mmi_send_text")
-          && strcmp(ppsz_argv[optind], "mmi_send_choice") )
-        usage();
+    if ( !psz_srv_socket )
+        usage_error( "Remote socket is not set.\n" );
 
-    if ( (!strcmp(ppsz_argv[optind], "mmi_slot_status")
-           || !strcmp(ppsz_argv[optind], "get_pmt")
-           || !strcmp(ppsz_argv[optind], "get_pid")
-           || !strcmp(ppsz_argv[optind], "mmi_open")
-           || !strcmp(ppsz_argv[optind], "mmi_close")
-           || !strcmp(ppsz_argv[optind], "mmi_get")
-           || !strcmp(ppsz_argv[optind], "mmi_send_text")
-           || !strcmp(ppsz_argv[optind], "mmi_send_choice"))
-          && ppsz_argv[optind + 1] == NULL )
-        usage();
+    if ( !p_cmd )
+       usage_error( "Command is not set.\n" );
 
-    if ( !strcmp(ppsz_argv[optind], "mmi_send_choice")
-          && ppsz_argv[optind + 2] == NULL )
-        usage();
+    i = 0;
+    do {
+        if ( streq(ppsz_argv[optind], options[i].opt) )
+        {
+            opt = options[i];
+            break;
+        }
+    } while ( options[++i].opt );
+
+    if ( !opt.opt )
+        usage_error( "Unknown command: %s\n", p_cmd );
+
+    if ( opt.nparams == 1 && !p_arg1 )
+        usage_error( "%s option needs parameter.\n", opt.opt );
+
+    if ( opt.nparams == 2 && (!p_arg1 || !p_arg2) )
+        usage_error( "%s option needs two parameters.\n", opt.opt );
+#undef usage_error
 
     /* Create client socket name */
     char *tmpdir = getenv("TMPDIR");
@@ -274,6 +305,7 @@ int main( int i_argc, char **ppsz_argv )
         return -1;
     }
 
+    i = COMM_MAX_MSG_CHUNK;
     setsockopt( i_fd, SOL_SOCKET, SO_RCVBUF, &i, sizeof(i) );
 
     memset( &sun_client, 0, sizeof(sun_client) );
@@ -315,7 +347,7 @@ int main( int i_argc, char **ppsz_argv )
     else if ( !strcmp(ppsz_argv[optind], "get_sdt") )
         p_buffer[1] = CMD_GET_SDT;
     else if ( !strcmp(ppsz_argv[optind], "get_pmt") ) {
-        uint16_t i_sid = atoi(ppsz_argv[optind + 1]);
+        uint16_t i_sid = atoi(p_arg1);
         p_buffer[1] = CMD_GET_PMT;
         i_size = COMM_HEADER_SIZE + 2;
         p_data[0] = (uint8_t)((i_sid >> 8) & 0xff);
@@ -323,7 +355,7 @@ int main( int i_argc, char **ppsz_argv )
     } else if ( !strcmp(ppsz_argv[optind], "get_pids") )
         p_buffer[1] = CMD_GET_PIDS;
     else if ( !strcmp(ppsz_argv[optind], "get_pid") ) {
-        i_pid = (uint16_t)atoi(ppsz_argv[optind + 1]);
+        i_pid = (uint16_t)atoi(p_arg1);
         p_buffer[1] = CMD_GET_PID;
         i_size = COMM_HEADER_SIZE + 2;
         p_data[0] = (uint8_t)((i_pid >> 8) & 0xff);
@@ -332,7 +364,7 @@ int main( int i_argc, char **ppsz_argv )
         p_buffer[1] = CMD_MMI_STATUS;
     else
     {
-        p_buffer[4] = atoi(ppsz_argv[optind + 1]);
+        p_buffer[4] = atoi(p_arg1);
         i_size = COMM_HEADER_SIZE + 1;
 
         if ( !strcmp(ppsz_argv[optind], "mmi_slot_status") )
@@ -353,8 +385,7 @@ int main( int i_argc, char **ppsz_argv )
 
                 en50221_mmi_object_t object;
                 object.i_object_type = EN50221_MMI_ANSW;
-                if ( ppsz_argv[optind + 2] == NULL
-                      || ppsz_argv[optind + 2][0] == '\0' )
+                if ( !p_arg2 || p_arg2[0] == '\0' )
                 {
                      object.u.answ.b_ok = 0;
                      object.u.answ.psz_answ = "";
@@ -362,7 +393,7 @@ int main( int i_argc, char **ppsz_argv )
                 else
                 {
                      object.u.answ.b_ok = 1;
-                     object.u.answ.psz_answ = ppsz_argv[optind + 2];
+                     object.u.answ.psz_answ = p_arg2;
                 }
                 i_size = COMM_BUFFER_SIZE - COMM_HEADER_SIZE
                           - ((void *)&p_cmd->object - (void *)p_cmd);
@@ -385,8 +416,7 @@ int main( int i_argc, char **ppsz_argv )
 
                 i_size = COMM_HEADER_SIZE + sizeof(struct cmd_mmi_send);
                 p_cmd->object.i_object_type = EN50221_MMI_MENU_ANSW;
-                p_cmd->object.u.menu_answ.i_choice
-                    = atoi(ppsz_argv[optind + 2]);
+                p_cmd->object.u.menu_answ.i_choice = atoi(p_arg2);
             }
         }
     }
