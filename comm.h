@@ -26,39 +26,44 @@
 
 #define COMM_MAX_MSG_CHUNK 65535
 
-#define CMD_RELOAD 1
-#define CMD_SHUTDOWN 2
-#define CMD_FRONTEND_STATUS 3
-#define CMD_MMI_STATUS 4
-#define CMD_MMI_SLOT_STATUS 5 /* arg: slot */
-#define CMD_MMI_OPEN 6 /* arg: slot */
-#define CMD_MMI_CLOSE 7 /* arg: slot */
-#define CMD_MMI_RECV 8 /* arg: slot */
-#define CMD_MMI_SEND 9 /* arg: slot, en50221_mmi_object_t */
-#define CMD_GET_PAT 10
-#define CMD_GET_CAT 11
-#define CMD_GET_NIT 12
-#define CMD_GET_SDT 13
-#define CMD_GET_PMT 14 /* arg: service_id (uint16_t) */
-#define CMD_GET_PIDS 15
-#define CMD_GET_PID 16 /* arg: pid (uint16_t) */
+typedef enum {
+    CMD_INVALID             = 0,
+    CMD_RELOAD              = 1,
+    CMD_SHUTDOWN            = 2,
+    CMD_FRONTEND_STATUS     = 3,
+    CMD_MMI_STATUS          = 4,
+    CMD_MMI_SLOT_STATUS     = 5, /* arg: slot */
+    CMD_MMI_OPEN            = 6, /* arg: slot */
+    CMD_MMI_CLOSE           = 7, /* arg: slot */
+    CMD_MMI_RECV            = 8, /* arg: slot */
+    CMD_MMI_SEND            = 9, /* arg: slot, en50221_mmi_object_t */
+    CMD_GET_PAT             = 10,
+    CMD_GET_CAT             = 11,
+    CMD_GET_NIT             = 12,
+    CMD_GET_SDT             = 13,
+    CMD_GET_PMT             = 14, /* arg: service_id (uint16_t) */
+    CMD_GET_PIDS            = 15,
+    CMD_GET_PID             = 16, /* arg: pid (uint16_t) */
+} ctl_cmd_t;
 
-#define RET_OK 0
-#define RET_ERR 1
-#define RET_FRONTEND_STATUS 2
-#define RET_MMI_STATUS 3
-#define RET_MMI_SLOT_STATUS 4
-#define RET_MMI_RECV 5
-#define RET_MMI_WAIT 6
-#define RET_NODATA 7
-#define RET_PAT 8
-#define RET_CAT 9
-#define RET_NIT 10
-#define RET_SDT 11
-#define RET_PMT 12
-#define RET_PIDS 13
-#define RET_PID 14
-#define RET_HUH 255
+typedef enum {
+    RET_OK                  = 0,
+    RET_ERR                 = 1,
+    RET_FRONTEND_STATUS     = 2,
+    RET_MMI_STATUS          = 3,
+    RET_MMI_SLOT_STATUS     = 4,
+    RET_MMI_RECV            = 5,
+    RET_MMI_WAIT            = 6,
+    RET_NODATA              = 7,
+    RET_PAT                 = 8,
+    RET_CAT                 = 9,
+    RET_NIT                 = 10,
+    RET_SDT                 = 11,
+    RET_PMT                 = 12,
+    RET_PIDS                = 13,
+    RET_PID                 = 14,
+    RET_HUH                 = 255,
+} ctl_cmd_answer_t;
 
 struct ret_frontend_status
 {
