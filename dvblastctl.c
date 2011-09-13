@@ -54,6 +54,22 @@ int i_syslog = 0;
 print_type_t i_print_type = PRINT_TEXT;
 mtime_t now;
 
+int i_fd = -1;
+char psz_client_socket[PATH_MAX] = {0};
+
+static void clean_client_socket() {
+    if ( i_fd > -1 )
+    {
+        close( i_fd );
+        i_fd = -1;
+    }
+    if ( psz_client_socket[0] )
+    {
+        unlink( psz_client_socket );
+        psz_client_socket[0] = '\0';
+    }
+}
+
 /*****************************************************************************
  * The following two functinos are from biTStream's examples and are under the
  * WTFPL (see LICENSE.WTFPL).
@@ -67,6 +83,24 @@ static void psi_print(void *_unused, const char *psz_format, ...)
     strcpy(psz_fmt, psz_format);
     strcat(psz_fmt, "\n");
     vprintf(psz_fmt, args);
+}
+
+__attribute__ ((format(printf, 1, 2)))
+void return_error( const char *psz_format, ... )
+{
+    va_list args;
+    char psz_fmt[1024];
+
+    clean_client_socket();
+
+    va_start( args, psz_format );
+    if ( i_print_type == PRINT_XML )
+        snprintf( psz_fmt, sizeof(psz_fmt) - 1, "<ERROR msg=\"%s\"/>\n", psz_format );
+    else
+        snprintf( psz_fmt, sizeof(psz_fmt) - 1, "ERROR: %s\n", psz_format );
+    psz_fmt[sizeof(psz_fmt) - 1] = '\0';
+    vfprintf( stderr, psz_fmt, args );
+    exit(255);
 }
 
 static char *iconv_append_null(const char *p_string, size_t i_length)
@@ -199,7 +233,6 @@ void usage()
 
 int main( int i_argc, char **ppsz_argv )
 {
-    char psz_client_socket[PATH_MAX] = {0};
     char *client_socket_tmpl = "dvblastctl.clientsock.XXXXXX";
     char *psz_srv_socket = NULL;
     int i_fd, i;
@@ -295,15 +328,11 @@ int main( int i_argc, char **ppsz_argv )
         close(tmp_fd);
         unlink(psz_client_socket);
     } else {
-        msg_Err( NULL, "cannot build UNIX socket %s (%s)", psz_client_socket, strerror(errno) );
-        return -1;
+        return_error( "Cannot build UNIX socket %s (%s)", psz_client_socket, strerror(errno) );
     }
 
     if ( (i_fd = socket( AF_UNIX, SOCK_DGRAM, 0 )) < 0 )
-    {
-        msg_Err( NULL, "cannot create UNIX socket (%s)", strerror(errno) );
-        return -1;
-    }
+        return_error( "Cannot create UNIX socket (%s)", strerror(errno) );
 
     i = COMM_MAX_MSG_CHUNK;
     setsockopt( i_fd, SOL_SOCKET, SO_RCVBUF, &i, sizeof(i) );
@@ -316,11 +345,7 @@ int main( int i_argc, char **ppsz_argv )
 
     if ( bind( i_fd, (struct sockaddr *)&sun_client,
                SUN_LEN(&sun_client) ) < 0 )
-    {
-        msg_Err( NULL, "cannot bind (%s)", strerror(errno) );
-        close( i_fd );
-        exit(255);
-    }
+        return_error( "Cannot bind (%s)", strerror(errno) );
 
     memset( &sun_server, 0, sizeof(sun_server) );
     sun_server.sun_family = AF_UNIX;
@@ -385,12 +410,8 @@ int main( int i_argc, char **ppsz_argv )
                   - ((void *)&p_cmd->object - (void *)p_cmd);
         if ( en50221_SerializeMMIObject( (uint8_t *)&p_cmd->object,
                                          &i_size, &object ) == -1 )
-        {
-            msg_Err( NULL, "buffer too small" );
-            close( i_fd );
-            unlink( psz_client_socket );
-            exit(255);
-        }
+            return_error( "Comm buffer is too small" );
+
         i_size += COMM_HEADER_SIZE
                    + ((void *)&p_cmd->object - (void *)p_cmd);
     }
@@ -416,12 +437,7 @@ int main( int i_argc, char **ppsz_argv )
     /* Send command and receive answer */
     if ( sendto( i_fd, p_buffer, i_size, 0, (struct sockaddr *)&sun_server,
                  SUN_LEN(&sun_server) ) < 0 )
-    {
-        msg_Err( NULL, "cannot send comm socket (%s)", strerror(errno) );
-        close( i_fd );
-        unlink( psz_client_socket );
-        exit(255);
-    }
+        return_error( "Cannot send comm socket (%s)", strerror(errno) );
 
     uint32_t i_packet_size = 0, i_received = 0;
     do {
@@ -438,21 +454,13 @@ int main( int i_argc, char **ppsz_argv )
         i_received += i_size;
     } while ( i_received < i_packet_size );
 
-    close( i_fd );
-    unlink( psz_client_socket );
+    clean_client_socket();
     if ( i_size < COMM_HEADER_SIZE )
-    {
-        msg_Err( NULL, "cannot recv comm socket (%zd:%s)", i_size,
-                 strerror(errno) );
-        exit(255);
-    }
+        return_error( "Cannot recv from comm socket, size:%zd (%s)", i_size, strerror(errno) );
 
     /* Process answer */
     if ( p_buffer[0] != COMM_HEADER_MAGIC )
-    {
-        msg_Err( NULL, "wrong protocol version 0x%x", p_buffer[0] );
-        exit(255);
-    }
+        return_error( "Wrong protocol version 0x%x", p_buffer[0] );
 
     now = mdate();
 
@@ -460,7 +468,6 @@ int main( int i_argc, char **ppsz_argv )
     switch ( c_answer )
     {
     case RET_OK:
-        exit(0);
         break;
 
     case RET_MMI_WAIT:
@@ -468,18 +475,15 @@ int main( int i_argc, char **ppsz_argv )
         break;
 
     case RET_ERR:
-        msg_Err( NULL, "request failed" );
-        exit(255);
+        return_error( "Request failed" );
         break;
 
     case RET_HUH:
-        msg_Err( NULL, "internal error" );
-        exit(255);
+        return_error( "Internal error" );
         break;
 
     case RET_NODATA:
-        msg_Err( NULL, "no data" );
-        exit(255);
+        return_error( "No data" );
         break;
 
     case RET_PAT:
@@ -502,14 +506,12 @@ int main( int i_argc, char **ppsz_argv )
 
         psi_table_free( pp_sections );
         free( pp_sections );
-        exit(0);
         break;
     }
 
     case RET_PMT:
     {
         pmt_print( p_data, psi_print, NULL, psi_iconv, NULL, i_print_type );
-        exit(0);
         break;
     }
 
@@ -518,14 +520,12 @@ int main( int i_argc, char **ppsz_argv )
         print_pids_header();
         print_pid( i_pid, (ts_pid_info_t *)p_data );
         print_pids_footer();
-        exit(0);
         break;
     }
 
     case RET_PIDS:
     {
         print_pids( p_data );
-        exit(0);
         break;
     }
 
@@ -535,10 +535,7 @@ int main( int i_argc, char **ppsz_argv )
         struct ret_frontend_status *p_ret =
             (struct ret_frontend_status *)&p_buffer[COMM_HEADER_SIZE];
         if ( i_size != COMM_HEADER_SIZE + sizeof(struct ret_frontend_status) )
-        {
-            msg_Err( NULL, "bad frontend status" );
-            exit(255);
-        }
+            return_error( "Bad frontend status" );
 
         if ( i_print_type == PRINT_XML )
             printf("<FRONTEND>\n");
@@ -678,10 +675,7 @@ int main( int i_argc, char **ppsz_argv )
         struct ret_mmi_status *p_ret =
             (struct ret_mmi_status *)&p_buffer[COMM_HEADER_SIZE];
         if ( i_size != COMM_HEADER_SIZE + sizeof(struct ret_mmi_status) )
-        {
-            msg_Err( NULL, "bad MMI status" );
-            exit(255);
-        }
+            return_error( "Bad MMI status" );
 
         printf("CA interface with %d %s, type:\n", p_ret->caps.slot_num,
                p_ret->caps.slot_num == 1 ? "slot" : "slots");
@@ -715,10 +709,7 @@ int main( int i_argc, char **ppsz_argv )
         struct ret_mmi_slot_status *p_ret =
             (struct ret_mmi_slot_status *)&p_buffer[COMM_HEADER_SIZE];
         if ( i_size < COMM_HEADER_SIZE + sizeof(struct ret_mmi_slot_status) )
-        {
-            msg_Err( NULL, "bad MMI slot status" );
-            exit(255);
-        }
+            return_error( "Bad MMI slot status" );
 
         printf("CA slot #%u: ", p_ret->sinfo.num);
 
@@ -751,10 +742,7 @@ int main( int i_argc, char **ppsz_argv )
         struct ret_mmi_recv *p_ret =
             (struct ret_mmi_recv *)&p_buffer[COMM_HEADER_SIZE];
         if ( i_size < COMM_HEADER_SIZE + sizeof(struct ret_mmi_recv) )
-        {
-            msg_Err( NULL, "bad MMI recv" );
-            exit(255);
-        }
+            return_error( "Bad MMI recv" );
 
         en50221_UnserializeMMIObject( &p_ret->object, i_size
           - COMM_HEADER_SIZE - ((void *)&p_ret->object - (void *)p_ret) );
@@ -789,8 +777,7 @@ int main( int i_argc, char **ppsz_argv )
             break;
 
         default:
-            printf("unknown MMI object\n");
-            exit(255);
+            return_error( "Unknown MMI object" );
             break;
         }
 
@@ -799,7 +786,8 @@ int main( int i_argc, char **ppsz_argv )
     }
 
     default:
-        msg_Err( NULL, "wrong answer %u", c_answer );
-        exit(255);
+        return_error( "Unknown command answer: %u", c_answer );
     }
+
+    return 0;
 }
