@@ -235,7 +235,7 @@ int main( int i_argc, char **ppsz_argv )
 {
     char *client_socket_tmpl = "dvblastctl.clientsock.XXXXXX";
     char *psz_srv_socket = NULL;
-    int i_fd, i;
+    int i;
     char *p_cmd, *p_arg1 = NULL, *p_arg2 = NULL;
     ssize_t i_size;
     struct sockaddr_un sun_client, sun_server;
