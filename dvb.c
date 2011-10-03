@@ -158,6 +158,9 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
         return NULL;
     }
 
+    if ( ufds[1].revents )
+        FrontendPoll();
+
     if ( ufds[0].revents )
     {
         p_blocks = DVRRead();
@@ -187,9 +190,6 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
             i_ca_next_event = i_wallclock + CA_POLL_PERIOD;
         }
     }
-
-    if ( ufds[1].revents )
-        FrontendPoll();
 
     if ( i_frontend_timeout && i_wallclock > i_frontend_timeout )
     {
