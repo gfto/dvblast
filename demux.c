@@ -1627,12 +1627,13 @@ void demux_ResendCAPMTs( void )
 }
 
 /* Find CA descriptor that have PID i_ca_pid */
-static uint8_t *ca_desc_find( uint8_t *p_descs, uint16_t i_ca_pid )
+static uint8_t *ca_desc_find( uint8_t *p_descl, uint16_t i_length,
+                              uint16_t i_ca_pid )
 {
     int j = 0;
     uint8_t *p_desc;
 
-    while ( (p_desc = descs_get_desc( p_descs, j++ )) != NULL ) {
+    while ( (p_desc = descl_get_desc( p_descl, i_length, j++ )) != NULL ) {
         if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
             continue;
         if ( desc09_get_pid( p_desc ) == i_ca_pid )
@@ -2028,15 +2029,13 @@ static void HandleCAT( mtime_t i_dts )
             uint8_t *p_section = psi_table_get_section( pp_current_cat_sections, i );
 
             j = 0;
-            uint8_t *p_cat_descs = cat_alloc_descs( p_section );
-            while ( (p_desc = descs_get_desc( p_cat_descs, j++ )) != NULL )
+            while ( (p_desc = descl_get_desc( cat_get_descl(p_section), cat_get_desclength(p_section), j++ )) != NULL )
             {
                 if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
                     continue;
 
                 SetPID_EMM( desc09_get_pid( p_desc ) );
             }
-            cat_free_descs( p_cat_descs );
         }
     }
 
@@ -2047,8 +2046,7 @@ static void HandleCAT( mtime_t i_dts )
         {
             uint8_t *p_old_section = psi_table_get_section( pp_old_cat_sections, i );
             j = 0;
-            uint8_t *p_old_cat_descs = cat_alloc_descs( p_old_section );
-            while ( (p_desc = descs_get_desc( p_old_cat_descs, j++ )) != NULL )
+            while ( (p_desc = descl_get_desc( cat_get_descl(p_old_section), cat_get_desclength(p_old_section), j++ )) != NULL )
             {
                 uint16_t emm_pid;
                 int pid_found = 0;
@@ -2065,18 +2063,16 @@ static void HandleCAT( mtime_t i_dts )
                     uint8_t *p_section = psi_table_get_section( pp_current_cat_sections, r );
 
                     k = 0;
-                    uint8_t *p_cat_descs = cat_alloc_descs( p_section );
-                    while ( (p_desc = descs_get_desc( p_cat_descs, k++ )) != NULL )
+                    while ( (p_desc = descl_get_desc( cat_get_descl(p_section), cat_get_desclength(p_section), k++ )) != NULL )
                     {
                         if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
                             continue;
-                        if ( ca_desc_find( p_cat_descs, emm_pid ) != NULL )
+                        if ( ca_desc_find( cat_get_descl(p_section), cat_get_desclength(p_section), emm_pid ) != NULL )
                         {
                             pid_found = 1;
                             break;
                         }
                     }
-                    cat_free_descs( p_cat_descs );
                 }
 
                 if ( !pid_found )
@@ -2085,7 +2081,6 @@ static void HandleCAT( mtime_t i_dts )
                     b_display = true;
                 }
             }
-            cat_free_descs( p_old_cat_descs );
         }
 
         psi_table_free( pp_old_cat_sections );
@@ -2260,7 +2255,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
             {
                 if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
                     continue;
-                if ( ca_desc_find( pmt_get_descs( p_pmt ), desc09_get_pid( p_desc ) ) == NULL )
+                if ( ca_desc_find( pmt_get_descs(p_pmt) + DESCS_HEADER_SIZE, descs_get_length(pmt_get_descs(p_pmt)), desc09_get_pid( p_desc ) ) == NULL )
                     UnselectPID( i_sid, desc09_get_pid( p_desc ) );
             }
         }
@@ -2785,18 +2780,15 @@ static const char *get_pid_desc(uint16_t i_pid, uint16_t *i_sid) {
             uint8_t *p_section = psi_table_get_section( pp_current_cat_sections, i );
 
             j = 0;
-            uint8_t *p_cat_descs = cat_alloc_descs( p_section );
-            while ( (p_desc = descs_get_desc( p_cat_descs, j++ )) != NULL )
+            while ( (p_desc = descl_get_desc( cat_get_descl(p_section), cat_get_desclength(p_section), j++ )) != NULL )
             {
                 if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
                     continue;
 
                 if ( desc09_get_pid( p_desc ) == i_pid ) {
-                    cat_free_descs( p_cat_descs );
                     return "EMM";
                 }
             }
-            cat_free_descs( p_cat_descs );
         }
     }
 
