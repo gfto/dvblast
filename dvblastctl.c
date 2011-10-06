@@ -192,8 +192,8 @@ static const struct dvblastctl_option options[] =
     { "get_nit",            0, CMD_GET_NIT },
     { "get_sdt",            0, CMD_GET_SDT },
     { "get_pmt",            1, CMD_GET_PMT }, /* arg: service_id (uint16_t) */
-    { "get_pids",           0, CMD_RELOAD },
-    { "get_pid",            1, CMD_RELOAD },  /* arg: pid (uint16_t) */
+    { "get_pids",           0, CMD_GET_PIDS },
+    { "get_pid",            1, CMD_GET_PID },  /* arg: pid (uint16_t) */
 
     { NULL, 0, 0 }
 };
@@ -388,6 +388,7 @@ int main( int i_argc, char **ppsz_argv )
         i_size = COMM_HEADER_SIZE + 2;
         p_data[0] = (uint8_t)((i_pid >> 8) & 0xff);
         p_data[1] = (uint8_t)(i_pid & 0xff);
+        break;
     }
     case CMD_MMI_SEND_TEXT:
     {
