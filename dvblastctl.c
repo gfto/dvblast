@@ -415,6 +415,7 @@ int main( int i_argc, char **ppsz_argv )
 
         i_size += COMM_HEADER_SIZE
                    + ((void *)&p_cmd->object - (void *)p_cmd);
+        break;
     }
     case CMD_MMI_SEND_CHOICE:
     {
@@ -424,6 +425,7 @@ int main( int i_argc, char **ppsz_argv )
         i_size = COMM_HEADER_SIZE + sizeof(struct cmd_mmi_send);
         p_cmd->object.i_object_type = EN50221_MMI_MENU_ANSW;
         p_cmd->object.u.menu_answ.i_choice = atoi(p_arg2);
+        break;
     }
     case CMD_MMI_SLOT_STATUS:
     case CMD_MMI_OPEN:
@@ -432,6 +434,7 @@ int main( int i_argc, char **ppsz_argv )
     {
         p_buffer[4] = atoi(p_arg1);
         i_size = COMM_HEADER_SIZE + 1;
+        break;
     }
     }
 
