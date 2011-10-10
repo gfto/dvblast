@@ -19,9 +19,11 @@ kernel must support DVB S2API which was merged in Linux 2.6.28 and released
 on 24 Dec 2008.
 
 DVBlast 2.0 no longer requires libdvbpsi runtime and libdvbpsi-devel for
-compilation. Instead you must install biTStream on your build machine
-(no runtime library needed). biTStream is currently available via SVN at:
-svn://svn.videolan.org/bitstream/trunk
+compilation. Instead you must install biTStream on your build machine (no
+runtime library is needed).
 
-Just checkout the biTStream repository and run `make install` before
-trying to compile DVBlast.
+To install biTStream, clone git repository and run `make install`.
+
+    git clone git://git.videolan.org/bitstream.git
+    cd bitstream
+    make install
