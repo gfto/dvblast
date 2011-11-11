@@ -166,6 +166,7 @@ extern int i_bandwidth;
 extern int i_inversion;
 extern char *psz_modulation;
 extern int i_pilot;
+extern int i_mis;
 extern int i_fec_lp;
 extern int i_guard;
 extern int i_transmission;

@@ -580,8 +580,6 @@ static int FrontendDoDiseqc(void)
     return bis_frequency;
 }
 
-#define DVBAPI_VERSION ((DVB_API_VERSION)*100+(DVB_API_VERSION_MINOR))
-
 #if DVB_API_VERSION >= 5
 
 #if DVBAPI_VERSION < 505
@@ -777,6 +775,7 @@ static void FrontendInfo( struct dvb_frontend_info info, uint32_t version,
 #if DVBAPI_VERSION >= 501
     FRONTEND_INFO( info.caps, FE_CAN_2G_MODULATION, "2G_MODULATION" )
 #endif
+    FRONTEND_INFO( info.caps, FE_CAN_MULTISTREAM, "MULTISTREAM" )
     FRONTEND_INFO( info.caps, FE_NEEDS_BENDING, "NEEDS_BENDING" )
     FRONTEND_INFO( info.caps, FE_CAN_RECOVER, "FE_CAN_RECOVER" )
     FRONTEND_INFO( info.caps, FE_CAN_MUTE_TS, "FE_CAN_MUTE_TS" )
@@ -862,6 +861,7 @@ static struct dtv_property dvbs2_cmdargs[] = {
     { .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
     { .cmd = DTV_PILOT,           .u.data = PILOT_AUTO },
     { .cmd = DTV_ROLLOFF,         .u.data = ROLLOFF_AUTO },
+    { .cmd = DTV_STREAM_ID,       .u.data = 0 },
     { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbs2_cmdseq = {
@@ -928,6 +928,7 @@ static struct dtv_properties atsc_cmdseq = {
 #define PILOT 7
 #define TRANSMISSION 8
 #define ROLLOFF 8
+#define MIS 9
 #define HIERARCHY 9
 
 struct dtv_property pclear[] = {
@@ -1132,6 +1133,7 @@ static void FrontendSet( bool b_init )
             p->props[MODULATION].u.data = GetModulation();
             p->props[PILOT].u.data = GetPilot();
             p->props[ROLLOFF].u.data = GetRollOff();
+            p->props[MIS].u.data = i_mis;
         }
         else
             p = &dvbs_cmdseq;
@@ -1141,9 +1143,10 @@ static void FrontendSet( bool b_init )
         p->props[FEC_INNER].u.data = GetFECInner(info.caps);
         p->props[FREQUENCY].u.data = FrontendDoDiseqc();
 
-        msg_Dbg( NULL, "tuning DVB-S frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d",
+        msg_Dbg( NULL, "tuning DVB-S frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d mis=%d",
                  i_frequency, i_srate, i_inversion, i_fec, i_rolloff,
-                 psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot );
+                 psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot,
+                 i_mis );
         break;
 
     case SYS_ATSC:

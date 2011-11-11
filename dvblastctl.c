@@ -626,8 +626,6 @@ int main( int i_argc, char **ppsz_argv )
         PRINT_CAPS( CAN_HIERARCHY_AUTO );
         PRINT_CAPS( CAN_MUTE_TS );
 
-#define DVBAPI_VERSION ((DVB_API_VERSION)*100+(DVB_API_VERSION_MINOR))
-
 #if DVBAPI_VERSION >= 301
         PRINT_CAPS( CAN_8VSB );
         PRINT_CAPS( CAN_16VSB );
@@ -640,6 +638,7 @@ int main( int i_argc, char **ppsz_argv )
 #if DVBAPI_VERSION >= 501
         PRINT_CAPS( CAN_2G_MODULATION );
 #endif
+        PRINT_CAPS( CAN_MULTISTREAM );
 #undef PRINT_CAPS
 
         if ( i_print_type == PRINT_TEXT )
