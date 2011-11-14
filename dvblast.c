@@ -958,7 +958,7 @@ int main( int i_argc, char **pp_argv )
     srand( time(NULL) * getpid() );
 
     demux_Open();
- 
+
     // init the mrtg logfile
     mrtgInit(psz_mrtg_file);
 
@@ -998,7 +998,7 @@ int main( int i_argc, char **pp_argv )
 
         if ( i_quit_timeout && i_quit_timeout <= i_wallclock )
         {
-            switch (i_print_type) 
+            switch (i_print_type)
             {
             case PRINT_XML:
                 printf("</TS>\n");
@@ -1010,9 +1010,9 @@ int main( int i_argc, char **pp_argv )
         }
 
         p_ts = pf_Read( i_poll_timeout );
-        if ( p_ts != NULL ) 
+        if ( p_ts != NULL )
         {
-	    mrtgAnalyse(p_ts);
+            mrtgAnalyse(p_ts);
             demux_Run( p_ts );
         }
         i_poll_timeout = output_Send();
