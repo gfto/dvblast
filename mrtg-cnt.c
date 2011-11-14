@@ -77,11 +77,13 @@ static void dumpCounts()
 // analyse the input block counting packets and errors
 // The input is a pointer to a block_t structure, which might be a linked list
 // of blocks. Each block has one TS packet.
-int mrtgAnalyse(block_t * p_ts)
+void mrtgAnalyse(block_t * p_ts)
 {
     unsigned int i_pid;
     block_t *p_block = p_ts;
-    
+
+    if (mrtg_fh == NULL) return;
+
     while (p_block != NULL) {
         uint8_t *ts_packet = p_block->p_ts;
 
@@ -155,8 +157,6 @@ int mrtgAnalyse(block_t * p_ts)
         }
         mrtg_time.tv_sec += MRTG_INTERVAL;
     }
-
-    return 0;
 }
 
 int mrtgInit(char *mrtg_file)

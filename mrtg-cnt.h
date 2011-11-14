@@ -27,6 +27,6 @@
 
 int mrtgInit(char *mrtg_file);
 void mrtgClose();
-int mrtgAnalyse(block_t * p_ts);
+void mrtgAnalyse(block_t * p_ts);
 
 #endif
