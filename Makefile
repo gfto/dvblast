@@ -70,7 +70,6 @@ uninstall:
 
 dist: clean
 	@echo "ARCHIVE dvblast-$(VERSION).tar.bz2"
-	$(Q)( cd ../ && \
-	  tar -cj --exclude-vcs --exclude $(TOPDIR)/*.tar.bz2 $(TOPDIR)/ > $(TOPDIR)/dvblast-$(VERSION).tar.bz2 )
+	$(Q)git archive --format=tar --prefix=dvblast-$(VERSION)/ master | bzip2 -9 > dvblast-$(VERSION).tar.bz2
 	$(Q)ls -l dvblast-$(VERSION).tar.bz2
 
