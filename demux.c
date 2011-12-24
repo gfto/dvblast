@@ -391,7 +391,8 @@ static void demux_Handle( block_t *p_ts )
 
     p_pids[i_pid].i_last_cc = i_cc;
 
-    if ( b_enable_emm ) {
+    if ( b_enable_emm )
+    {
         for ( i = 0; i < i_nb_outputs; i++ )
         {
             output_t *p_output = pp_outputs[i];
@@ -696,13 +697,13 @@ static void SetPID_EMM( uint16_t i_pid )
 static void UnsetPID( uint16_t i_pid )
 {
     p_pids[i_pid].i_refcount--;
-    p_pids[i_pid].b_emm = false;
 
     if ( !b_budget_mode && !p_pids[i_pid].i_refcount
           && p_pids[i_pid].i_demux_fd != -1 )
     {
         pf_UnsetFilter( p_pids[i_pid].i_demux_fd, i_pid );
         p_pids[i_pid].i_demux_fd = -1;
+        p_pids[i_pid].b_emm = false;
     }
 }
 
@@ -1790,7 +1791,7 @@ static void demux_Print(void *_unused, const char *psz_format, ...)
  *****************************************************************************/
 static void HandlePAT( mtime_t i_dts )
 {
-    bool b_display, b_change = false;
+    bool b_change = false;
     PSI_TABLE_DECLARE( pp_old_pat_sections );
     uint8_t i_last_section = psi_table_get_lastsection( pp_next_pat_sections );
     uint8_t i;
@@ -1819,10 +1820,6 @@ static void HandlePAT( mtime_t i_dts )
         goto out_pat;
     }
 
-    b_display = !psi_table_validate( pp_current_pat_sections )
-                 || psi_table_get_version( pp_current_pat_sections )
-                     != psi_table_get_version( pp_next_pat_sections );
-
     /* Switch tables. */
     psi_table_copy( pp_old_pat_sections, pp_current_pat_sections );
     psi_table_copy( pp_current_pat_sections, pp_next_pat_sections );
@@ -1832,7 +1829,7 @@ static void HandlePAT( mtime_t i_dts )
           || psi_table_get_tableidext( pp_current_pat_sections )
               != psi_table_get_tableidext( pp_old_pat_sections ) )
     {
-        b_display = b_change = true;
+        b_change = true;
         UpdateTSID();
         /* This will trigger a universal reset of everything. */
     }
@@ -1867,7 +1864,6 @@ static void HandlePAT( mtime_t i_dts )
                   || b_change )
             {
                 int i_pmt;
-                b_display = true;
 
                 if ( p_old_program != NULL )
                     DeleteProgram( i_sid, patn_get_pid( p_old_program ) );
@@ -1917,7 +1913,6 @@ static void HandlePAT( mtime_t i_dts )
                 if ( pat_table_find_program( pp_current_pat_sections, i_sid )
                       == NULL )
                 {
-                    b_display = true;
                     DeleteProgram( i_sid, i_pid );
                     UpdatePAT( i_sid );
                 }
@@ -1927,16 +1922,13 @@ static void HandlePAT( mtime_t i_dts )
         psi_table_free( pp_old_pat_sections );
     }
 
-    if ( b_display )
+    pat_table_print( pp_current_pat_sections, msg_Dbg, NULL, PRINT_TEXT );
+    if ( i_print_type != -1 )
     {
-        pat_table_print( pp_current_pat_sections, msg_Dbg, NULL, PRINT_TEXT );
-        if ( i_print_type != -1 )
-        {
-            pat_table_print( pp_current_pat_sections, demux_Print, NULL,
-                             i_print_type );
-            if ( i_print_type == PRINT_XML )
-                printf("\n");
-        }
+        pat_table_print( pp_current_pat_sections, demux_Print, NULL,
+                         i_print_type );
+        if ( i_print_type == PRINT_XML )
+            printf("\n");
     }
 
 out_pat:
@@ -1974,7 +1966,6 @@ static void HandlePATSection( uint16_t i_pid, uint8_t *p_section,
  *****************************************************************************/
 static void HandleCAT( mtime_t i_dts )
 {
-    bool b_display, b_change = false;
     PSI_TABLE_DECLARE( pp_old_cat_sections );
     uint8_t i_last_section = psi_table_get_lastsection( pp_next_cat_sections );
     uint8_t i_last_section2;
@@ -2006,36 +1997,22 @@ static void HandleCAT( mtime_t i_dts )
         goto out_cat;
     }
 
-    b_display = !psi_table_validate( pp_current_cat_sections )
-                 || psi_table_get_version( pp_current_cat_sections )
-                     != psi_table_get_version( pp_next_cat_sections );
-
     /* Switch tables. */
     psi_table_copy( pp_old_cat_sections, pp_current_cat_sections );
     psi_table_copy( pp_current_cat_sections, pp_next_cat_sections );
     psi_table_init( pp_next_cat_sections );
 
-    if ( !psi_table_validate( pp_old_cat_sections )
-          || psi_table_get_tableidext( pp_current_cat_sections )
-              != psi_table_get_tableidext( pp_old_cat_sections ) )
+    for ( i = 0; i <= i_last_section; i++ )
     {
-        b_display = b_change = true;
-    }
+        uint8_t *p_section = psi_table_get_section( pp_current_cat_sections, i );
 
-    if ( b_change )
-    {
-        for ( i = 0; i <= i_last_section; i++ )
+        j = 0;
+        while ( (p_desc = descl_get_desc( cat_get_descl(p_section), cat_get_desclength(p_section), j++ )) != NULL )
         {
-            uint8_t *p_section = psi_table_get_section( pp_current_cat_sections, i );
+            if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                continue;
 
-            j = 0;
-            while ( (p_desc = descl_get_desc( cat_get_descl(p_section), cat_get_desclength(p_section), j++ )) != NULL )
-            {
-                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
-                    continue;
-
-                SetPID_EMM( desc09_get_pid( p_desc ) );
-            }
+            SetPID_EMM( desc09_get_pid( p_desc ) );
         }
     }
 
@@ -2076,26 +2053,20 @@ static void HandleCAT( mtime_t i_dts )
                 }
 
                 if ( !pid_found )
-                {
                     UnsetPID(emm_pid);
-                    b_display = true;
-                }
             }
         }
 
         psi_table_free( pp_old_cat_sections );
     }
 
-    if ( b_display )
+    cat_table_print( pp_current_cat_sections, msg_Dbg, NULL, PRINT_TEXT );
+    if ( i_print_type != -1 )
     {
-        cat_table_print( pp_current_cat_sections, msg_Dbg, NULL, PRINT_TEXT );
-        if ( i_print_type != -1 )
-        {
-            cat_table_print( pp_current_cat_sections, demux_Print, NULL,
-                             i_print_type );
-            if ( i_print_type == PRINT_XML )
-                printf("\n");
-        }
+        cat_table_print( pp_current_cat_sections, demux_Print, NULL,
+                         i_print_type );
+        if ( i_print_type == PRINT_XML )
+            printf("\n");
     }
 
 out_cat:
@@ -2133,7 +2104,6 @@ static void HandleCATSection( uint16_t i_pid, uint8_t *p_section,
  *****************************************************************************/
 static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 {
-    bool b_change, b_new;
     uint16_t i_sid = pmt_get_program( p_pmt );
     sid_t *p_sid;
     bool b_needs_descrambling, b_needed_descrambling, b_is_selected;
@@ -2206,11 +2176,8 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
          !b_needs_descrambling && b_needed_descrambling )
         en50221_DeletePMT( p_sid->p_current_pmt );
 
-    b_new = b_change = p_sid->p_current_pmt == NULL
-                        || psi_get_version( p_sid->p_current_pmt )
-                            != psi_get_version( p_pmt );
-
-    if ( b_enable_ecm && b_new ) {
+    if ( b_enable_ecm )
+    {
         j = 0;
         while ( (p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL )
         {
@@ -2225,10 +2192,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
     {
         if ( i_pcr_pid != PADDING_PID
               && i_pcr_pid != p_sid->i_pmt_pid )
-        {
-            b_change = true;
             SelectPID( i_sid, i_pcr_pid );
-        }
     }
 
     j = 0;
@@ -2237,13 +2201,9 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
         uint16_t i_pid = pmtn_get_pid( p_es );
         j++;
 
-        if ( b_new || pmt_find_es( p_sid->p_current_pmt, i_pid ) == NULL )
-        {
-            b_change = true;
-            if ( PIDWouldBeSelected( p_es ) )
-                SelectPID( i_sid, i_pid );
-            p_pids[i_pid].b_pes = PIDCarriesPES( p_es );
-        }
+        if ( PIDWouldBeSelected( p_es ) )
+            SelectPID( i_sid, i_pid );
+        p_pids[i_pid].b_pes = PIDCarriesPES( p_es );
     }
 
     if ( p_sid->p_current_pmt != NULL )
@@ -2265,10 +2225,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
               && i_current_pcr_pid != PADDING_PID )
         {
             if ( pmt_find_es( p_pmt, i_current_pcr_pid ) == NULL )
-            {
-                b_change = true;
                 UnselectPID( i_sid, i_current_pcr_pid );
-            }
         }
 
         j = 0;
@@ -2281,10 +2238,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
                 uint16_t i_current_pid = pmtn_get_pid( p_es );
 
                 if ( pmt_find_es( p_pmt, i_current_pid ) == NULL )
-                {
-                    b_change = true;
                     UnselectPID( i_sid, i_current_pid );
-                }
             }
         }
 
@@ -2293,26 +2247,23 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
     p_sid->p_current_pmt = p_pmt;
 
-    if ( b_change )
+    if ( i_ca_handle && b_is_selected )
     {
-        if ( i_ca_handle && b_is_selected )
-        {
-            if ( b_needs_descrambling && !b_needed_descrambling )
-                en50221_AddPMT( p_pmt );
-            else if ( b_needs_descrambling && b_needed_descrambling )
-                en50221_UpdatePMT( p_pmt );
-        }
+        if ( b_needs_descrambling && !b_needed_descrambling )
+            en50221_AddPMT( p_pmt );
+        else if ( b_needs_descrambling && b_needed_descrambling )
+            en50221_UpdatePMT( p_pmt );
+    }
 
-        UpdatePMT( i_sid );
+    UpdatePMT( i_sid );
 
-        pmt_print( p_pmt, msg_Dbg, NULL, demux_Iconv, NULL, PRINT_TEXT );
-        if ( i_print_type != -1 )
-        {
-            pmt_print( p_pmt, demux_Print, NULL, demux_Iconv, NULL,
-                       i_print_type );
-            if ( i_print_type == PRINT_XML )
-                printf("\n");
-        }
+    pmt_print( p_pmt, msg_Dbg, NULL, demux_Iconv, NULL, PRINT_TEXT );
+    if ( i_print_type != -1 )
+    {
+        pmt_print( p_pmt, demux_Print, NULL, demux_Iconv, NULL,
+                   i_print_type );
+        if ( i_print_type == PRINT_XML )
+            printf("\n");
     }
 
 out_pmt:
@@ -2324,8 +2275,6 @@ out_pmt:
  *****************************************************************************/
 static void HandleNIT( mtime_t i_dts )
 {
-    bool b_display;
-
     if ( psi_table_validate( pp_current_nit_sections ) &&
          psi_table_compare( pp_current_nit_sections, pp_next_nit_sections ) )
     {
@@ -2350,26 +2299,19 @@ static void HandleNIT( mtime_t i_dts )
         goto out_nit;
     }
 
-    b_display = !psi_table_validate( pp_current_nit_sections )
-                 || psi_table_get_version( pp_current_nit_sections )
-                     != psi_table_get_version( pp_next_nit_sections );
-
     /* Switch tables. */
     psi_table_free( pp_current_nit_sections );
     psi_table_copy( pp_current_nit_sections, pp_next_nit_sections );
     psi_table_init( pp_next_nit_sections );
 
-    if ( b_display )
+    nit_table_print( pp_current_nit_sections, msg_Dbg, NULL,
+                     demux_Iconv, NULL, PRINT_TEXT );
+    if ( i_print_type != -1 )
     {
-        nit_table_print( pp_current_nit_sections, msg_Dbg, NULL,
-                         demux_Iconv, NULL, PRINT_TEXT );
-        if ( i_print_type != -1 )
-        {
-            nit_table_print( pp_current_nit_sections, demux_Print, NULL,
-                             demux_Iconv, NULL, i_print_type );
-            if ( i_print_type == PRINT_XML )
-                printf("\n");
-        }
+        nit_table_print( pp_current_nit_sections, demux_Print, NULL,
+                         demux_Iconv, NULL, i_print_type );
+        if ( i_print_type == PRINT_XML )
+            printf("\n");
     }
 
 out_nit:
@@ -2412,7 +2354,6 @@ static void HandleNITSection( uint16_t i_pid, uint8_t *p_section,
  *****************************************************************************/
 static void HandleSDT( mtime_t i_dts )
 {
-    bool b_change, b_new;
     PSI_TABLE_DECLARE( pp_old_sdt_sections );
     uint8_t i_last_section = psi_table_get_lastsection( pp_next_sdt_sections );
     uint8_t i;
@@ -2442,10 +2383,6 @@ static void HandleSDT( mtime_t i_dts )
         goto out_sdt;
     }
 
-    b_change = b_new = !psi_table_validate( pp_current_sdt_sections )
-                        || psi_table_get_version( pp_current_sdt_sections )
-                            != psi_table_get_version( pp_next_sdt_sections );
-
     /* Switch tables. */
     psi_table_copy( pp_old_sdt_sections, pp_current_sdt_sections );
     psi_table_copy( pp_current_sdt_sections, pp_next_sdt_sections );
@@ -2463,12 +2400,7 @@ static void HandleSDT( mtime_t i_dts )
             uint16_t i_sid = sdtn_get_sid( p_service );
             j++;
 
-            if ( b_new ||
-                 sdt_table_find_service( pp_old_sdt_sections, i_sid ) == NULL )
-            {
-                b_change = true;
-                UpdateSDT( i_sid );
-            }
+            UpdateSDT( i_sid );
         }
     }
 
@@ -2489,27 +2421,21 @@ static void HandleSDT( mtime_t i_dts )
 
                 if ( sdt_table_find_service( pp_current_sdt_sections, i_sid )
                       == NULL )
-                {
-                    b_change = true;
                     UpdateSDT( i_sid );
-                }
             }
         }
 
         psi_table_free( pp_old_sdt_sections );
     }
 
-    if ( b_change )
+    sdt_table_print( pp_current_sdt_sections, msg_Dbg, NULL,
+                     demux_Iconv, NULL, PRINT_TEXT );
+    if ( i_print_type != -1 )
     {
-        sdt_table_print( pp_current_sdt_sections, msg_Dbg, NULL,
-                         demux_Iconv, NULL, PRINT_TEXT );
-        if ( i_print_type != -1 )
-        {
-            sdt_table_print( pp_current_sdt_sections, demux_Print, NULL,
-                             demux_Iconv, NULL, i_print_type );
-            if ( i_print_type == PRINT_XML )
-                printf("\n");
-        }
+        sdt_table_print( pp_current_sdt_sections, demux_Print, NULL,
+                         demux_Iconv, NULL, i_print_type );
+        if ( i_print_type == PRINT_XML )
+            printf("\n");
     }
 
 out_sdt:
