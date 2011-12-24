@@ -1,4 +1,8 @@
 
+Changes between 2.0 and 2.1:
+----------------------------
+  * Fix MMI menus which were accidentally broken in 2.0
+
 Changes between 1.2 and 2.0:
 ----------------------------
   * Fix latency and potential packet loss during CAM communication

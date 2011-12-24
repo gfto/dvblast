@@ -22,7 +22,7 @@
 
 #define COMM_HEADER_SIZE 8
 #define COMM_BUFFER_SIZE (COMM_HEADER_SIZE + ((PSI_PRIVATE_MAX_SIZE + PSI_HEADER_SIZE) * (PSI_TABLE_MAX_SECTIONS / 2)))
-#define COMM_HEADER_MAGIC 0x48
+#define COMM_HEADER_MAGIC 0x49
 
 #define COMM_MAX_MSG_CHUNK 65535
 
@@ -36,7 +36,6 @@ typedef enum {
     CMD_MMI_OPEN            = 6, /* arg: slot */
     CMD_MMI_CLOSE           = 7, /* arg: slot */
     CMD_MMI_RECV            = 8, /* arg: slot */
-    CMD_MMI_SEND            = 9, /* arg: slot, en50221_mmi_object_t */
     CMD_GET_PAT             = 10,
     CMD_GET_CAT             = 11,
     CMD_GET_NIT             = 12,

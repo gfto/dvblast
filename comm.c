@@ -113,7 +113,6 @@ void comm_Read( void )
             case CMD_MMI_OPEN:
             case CMD_MMI_CLOSE:
             case CMD_MMI_RECV:
-            case CMD_MMI_SEND:
             case CMD_MMI_SEND_TEXT:
             case CMD_MMI_SEND_CHOICE:
                 i_answer = RET_NODATA;
@@ -141,34 +140,28 @@ void comm_Read( void )
         break;
 
     case CMD_MMI_SLOT_STATUS:
-        i_answer = en50221_StatusMMISlot( p_buffer + COMM_HEADER_SIZE,
-                                          i_size - COMM_HEADER_SIZE,
+        i_answer = en50221_StatusMMISlot( p_input, i_size - COMM_HEADER_SIZE,
                                           p_answer + COMM_HEADER_SIZE,
                                           &i_answer_size );
         break;
 
     case CMD_MMI_OPEN:
-        i_answer = en50221_OpenMMI( p_buffer + COMM_HEADER_SIZE,
-                                    i_size - COMM_HEADER_SIZE );
+        i_answer = en50221_OpenMMI( p_input, i_size - COMM_HEADER_SIZE );
         break;
 
     case CMD_MMI_CLOSE:
-        i_answer = en50221_CloseMMI( p_buffer + COMM_HEADER_SIZE,
-                                     i_size - COMM_HEADER_SIZE );
+        i_answer = en50221_CloseMMI( p_input, i_size - COMM_HEADER_SIZE );
         break;
 
     case CMD_MMI_RECV:
-        i_answer = en50221_GetMMIObject( p_buffer + COMM_HEADER_SIZE,
-                                         i_size - COMM_HEADER_SIZE,
+        i_answer = en50221_GetMMIObject( p_input, i_size - COMM_HEADER_SIZE,
                                          p_answer + COMM_HEADER_SIZE,
                                          &i_answer_size );
         break;
 
-    case CMD_MMI_SEND:
     case CMD_MMI_SEND_TEXT:
     case CMD_MMI_SEND_CHOICE:
-        i_answer = en50221_SendMMIObject( p_buffer + COMM_HEADER_SIZE,
-                                          i_size - COMM_HEADER_SIZE );
+        i_answer = en50221_SendMMIObject( p_input, i_size - COMM_HEADER_SIZE );
         break;
 
     case CMD_SHUTDOWN:

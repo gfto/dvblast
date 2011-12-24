@@ -71,7 +71,7 @@ static void clean_client_socket() {
 }
 
 /*****************************************************************************
- * The following two functinos are from biTStream's examples and are under the
+ * The following two functions are from biTStream's examples and are under the
  * WTFPL (see LICENSE.WTFPL).
  ****************************************************************************/
 __attribute__ ((format(printf, 2, 3)))
@@ -184,8 +184,8 @@ static const struct dvblastctl_option options[] =
     { "mmi_open",           1, CMD_MMI_OPEN },        /* arg: slot */
     { "mmi_close",          1, CMD_MMI_CLOSE },       /* arg: slot */
     { "mmi_get",            1, CMD_MMI_RECV },        /* arg: slot */
-    { "mmi_send_text",      1, CMD_MMI_SEND },        /* arg: slot, en50221_mmi_object_t */
-    { "mmi_send_choice",    2, CMD_MMI_SEND },        /* arg: slot, en50221_mmi_object_t */
+    { "mmi_send_text",      1, CMD_MMI_SEND_TEXT },   /* arg: slot, en50221_mmi_object_t */
+    { "mmi_send_choice",    2, CMD_MMI_SEND_CHOICE }, /* arg: slot, en50221_mmi_object_t */
 
     { "get_pat",            0, CMD_GET_PAT },
     { "get_cat",            0, CMD_GET_CAT },
@@ -354,8 +354,7 @@ int main( int i_argc, char **ppsz_argv )
 
     p_buffer[0] = COMM_HEADER_MAGIC;
     p_buffer[1] = opt.cmd;
-    p_buffer[2] = 0;
-    p_buffer[3] = 0;
+    memset( p_buffer + 2, 0, COMM_HEADER_SIZE - 2 );
     i_size = COMM_HEADER_SIZE;
 
     /* Handle commands that send parameters */
@@ -366,7 +365,6 @@ int main( int i_argc, char **ppsz_argv )
     case CMD_SHUTDOWN:
     case CMD_FRONTEND_STATUS:
     case CMD_MMI_STATUS:
-    case CMD_MMI_SEND:
     case CMD_GET_PAT:
     case CMD_GET_CAT:
     case CMD_GET_NIT:
@@ -392,7 +390,7 @@ int main( int i_argc, char **ppsz_argv )
     }
     case CMD_MMI_SEND_TEXT:
     {
-        struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
+        struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)p_data;
         p_cmd->i_slot = atoi(p_arg1);
 
         en50221_mmi_object_t object;
@@ -419,7 +417,7 @@ int main( int i_argc, char **ppsz_argv )
     }
     case CMD_MMI_SEND_CHOICE:
     {
-        struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)&p_buffer[4];
+        struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)p_data;
         p_cmd->i_slot = atoi(p_arg1);
 
         i_size = COMM_HEADER_SIZE + sizeof(struct cmd_mmi_send);
@@ -432,10 +430,13 @@ int main( int i_argc, char **ppsz_argv )
     case CMD_MMI_CLOSE:
     case CMD_MMI_RECV:
     {
-        p_buffer[4] = atoi(p_arg1);
+        p_data[0] = atoi(p_arg1);
         i_size = COMM_HEADER_SIZE + 1;
         break;
     }
+    default:
+        /* This should not happen */
+        return_error( "Unhandled option (%d)", opt.cmd );
     }
 
     /* Send command and receive answer */
