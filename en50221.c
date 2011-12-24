@@ -2396,6 +2396,12 @@ uint8_t en50221_SendMMIObject( uint8_t *p_buffer, ssize_t i_size )
     int i_session_id, i_slot;
     struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)p_buffer;
 
+    if ( i_size < sizeof(struct cmd_mmi_send))
+    {
+        msg_Err( NULL, "command packet too short (%zd)\n", i_size );
+        return RET_HUH;
+    }
+
     if ( en50221_UnserializeMMIObject( &p_cmd->object, i_size -
                          ((void *)&p_cmd->object - (void *)p_cmd) ) == -1 )
          return RET_ERR;
