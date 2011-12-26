@@ -969,8 +969,8 @@ static void FrontendSet( bool b_init )
 
 #else /* !S2API */
 
-#warn "You are trying to compile DVBlast with an outdated linux-dvb interface."
-#warn "DVBlast will be very limited and some options will have no effect."
+#warning "You are trying to compile DVBlast with an outdated linux-dvb interface."
+#warning "DVBlast will be very limited and some options will have no effect."
 
 static void FrontendSet( bool b_init )
 {
