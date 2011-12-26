@@ -128,12 +128,29 @@ static bool PIDWouldBeSelected( uint8_t *p_es );
 static bool PMTNeedsDescrambling( uint8_t *p_pmt );
 static void FlushEIT( output_t *p_output, mtime_t i_dts );
 static void SendTDT( block_t *p_ts );
+static void SendEMM( block_t *p_ts );
 static void NewPAT( output_t *p_output );
 static void NewPMT( output_t *p_output );
 static void NewNIT( output_t *p_output );
 static void NewSDT( output_t *p_output );
 static void HandlePSIPacket( uint8_t *p_ts, mtime_t i_dts );
 static const char *get_pid_desc(uint16_t i_pid, uint16_t *i_sid);
+
+/*****************************************************************************
+ * FindSID
+ *****************************************************************************/
+static inline sid_t *FindSID( uint16_t i_sid )
+{
+    int i;
+
+    for ( i = 0; i < i_nb_sids; i++ )
+    {
+        sid_t *p_sid = pp_sids[i];
+        if ( p_sid->i_sid == i_sid )
+            return p_sid;
+    }
+    return NULL;
+}
 
 /*****************************************************************************
  * demux_Open
@@ -162,7 +179,8 @@ void demux_Open( void )
     SetPID(PAT_PID);
     p_pids[PAT_PID].i_psi_refcount++;
 
-    if ( b_enable_emm ) {
+    if ( b_enable_emm )
+    {
         psi_table_init( pp_current_cat_sections );
         psi_table_init( pp_next_cat_sections );
         SetPID_EMM(CAT_PID);
@@ -361,6 +379,9 @@ static void demux_Handle( block_t *p_ts )
         else if ( p_pids[i_pid].i_psi_refcount )
             HandlePSIPacket( p_ts->p_ts, p_ts->i_dts );
 
+        if ( b_enable_emm && p_pids[i_pid].b_emm )
+            SendEMM( p_ts );
+
         /* PCR handling */
         if ( ts_has_adaptation( p_ts->p_ts )
               && ts_get_adaptation( p_ts->p_ts )
@@ -390,16 +411,6 @@ static void demux_Handle( block_t *p_ts )
     }
 
     p_pids[i_pid].i_last_cc = i_cc;
-
-    if ( b_enable_emm )
-    {
-        for ( i = 0; i < i_nb_outputs; i++ )
-        {
-            output_t *p_output = pp_outputs[i];
-            if ( p_output->config.i_config & OUTPUT_VALID && p_pids[i_pid].b_emm )
-                output_Put( p_output, p_ts );
-        }
-    }
 
     /* Output */
     for ( i = 0; i < p_pids[i_pid].i_nb_outputs; i++ )
@@ -522,19 +533,18 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
 
     if ( b_sid_change && i_old_sid )
     {
+        sid_t *p_old_sid = FindSID( i_old_sid );
         p_output->config.i_sid = p_config->i_sid;
-        for ( i = 0; i < i_nb_sids; i++ )
-        {
-            if ( pp_sids[i]->i_sid == i_old_sid )
-            {
-                UnsetPID( pp_sids[i]->i_pmt_pid );
 
-                if ( i_ca_handle && !SIDIsSelected( i_old_sid )
-                      && pp_sids[i]->p_current_pmt != NULL
-                      && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
-                    en50221_DeletePMT( pp_sids[i]->p_current_pmt );
-                break;
-            }
+        if ( p_old_sid != NULL )
+        {
+            if ( i_sid != i_old_sid )
+                UnselectPMT( i_old_sid, p_old_sid->i_pmt_pid );
+
+            if ( i_ca_handle && !SIDIsSelected( i_old_sid )
+                  && p_old_sid->p_current_pmt != NULL
+                  && PMTNeedsDescrambling( p_old_sid->p_current_pmt ) )
+                en50221_DeletePMT( p_old_sid->p_current_pmt );
         }
     }
 
@@ -550,16 +560,10 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     if ( b_sid_change && i_ca_handle && i_old_sid &&
          SIDIsSelected( i_old_sid ) )
     {
-        for ( i = 0; i < i_nb_sids; i++ )
-        {
-            if ( pp_sids[i]->i_sid == i_old_sid )
-            {
-                if ( pp_sids[i]->p_current_pmt != NULL
-                      && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
-                    en50221_UpdatePMT( pp_sids[i]->p_current_pmt );
-                break;
-            }
-        }
+        sid_t *p_old_sid = FindSID( i_old_sid );
+        if ( p_old_sid != NULL && p_old_sid->p_current_pmt != NULL
+              && PMTNeedsDescrambling( p_old_sid->p_current_pmt ) )
+            en50221_UpdatePMT( p_old_sid->p_current_pmt );
     }
 
     for ( i = 0; i < i_nb_wanted_pids; i++ )
@@ -576,34 +580,27 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
 
     if ( b_sid_change && i_sid )
     {
+        sid_t *p_sid = FindSID( i_sid );
         p_output->config.i_sid = i_old_sid;
-        for ( i = 0; i < i_nb_sids; i++ )
-        {
-            if ( pp_sids[i]->i_sid == i_sid )
-            {
-                SetPID( pp_sids[i]->i_pmt_pid );
 
-                if ( i_ca_handle && !SIDIsSelected( i_sid )
-                      && pp_sids[i]->p_current_pmt != NULL
-                      && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
-                    en50221_AddPMT( pp_sids[i]->p_current_pmt );
-                break;
-            }
+        if ( p_sid != NULL )
+        {
+            if ( i_sid != i_old_sid )
+                SelectPMT( i_sid, p_sid->i_pmt_pid );
+
+            if ( i_ca_handle && !SIDIsSelected( i_sid )
+                  && p_sid->p_current_pmt != NULL
+                  && PMTNeedsDescrambling( p_sid->p_current_pmt ) )
+                en50221_AddPMT( p_sid->p_current_pmt );
         }
     }
 
     if ( i_ca_handle && i_sid && SIDIsSelected( i_sid ) )
     {
-        for ( i = 0; i < i_nb_sids; i++ )
-        {
-            if ( pp_sids[i]->i_sid == i_sid )
-            {
-                if ( pp_sids[i]->p_current_pmt != NULL
-                      && PMTNeedsDescrambling( pp_sids[i]->p_current_pmt ) )
-                    en50221_UpdatePMT( pp_sids[i]->p_current_pmt );
-                break;
-            }
-        }
+        sid_t *p_sid = FindSID( i_sid );
+        if ( p_sid != NULL && p_sid->p_current_pmt != NULL
+              && PMTNeedsDescrambling( p_sid->p_current_pmt ) )
+            en50221_UpdatePMT( p_sid->p_current_pmt );
     }
 
     p_output->config.i_sid = i_sid;
@@ -824,10 +821,10 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
                      uint16_t i_sid,
                      const uint16_t *pi_pids, int i_nb_pids )
 {
-    uint8_t *p_pmt = NULL;
+    sid_t *p_sid;
+    uint8_t *p_pmt;
     uint16_t i_pmt_pid, i_pcr_pid;
     uint8_t *p_es;
-    int i;
     uint8_t j;
 
     if ( i_nb_pids || i_sid == 0 )
@@ -841,18 +838,12 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
     *pi_nb_wanted_pids = 0;
     *ppi_wanted_pids = NULL;
 
-    for ( i = 0; i < i_nb_sids; i++ )
-    {
-        if ( pp_sids[i]->i_sid == i_sid )
-        {
-            p_pmt = pp_sids[i]->p_current_pmt;
-            i_pmt_pid = pp_sids[i]->i_pmt_pid;
-            break;
-        }
-    }
-
-    if ( p_pmt == NULL )
+    p_sid = FindSID( i_sid );
+    if ( p_sid == NULL )
         return;
+
+    p_pmt = p_sid->p_current_pmt;
+    i_pmt_pid = p_sid->i_pmt_pid;
 
     i_pcr_pid = pmt_get_pcrpid( p_pmt );
     j = 0;
@@ -1103,6 +1094,21 @@ static void SendTDT( block_t *p_ts )
             output_Put( p_output, p_ts );
     }
 }
+/*****************************************************************************
+ * SendEMM
+ *****************************************************************************/
+static void SendEMM( block_t *p_ts )
+{
+    int i;
+
+    for ( i = 0; i < i_nb_outputs; i++ )
+    {
+        output_t *p_output = pp_outputs[i];
+
+        if ( (p_output->config.i_config & OUTPUT_VALID) )
+            output_Put( p_output, p_ts );
+    }
+}
 
 /*****************************************************************************
  * NewPAT
@@ -1169,8 +1175,7 @@ static void CopyDescriptors( uint8_t *p_descs, uint8_t *p_current_descs )
         uint8_t i_tag = desc_get_tag( p_current_desc );
 
         j++;
-        /* A descrambled stream is not supposed to carry CA descriptors. */
-        if ( i_ca_handle && i_tag == 0x9 ) continue;
+        if ( b_enable_ecm && i_tag == 0x9 ) continue;
 
         p_desc = descs_get_desc( p_descs, k );
         if ( p_desc == NULL ) continue; /* This shouldn't happen */
@@ -1189,10 +1194,10 @@ static void CopyDescriptors( uint8_t *p_descs, uint8_t *p_current_descs )
 
 static void NewPMT( output_t *p_output )
 {
+    sid_t *p_sid;
     uint8_t *p_current_pmt;
     uint8_t *p_es, *p_current_es;
     uint8_t *p;
-    int i;
     uint16_t j, k;
 
     free( p_output->p_pmt_section );
@@ -1201,14 +1206,11 @@ static void NewPMT( output_t *p_output )
 
     if ( !p_output->config.i_sid ) return;
 
-    for ( i = 0; i < i_nb_sids; i++ )
-        if ( pp_sids[i]->i_sid == p_output->config.i_sid )
-            break;
+    p_sid = FindSID( p_output->config.i_sid );
+    if ( p_sid == NULL ) return;
 
-    if ( i == i_nb_sids ) return;
-
-    if ( pp_sids[i]->p_current_pmt == NULL ) return;
-    p_current_pmt = pp_sids[i]->p_current_pmt;
+    if ( p_sid->p_current_pmt == NULL ) return;
+    p_current_pmt = p_sid->p_current_pmt;
 
     p = p_output->p_pmt_section = psi_allocate();
     pmt_init( p );
@@ -1474,7 +1476,7 @@ static bool SIDIsSelected( uint16_t i_sid )
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
-        if ( ( pp_outputs[i]->config.i_config & OUTPUT_VALID )
+        if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
              && pp_outputs[i]->config.i_sid == i_sid )
             return true;
 
@@ -1649,63 +1651,59 @@ static uint8_t *ca_desc_find( uint8_t *p_descl, uint16_t i_length,
  *****************************************************************************/
 static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
 {
-    int i_pmt;
+    sid_t *p_sid;
+    uint8_t *p_pmt;
 
     UnselectPMT( i_sid, i_pid );
 
-    for ( i_pmt = 0; i_pmt < i_nb_sids; i_pmt++ )
+    p_sid = FindSID( i_sid );
+    if ( p_sid == NULL ) return;
+
+    p_pmt = p_sid->p_current_pmt;
+
+    if ( p_pmt != NULL )
     {
-        sid_t *p_sid = pp_sids[i_pmt];
-        if ( p_sid->i_sid == i_sid )
+        uint16_t i_pcr_pid = pmt_get_pcrpid( p_pmt );
+        uint8_t *p_es;
+        uint8_t j;
+
+        if ( i_ca_handle && SIDIsSelected( i_sid )
+             && PMTNeedsDescrambling( p_pmt ) )
+            en50221_DeletePMT( p_pmt );
+
+        if ( i_pcr_pid != PADDING_PID
+              && i_pcr_pid != p_sid->i_pmt_pid )
+            UnselectPID( i_sid, i_pcr_pid );
+
+        if ( b_enable_ecm )
         {
-            uint8_t *p_pmt = p_sid->p_current_pmt;
+            j = 0;
+            uint8_t *p_desc;
 
-            if ( p_pmt != NULL )
+            while ((p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL)
             {
-                uint16_t i_pcr_pid = pmt_get_pcrpid( p_pmt );
-                uint8_t *p_es;
-                uint8_t j;
-
-                if ( i_ca_handle
-                     && SIDIsSelected( i_sid )
-                     && PMTNeedsDescrambling( p_pmt ) )
-                    en50221_DeletePMT( p_pmt );
-
-                if ( i_pcr_pid != PADDING_PID
-                      && i_pcr_pid != p_sid->i_pmt_pid )
-                    UnselectPID( i_sid, i_pcr_pid );
-
-                if ( b_enable_ecm )
-                {
-                    j = 0;
-                    uint8_t *p_desc;
-
-                    while ((p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL)
-                    {
-                        if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
-                            continue;
-                        UnselectPID( i_sid, desc09_get_pid( p_desc ) );
-                    }
-                }
-
-                j = 0;
-                while ( (p_es = pmt_get_es( p_pmt, j )) != NULL )
-                {
-                    uint16_t i_pid = pmtn_get_pid( p_es );
-                    j++;
-
-                    if ( PIDWouldBeSelected( p_es ) )
-                        UnselectPID( i_sid, i_pid );
-                }
-
-                free( p_pmt );
-                pp_sids[i_pmt]->p_current_pmt = NULL;
+                if ( desc_get_tag( p_desc ) != 0x09 ||
+                     !desc09_validate( p_desc ) )
+                    continue;
+                UnselectPID( i_sid, desc09_get_pid( p_desc ) );
             }
-            pp_sids[i_pmt]->i_sid = 0;
-            pp_sids[i_pmt]->i_pmt_pid = 0;
-            break;
         }
+
+        j = 0;
+        while ( (p_es = pmt_get_es( p_pmt, j )) != NULL )
+        {
+            uint16_t i_pid = pmtn_get_pid( p_es );
+            j++;
+
+            if ( PIDWouldBeSelected( p_es ) )
+                UnselectPID( i_sid, i_pid );
+        }
+
+        free( p_pmt );
+        p_sid->p_current_pmt = NULL;
     }
+    p_sid->i_sid = 0;
+    p_sid->i_pmt_pid = 0;
 }
 
 /*****************************************************************************
@@ -1863,28 +1861,25 @@ static void HandlePAT( mtime_t i_dts )
                   || patn_get_pid( p_old_program ) != i_pid
                   || b_change )
             {
-                int i_pmt;
+                sid_t *p_sid;
 
                 if ( p_old_program != NULL )
                     DeleteProgram( i_sid, patn_get_pid( p_old_program ) );
 
                 SelectPMT( i_sid, i_pid );
 
-                for ( i_pmt = 0; i_pmt < i_nb_sids; i_pmt++ )
-                    if ( pp_sids[i_pmt]->i_sid == 0 )
-                        break;
-
-                if ( i_pmt == i_nb_sids )
+                p_sid = FindSID( 0 );
+                if ( p_sid == NULL )
                 {
-                    sid_t *p_sid = malloc( sizeof(sid_t) );
+                    p_sid = malloc( sizeof(sid_t) );
                     p_sid->p_current_pmt = NULL;
                     i_nb_sids++;
                     pp_sids = realloc( pp_sids, sizeof(sid_t *) * i_nb_sids );
-                    pp_sids[i_pmt] = p_sid;
+                    pp_sids[i_nb_sids - 1] = p_sid;
                 }
 
-                pp_sids[i_pmt]->i_sid = i_sid;
-                pp_sids[i_pmt]->i_pmt_pid = i_pid;
+                p_sid->i_sid = i_sid;
+                p_sid->i_pmt_pid = i_pid;
 
                 UpdatePAT( i_sid );
             }
@@ -2110,21 +2105,16 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
     uint16_t i_pcr_pid;
     uint8_t *p_es;
     uint8_t *p_desc;
-    int i;
     uint16_t j;
 
-    for ( i = 0; i < i_nb_sids; i++ )
-        if ( pp_sids[i]->i_sid && pp_sids[i]->i_sid == i_sid )
-            break;
-
-    if ( i == i_nb_sids )
+    p_sid = FindSID( i_sid );
+    if ( p_sid == NULL )
     {
         /* Unwanted SID (happens when the same PMT PID is used for several
          * programs). */
         free( p_pmt );
         return;
     }
-    p_sid = pp_sids[i];
 
     if ( i_pid != p_sid->i_pmt_pid )
     {
@@ -2476,19 +2466,14 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
 {
     uint16_t i_sid = eit_get_sid( p_eit );
     sid_t *p_sid;
-    int i;
 
-    for ( i = 0; i < i_nb_sids; i++ )
-        if ( pp_sids[i]->i_sid && pp_sids[i]->i_sid == i_sid )
-            break;
-
-    if ( i == i_nb_sids )
+    p_sid = FindSID( i_sid );
+    if ( p_sid == NULL )
     {
         /* Not a selected program. */
         free( p_eit );
         return;
     }
-    p_sid = pp_sids[i];
 
     if ( i_pid != EIT_PID || !eit_validate( p_eit ) )
     {
@@ -2801,13 +2786,9 @@ uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size ) {
 }
 
 uint8_t *demux_get_packed_PMT( uint16_t i_sid, unsigned int *pi_pack_size ) {
-    int i;
-    for ( i = 0; i < i_nb_sids; i++ ) {
-        sid_t *p_sid = pp_sids[i];
-        if ( p_sid->i_sid && p_sid->i_sid == i_sid && pmt_validate( p_sid->p_current_pmt ) ) {
-            return psi_pack_section( p_sid->p_current_pmt, pi_pack_size );
-        }
-    }
+    sid_t *p_sid = FindSID( i_sid );
+    if ( p_sid != NULL && pmt_validate( p_sid->p_current_pmt ) )
+        return psi_pack_section( p_sid->p_current_pmt, pi_pack_size );
     return NULL;
 }
 
