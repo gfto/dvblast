@@ -52,8 +52,6 @@
  * Bit  4 : Set for file / FIFO output, unset for network (future use)
  * Bit  5 : Set if DVB conformance tables are inserted
  * Bit  6 : Set if DVB EIT schedule tables are forwarded
- * Bit  7 : Set if EMM pids and CAT are forwarded
- * Bit  8 : Set if ECM pids are forwarded
  *****************************************************************************/
 
 #define OUTPUT_WATCH         0x01
@@ -63,8 +61,6 @@
 #define OUTPUT_FILE          0x10
 #define OUTPUT_DVB           0x20
 #define OUTPUT_EPG           0x40
-#define OUTPUT_EMM           (1 << 7)
-#define OUTPUT_ECM           (1 << 8)
 
 typedef int64_t mtime_t;
 

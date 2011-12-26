@@ -104,9 +104,9 @@ bool b_enable_emm = false;
 bool b_enable_ecm = false;
 
 uint8_t pi_ssrc_global[4] = { 0, 0, 0, 0 };
-static int b_udp_global = 0;
-static int b_dvb_global = 0;
-static int b_epg_global = 0;
+static bool b_udp_global = false;
+static bool b_dvb_global = false;
+static bool b_epg_global = false;
 static mtime_t i_latency_global = DEFAULT_OUTPUT_LATENCY;
 static mtime_t i_retention_global = DEFAULT_MAX_RETENTION;
 static int i_ttl_global = 64;
@@ -153,9 +153,7 @@ static void config_Defaults( output_config_t *p_config )
 
     p_config->i_config = (b_udp_global ? OUTPUT_UDP : 0) |
                          (b_dvb_global ? OUTPUT_DVB : 0) |
-                         (b_epg_global ? OUTPUT_EPG : 0) |
-                         (b_enable_emm ? OUTPUT_EMM : 0) |
-                         (b_enable_ecm ? OUTPUT_ECM : 0);
+                         (b_epg_global ? OUTPUT_EPG : 0);
     p_config->i_max_retention = i_retention_global;
     p_config->i_output_latency = i_latency_global;
     p_config->i_tsid = -1;
@@ -222,14 +220,6 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
             p_config->i_config |= OUTPUT_DVB;
         else if ( IS_OPTION("epg") )
             p_config->i_config |= OUTPUT_EPG;
-        else if ( IS_OPTION("emm") )
-            p_config->i_config |= OUTPUT_EMM;
-        else if ( IS_OPTION("noemm") )
-            p_config->i_config &= ~OUTPUT_EMM;
-        else if ( IS_OPTION("ecm") )
-            p_config->i_config |= OUTPUT_ECM;
-        else if ( IS_OPTION("noecm") )
-            p_config->i_config &= ~OUTPUT_ECM;
         else if ( IS_OPTION("tsid=") )
             p_config->i_tsid = strtol( ARG_OPTION("tsid="), NULL, 0 );
         else if ( IS_OPTION("retention=") )
@@ -740,7 +730,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'U':
-            b_udp_global = 1;
+            b_udp_global = true;
             break;
 
         case 'L':
@@ -782,7 +772,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'C':
-            b_dvb_global = 1;
+            b_dvb_global = true;
             break;
 
         case 'W':
@@ -791,10 +781,11 @@ int main( int i_argc, char **pp_argv )
 
         case 'Y':
             b_enable_ecm = true;
+            b_dvb_global = true;
             break;
-
+ 
         case 'e':
-            b_epg_global = 1;
+            b_epg_global = true;
             break;
 
         case 'M':
@@ -887,7 +878,7 @@ int main( int i_argc, char **pp_argv )
     if ( b_epg_global && !b_dvb_global )
     {
         msg_Dbg( NULL, "turning on DVB compliance, required by EPG information" );
-        b_dvb_global = 1;
+        b_dvb_global = true;
     }
 
     memset( &output_dup, 0, sizeof(output_dup) );
