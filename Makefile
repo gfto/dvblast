@@ -1,7 +1,7 @@
 # DVBlast Makefile
 # Customise the path of your kernel
 
-VERSION = 2.0.0
+VERSION = 2.1.0
 TOPDIR = `basename ${PWD}`
 GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
 

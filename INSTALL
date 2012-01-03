@@ -18,7 +18,7 @@ Compile the program with `make` and install with `make install`. Your
 kernel must support DVB S2API which was merged in Linux 2.6.28 and released
 on 24 Dec 2008.
 
-DVBlast 2.0 no longer requires libdvbpsi runtime and libdvbpsi-devel for
+DVBlast 2.X no longer requires libdvbpsi runtime and libdvbpsi-devel for
 compilation. Instead you must install biTStream on your build machine (no
 runtime library is needed).
 
