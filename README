@@ -144,8 +144,6 @@ Available options include :
  /ttl=XX (see -t)
  /tos=XX (sets the IPv4 Type Of Service option)
  /mtu=XXXX (sets the maximum UDP packet size)
- /ecm or /noecm (pass-through ECM packets or not)
- /emm or /noemm (pass-through EMM packets or not)
  /srvname=Some_Channel (set service name in SDT)
  /srvprovider=Some_Provider (set provider name in SDT)
 
