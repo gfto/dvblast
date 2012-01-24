@@ -1175,7 +1175,7 @@ static void CopyDescriptors( uint8_t *p_descs, uint8_t *p_current_descs )
         uint8_t i_tag = desc_get_tag( p_current_desc );
 
         j++;
-        if ( b_enable_ecm && i_tag == 0x9 ) continue;
+        if ( !b_enable_ecm && i_tag == 0x9 ) continue;
 
         p_desc = descs_get_desc( p_descs, k );
         if ( p_desc == NULL ) continue; /* This shouldn't happen */
