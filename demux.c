@@ -1653,6 +1653,7 @@ static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
 {
     sid_t *p_sid;
     uint8_t *p_pmt;
+    uint8_t *p_desc;
 
     UnselectPMT( i_sid, i_pid );
 
@@ -1678,7 +1679,6 @@ static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
         if ( b_enable_ecm )
         {
             j = 0;
-            uint8_t *p_desc;
 
             while ((p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL)
             {
@@ -1697,6 +1697,18 @@ static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
 
             if ( PIDWouldBeSelected( p_es ) )
                 UnselectPID( i_sid, i_pid );
+
+            if ( b_enable_ecm )
+            {
+                uint8_t k = 0;
+
+                while ((p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL)
+                {
+                    if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                        continue;
+                    UnselectPID( i_sid, desc09_get_pid( p_desc ) );
+                }
+            }
         }
 
         free( p_pmt );
@@ -2106,6 +2118,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
     uint8_t *p_es;
     uint8_t *p_desc;
     uint16_t j;
+    uint16_t k;
 
     p_sid = FindSID( i_sid );
     if ( p_sid == NULL )
@@ -2194,6 +2207,17 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
         if ( PIDWouldBeSelected( p_es ) )
             SelectPID( i_sid, i_pid );
         p_pids[i_pid].b_pes = PIDCarriesPES( p_es );
+
+        if ( b_enable_ecm )
+        {
+            k = 0;
+            while ( (p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL )
+            {
+                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                    continue;
+                SelectPID( i_sid, desc09_get_pid( p_desc ) );
+            }
+        }
     }
 
     if ( p_sid->p_current_pmt != NULL )
@@ -2229,6 +2253,23 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
                 if ( pmt_find_es( p_pmt, i_current_pid ) == NULL )
                     UnselectPID( i_sid, i_current_pid );
+            }
+
+            if ( b_enable_ecm )
+            {
+                k = 0;
+                uint16_t f;
+                uint8_t *p_pmt_es;
+                while ((p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL)
+                {
+                    if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                        continue;
+                    while ( (p_pmt_es = pmt_get_es( p_pmt, f++ )) != NULL )
+                    {
+                        if ( ca_desc_find( pmtn_get_descs( p_pmt_es ) + DESCS_HEADER_SIZE, descs_get_length( pmtn_get_descs( p_pmt_es ) ), desc09_get_pid( p_desc ) ) == NULL )
+                            UnselectPID( i_sid, desc09_get_pid( p_desc ) );
+                    }
+                }
             }
         }
 

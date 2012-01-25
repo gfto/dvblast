@@ -5,6 +5,7 @@ Changes between 2.0 and 2.1:
   * Remove ecm and emm output options because they weren't working
   * Better handling of changed PSI tables with same version number
   * Fixed a regression that prevented ECM pass-through (-Y) from working.
+  * Handle ECM pids that are described in PMT ES descriptor loop.
 
 Changes between 1.2 and 2.0:
 ----------------------------
