@@ -2258,7 +2258,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
             if ( b_enable_ecm )
             {
                 k = 0;
-                uint16_t f;
+                uint16_t f = 0;
                 uint8_t *p_pmt_es;
                 while ((p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL)
                 {
