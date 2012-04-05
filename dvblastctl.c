@@ -448,7 +448,8 @@ int main( int i_argc, char **ppsz_argv )
         if ( i_size == -1 )
             break;
         if ( !i_packet_size ) {
-            i_packet_size = *((uint32_t *)&p_buffer[4]);
+            uint32_t *p_packet_size = (uint32_t *)&p_buffer[4];
+            i_packet_size = *p_packet_size;
             if ( i_packet_size > COMM_BUFFER_SIZE ) {
                 i_size = -1;
                 break;
