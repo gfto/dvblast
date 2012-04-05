@@ -46,7 +46,6 @@
 #include "dvblast.h"
 #include "en50221.h"
 #include "comm.h"
-#include "version.h"
 
 int i_verbose = 3;
 int i_syslog = 0;
@@ -200,8 +199,7 @@ static const struct dvblastctl_option options[] =
 
 void usage()
 {
-    printf("DVBlastctl %d.%d.%d (%s)\n", VERSION_MAJOR, VERSION_MINOR,
-             VERSION_REVISION, VERSION_EXTRA );
+    printf("DVBlastctl %s (%s)\n", VERSION, VERSION_EXTRA );
     printf("Usage: dvblastctl -r <remote socket> [-x <text|xml>] [cmd]\n");
     printf("Options:\n");
     printf("  -r --remote-socket <name>       Set socket name to <name>.\n" );

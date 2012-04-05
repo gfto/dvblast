@@ -1,12 +1,13 @@
-# DVBlast Makefile
-# Customise the path of your kernel
-
-VERSION = 2.1.0
+VERSION_MAJOR = 2
+VERSION_MINOR = 1
 TOPDIR = `basename ${PWD}`
 GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
 
 CFLAGS += -Wall -Wformat-security -O3 -fomit-frame-pointer
 CFLAGS += -g
+CFLAGS += -DVERSION=\"$(VERSION_MINOR).$(VERSION_MAJOR)\"
+CFLAGS += -DVERSION_MAJOR=$(VERSION_MAJOR)
+CFLAGS += -DVERSION_MINOR=$(VERSION_MINOR)
 ifneq "$(GIT_VER)" ""
 CFLAGS += -DVERSION_EXTRA=\"git-$(GIT_VER)\"
 else
@@ -34,7 +35,7 @@ all: dvblast dvblastctl
 
 .PHONY: clean install uninstall dist
 
-%.o: %.c Makefile dvblast.h en50221.h comm.h version.h asi.h mrtg-cnt.h
+%.o: %.c Makefile dvblast.h en50221.h comm.h asi.h mrtg-cnt.h
 	@echo "CC      $<"
 	$(Q)$(CC) $(CFLAGS) -c $<
 

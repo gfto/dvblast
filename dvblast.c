@@ -39,7 +39,6 @@
 #include <errno.h>
 
 #include "dvblast.h"
-#include "version.h"
 
 #ifdef HAVE_ICONV
 #include <iconv.h>
@@ -428,8 +427,7 @@ static void SigHandler( int i_signal )
  *****************************************************************************/
 static void DisplayVersion()
 {
-    msg_Raw( NULL, "DVBlast %d.%d.%d (%s)", VERSION_MAJOR, VERSION_MINOR,
-                                         VERSION_REVISION, VERSION_EXTRA );
+    msg_Raw( NULL, "DVBlast %s (%s)", VERSION, VERSION_EXTRA );
 }
 
 /*****************************************************************************
