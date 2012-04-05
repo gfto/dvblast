@@ -51,6 +51,8 @@ clean:
 	@echo "CLEAN   $(CLEAN_OBJS)"
 	$(Q)rm -f $(CLEAN_OBJS)
 
+distclean: clean
+
 install: all
 	@install -d "$(BIN)"
 	@install -d "$(MAN)"
