@@ -208,7 +208,7 @@ void demux_Open( void )
  *****************************************************************************/
 void demux_Close( void )
 {
-    int i, j;
+    int i;
 
     psi_table_free( pp_current_pat_sections );
     psi_table_free( pp_next_pat_sections );
@@ -222,10 +222,7 @@ void demux_Close( void )
     for ( i = 0; i < MAX_PIDS; i++ )
     {
         free( p_pids[i].p_psi_buffer );
-        for ( j = 0; j < p_pids[i].i_nb_outputs; j++ )
-        {
-            free( p_pids[i].pp_outputs );
-        }
+        free( p_pids[i].pp_outputs );
     }
 
     for ( i = 0; i < i_nb_sids; i++ )
