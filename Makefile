@@ -5,7 +5,7 @@ GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
 
 CFLAGS += -Wall -Wformat-security -O3 -fomit-frame-pointer
 CFLAGS += -g
-CFLAGS += -DVERSION=\"$(VERSION_MINOR).$(VERSION_MAJOR)\"
+CFLAGS += -DVERSION=\"$(VERSION_MAJOR).$(VERSION_MINOR)\"
 CFLAGS += -DVERSION_MAJOR=$(VERSION_MAJOR)
 CFLAGS += -DVERSION_MINOR=$(VERSION_MINOR)
 ifneq "$(GIT_VER)" ""
