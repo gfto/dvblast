@@ -1,5 +1,5 @@
 VERSION_MAJOR = 2
-VERSION_MINOR = 1
+VERSION_MINOR = 2
 TOPDIR = `basename ${PWD}`
 GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
 
