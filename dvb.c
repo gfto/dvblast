@@ -79,7 +79,7 @@ void dvb_Open( void )
 {
     char psz_tmp[128];
 
-    msg_Dbg( NULL, "using linux-dvb API version %d", DVB_API_VERSION );
+    msg_Dbg( NULL, "using linux-dvb API version %d.%d", DVB_API_VERSION, DVB_API_VERSION_MINOR );
 
     i_wallclock = mdate();
 
