@@ -2255,17 +2255,25 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
             if ( b_enable_ecm )
             {
                 k = 0;
-                uint16_t f = 0;
-                uint8_t *p_pmt_es;
                 while ((p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL)
                 {
                     if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
                         continue;
+                    uint16_t f = 0;
+                    uint8_t *p_pmt_es;
+                    int pid_found = 0;
                     while ( (p_pmt_es = pmt_get_es( p_pmt, f++ )) != NULL )
                     {
-                        if ( ca_desc_find( pmtn_get_descs( p_pmt_es ) + DESCS_HEADER_SIZE, descs_get_length( pmtn_get_descs( p_pmt_es ) ), desc09_get_pid( p_desc ) ) == NULL )
-                            UnselectPID( i_sid, desc09_get_pid( p_desc ) );
+                        if ( ca_desc_find( pmtn_get_descs( p_pmt_es ) + DESCS_HEADER_SIZE,
+                                           descs_get_length( pmtn_get_descs( p_pmt_es ) ),
+                                           desc09_get_pid( p_desc ) ) != NULL )
+                        {
+                            pid_found = 1;
+                            break;
+                        }
                     }
+                    if ( !pid_found )
+                        UnselectPID( i_sid, desc09_get_pid( p_desc ) );
                 }
             }
         }
