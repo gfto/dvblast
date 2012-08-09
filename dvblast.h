@@ -155,6 +155,7 @@ extern int i_fenum;
 extern int i_frequency;
 extern int i_srate;
 extern int i_satnum;
+extern int i_uncommitted;
 extern int i_fec;
 extern int i_rolloff;
 extern int i_voltage;

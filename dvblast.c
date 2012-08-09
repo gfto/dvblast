@@ -67,6 +67,7 @@ int i_srate = 27500000;
 int i_fec = 999;
 int i_rolloff = 35;
 int i_satnum = 0;
+int i_uncommitted = 0;
 int i_voltage = 13;
 int b_tone = 0;
 int i_bandwidth = 8;
@@ -437,7 +438,7 @@ void usage()
 {
     DisplayVersion();
     msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] "
-        "[-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] "
+        "[-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-k <uncommitted port>]"
         "[-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] "
         "[-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] "
         "[-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] "
@@ -472,6 +473,7 @@ void usage()
     msg_Raw( NULL, "  -X --transmission     DVB-T transmission (2, 4, 8 or -1 auto, default)" );
     msg_Raw( NULL, "  -s --symbol-rate" );
     msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
+    msg_Raw( NULL, "  -k --uncommitted      port number for uncommitted diseqc (0: no uncommitted diseqc, 1-4)" );
     msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "  -w --select-pmts      set a PID filter on all PMTs" );
@@ -530,7 +532,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: ky0123456789
+     * The only short options left are: y0123456789
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -547,6 +549,7 @@ int main( int i_argc, char **pp_argv )
         { "rolloff",         required_argument, NULL, 'R' },
         { "symbol-rate",     required_argument, NULL, 's' },
         { "diseqc",          required_argument, NULL, 'S' },
+        { "uncommitted",     required_argument, NULL, 'k' },
         { "voltage",         required_argument, NULL, 'v' },
         { "force-pulse",     no_argument,       NULL, 'p' },
         { "bandwidth",       required_argument, NULL, 'b' },
@@ -588,7 +591,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -673,6 +676,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'S':
             i_satnum = strtol( optarg, NULL, 16 );
+            break;
+
+        case 'k':
+            i_uncommitted = strtol( optarg, NULL, 16 );
             break;
 
         case 'v':
