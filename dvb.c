@@ -495,19 +495,14 @@ static int FrontendDoDiseqc(void)
          * specification is available from http://www.eutelsat.com/
          */
 
+        /* DiSEqC 1.1 */
         struct dvb_diseqc_master_cmd uncmd =
             { {0xe0, 0x10, 0x39, 0xf0, 0x00, 0x00}, 4};
 
-        if ( i_uncommitted > 0 && i_uncommitted < 5 )
-        {
-           uncmd.msg[3] = 0xf0 /* reset bits */
-                             | ((i_uncommitted - 1) << 2)
-                             | (fe_voltage == SEC_VOLTAGE_13 ? 0 : 2)
-                             | (fe_tone == SEC_TONE_ON ? 1 : 0);
-        }
-
+        /* DiSEqC 1.0 */
         struct dvb_diseqc_master_cmd cmd =
             { {0xe0, 0x10, 0x38, 0xf0, 0x00, 0x00}, 4};
+
         cmd.msg[3] = 0xf0 /* reset bits */
                           | ((i_satnum - 1) << 2)
                           | (fe_voltage == SEC_VOLTAGE_13 ? 0 : 2)
@@ -515,6 +510,18 @@ static int FrontendDoDiseqc(void)
 
         if ( i_uncommitted > 0 && i_uncommitted < 5 )
         {
+           uncmd.msg[3] = 0xf0 /* reset bits */
+                             | ((i_uncommitted - 1) << 2)
+                             | (fe_voltage == SEC_VOLTAGE_13 ? 0 : 2)
+                             | (fe_tone == SEC_TONE_ON ? 1 : 0);
+           if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &uncmd ) < 0 )
+           {
+               msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
+                        strerror(errno) );
+               exit(1);
+           }
+           /* Repeat uncommitted command */
+           uncmd.msg[0] = 0xe1; /* framing: master, no reply, repeated TX */
            if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &uncmd ) < 0 )
            {
                msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
@@ -534,18 +541,7 @@ static int FrontendDoDiseqc(void)
         msleep(100000); /* Should be 15 ms. */
 
         /* Do it again just to be sure. */
-        if ( i_uncommitted > 0 && i_uncommitted < 5 )
-        {
-           if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &uncmd ) < 0 )
-           {
-               msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
-                        strerror(errno) );
-               exit(1);
-           }
-           /* Pause 125 ms between uncommitted & committed diseqc commands. */
-           msleep(125000);
-        }
-
+        cmd.msg[0] = 0xe1; /* framing: master, no reply, repeated TX */
         if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &cmd ) < 0 )
         {
             msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
