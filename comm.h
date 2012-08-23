@@ -12,11 +12,13 @@
  * http://sam.zoy.org/wtfpl/COPYING for more details.
  *****************************************************************************/
 
+#ifdef HAVE_DVB_SUPPORT
 /* DVB Card Drivers */
 #include <linux/dvb/version.h>
 #include <linux/dvb/dmx.h>
 #include <linux/dvb/frontend.h>
 #include <linux/dvb/ca.h>
+#endif
 
 #include <bitstream/mpeg/psi.h>
 
@@ -66,6 +68,7 @@ typedef enum {
     RET_HUH                 = 255,
 } ctl_cmd_answer_t;
 
+#ifdef HAVE_DVB_SUPPORT
 struct ret_frontend_status
 {
     struct dvb_frontend_info info;
@@ -93,6 +96,7 @@ struct cmd_mmi_send
     uint8_t i_slot;
     en50221_mmi_object_t object;
 };
+#endif
 
 struct cmd_pid_info
 {

@@ -21,6 +21,9 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
+#include "config.h"
+
+#ifdef HAVE_DVB_SUPPORT
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -2421,3 +2424,15 @@ uint8_t en50221_SendMMIObject( uint8_t *p_buffer, ssize_t i_size )
     msg_Err( NULL, "SendMMIObject when no MMI session is opened !" );
     return RET_ERR;
 }
+
+#else
+#include <inttypes.h>
+
+int i_ca_handle = 0;
+int i_ca_type = -1;
+
+void en50221_AddPMT( uint8_t *p_pmt ) { };
+void en50221_UpdatePMT( uint8_t *p_pmt ) { };
+void en50221_DeletePMT( uint8_t *p_pmt ) { };
+void en50221_Reset( void ) { };
+#endif

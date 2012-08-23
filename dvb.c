@@ -19,6 +19,9 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
+#include "config.h"
+
+#ifdef HAVE_DVB_SUPPORT
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -1133,3 +1136,5 @@ uint8_t dvb_FrontendStatus( uint8_t *p_answer, ssize_t *pi_size )
     *pi_size = sizeof(struct ret_frontend_status);
     return RET_FRONTEND_STATUS;
 }
+
+#endif

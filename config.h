@@ -24,7 +24,12 @@
 #ifndef _DVBLAST_CONFIG_H_
 #define _DVBLAST_CONFIG_H_
 
+#if defined(__linux__)
+#define HAVE_DVB_SUPPORT
+#define HAVE_ASI_SUPPORT
 #define HAVE_CLOCK_NANOSLEEP
+#endif
+
 #define HAVE_ICONV
 
 #define DEFAULT_PORT 3001

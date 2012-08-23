@@ -129,6 +129,7 @@ void comm_Read( void )
         i_answer_size = 0;
         break;
 
+#ifdef HAVE_DVB_SUPPORT
     case CMD_FRONTEND_STATUS:
         i_answer = dvb_FrontendStatus( p_answer + COMM_HEADER_SIZE,
                                        &i_answer_size );
@@ -163,6 +164,7 @@ void comm_Read( void )
     case CMD_MMI_SEND_CHOICE:
         i_answer = en50221_SendMMIObject( p_input, i_size - COMM_HEADER_SIZE );
         break;
+#endif
 
     case CMD_SHUTDOWN:
         b_exit_now = 1;

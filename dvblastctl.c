@@ -207,6 +207,7 @@ void usage()
     printf("Control commands:\n");
     printf("  reload                          Reload configuration.\n");
     printf("  shutdown                        Shutdown DVBlast.\n");
+#ifdef HAVE_DVB_SUPPORT
     printf("Status commands:\n");
     printf("  fe_status                       Read frontend status information.\n");
     printf("  mmi_status                      Read CAM status.\n");
@@ -217,6 +218,7 @@ void usage()
     printf("  mmi_get <slot>                  Read MMI slot.\n");
     printf("  mmi_send_text <slot> <text>     Send text to MMI slot.\n");
     printf("  mmi_send_choice <slot> <choice> Send choice to MMI slot.\n");
+#endif
     printf("Demux info commands:\n");
     printf("  get_pat                         Return last PAT table.\n");
     printf("  get_cat                         Return last CAT table.\n");
@@ -386,6 +388,7 @@ int main( int i_argc, char **ppsz_argv )
         p_data[1] = (uint8_t)(i_pid & 0xff);
         break;
     }
+#ifdef HAVE_DVB_SUPPORT
     case CMD_MMI_SEND_TEXT:
     {
         struct cmd_mmi_send *p_cmd = (struct cmd_mmi_send *)p_data;
@@ -432,6 +435,7 @@ int main( int i_argc, char **ppsz_argv )
         i_size = COMM_HEADER_SIZE + 1;
         break;
     }
+#endif
     default:
         /* This should not happen */
         return_error( "Unhandled option (%d)", opt.cmd );
@@ -533,6 +537,7 @@ int main( int i_argc, char **ppsz_argv )
         break;
     }
 
+#ifdef HAVE_DVB_SUPPORT
     case RET_FRONTEND_STATUS:
     {
         int ret = 1;
@@ -788,6 +793,7 @@ int main( int i_argc, char **ppsz_argv )
         exit(255);
         break;
     }
+#endif
 
     default:
         return_error( "Unknown command answer: %u", c_answer );

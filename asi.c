@@ -19,6 +19,9 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
+#include "config.h"
+
+#ifdef HAVE_ASI_SUPPORT
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -322,3 +325,4 @@ void asi_Reset( void )
     msg_Warn( NULL, "asi_Reset() do nothing" );
 }
 
+#endif

@@ -438,21 +438,33 @@ void usage()
 {
     DisplayVersion();
     msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] "
-        "[-i <RT priority>] [-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-k <uncommitted port>]"
-        "[-f <frequency>|-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*|-A <ASI adapter>] "
+        "[-i <RT priority>] "
+#ifdef HAVE_ASI_SUPPORT
+        "[-A <ASI adapter>]"
+#endif
+#ifdef HAVE_DVB_SUPPORT
+        "[-a <adapter>] [-n <frontend number>] [-S <diseqc>] [-k <uncommitted port>]"
+        "[-f <frequency>]"
         "[-s <symbol rate>] [-v <0|13|18>] [-p] [-b <bandwidth>] [-I <inversion>] "
         "[-F <fec inner>] [-m <modulation] [-R <rolloff>] [-P <pilot>] [-K <fec lp>] "
         "[-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] "
+#endif
+        "[-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*] "
         "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] "
         "[-z] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] "
         "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] [-B <provider_name>]"
         "[-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>]" );
 
     msg_Raw( NULL, "Input:" );
-    msg_Raw( NULL, "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
+#ifdef HAVE_ASI_SUPPORT
     msg_Raw( NULL, "  -A --asi-adapter      read packets from an ASI adapter (0-n)" );
+#endif
+#ifdef HAVE_DVB_SUPPORT
+    msg_Raw( NULL, "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
     msg_Raw( NULL, "  -b --bandwidth        frontend bandwith" );
+#endif
     msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
+#ifdef HAVE_DVB_SUPPORT
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
     msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
@@ -478,6 +490,7 @@ void usage()
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "  -w --select-pmts      set a PID filter on all PMTs" );
     msg_Raw( NULL, "  -O --lock-timeout     timeout for the lock operation (in ms)" );
+#endif
 
     msg_Raw( NULL, "Output:" );
     msg_Raw( NULL, "  -c --config-file <config file>" );
@@ -655,11 +668,16 @@ int main( int i_argc, char **pp_argv )
             i_frequency = strtol( optarg, NULL, 0 );
             if ( pf_Open != NULL )
                 usage();
+#ifdef HAVE_DVB_SUPPORT
             pf_Open = dvb_Open;
             pf_Read = dvb_Read;
             pf_Reset = dvb_Reset;
             pf_SetFilter = dvb_SetFilter;
             pf_UnsetFilter = dvb_UnsetFilter;
+#else
+            msg_Err( NULL, "DVBlast is compiled without DVB support.");
+            exit(1);
+#endif
             break;
 
         case 'F':
@@ -765,11 +783,16 @@ int main( int i_argc, char **pp_argv )
             i_asi_adapter = strtol( optarg, NULL, 0 );
             if ( pf_Open != NULL )
                 usage();
+#ifdef HAVE_ASI_SUPPORT
             pf_Open = asi_Open;
             pf_Read = asi_Read;
             pf_Reset = asi_Reset;
             pf_SetFilter = asi_SetFilter;
             pf_UnsetFilter = asi_UnsetFilter;
+#else
+            msg_Err( NULL, "DVBlast is compiled without ASI support.");
+            exit(1);
+#endif
             break;
 
         case 'z':
