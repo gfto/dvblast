@@ -37,15 +37,15 @@ all: dvblast dvblastctl
 
 %.o: %.c Makefile dvblast.h en50221.h comm.h asi.h mrtg-cnt.h
 	@echo "CC      $<"
-	$(Q)$(CC) $(CFLAGS) -c $<
+	$(Q)$(CROSS)$(CC) $(CFLAGS) -c $<
 
 dvblast: $(OBJ_DVBLAST)
 	@echo "LINK    $@"
-	$(Q)$(CC) -o $@ $(OBJ_DVBLAST) $(LDLIBS_DVBLAST) $(LDLIBS)
+	$(Q)$(CROSS)$(CC) -o $@ $(OBJ_DVBLAST) $(LDLIBS_DVBLAST) $(LDLIBS)
 
 dvblastctl: $(OBJ_DVBLASTCTL)
 	@echo "LINK    $@"
-	$(Q)$(CC) -o $@ $(OBJ_DVBLASTCTL) $(LDLIBS_DVBLAST) $(LDLIBS)
+	$(Q)$(CROSS)$(CC) -o $@ $(OBJ_DVBLASTCTL) $(LDLIBS_DVBLAST) $(LDLIBS)
 
 clean:
 	@echo "CLEAN   $(CLEAN_OBJS)"
