@@ -24,24 +24,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 
-#define HAVE_CLOCK_NANOSLEEP
-#define HAVE_ICONV
-
-#define DEFAULT_PORT 3001
-#define TS_SIZE 188
-#define MAX_PIDS 8192
-#define DEFAULT_IPV4_MTU 1500
-#define DEFAULT_IPV6_MTU 1280
-#define PADDING_PID 8191
-#define WATCHDOG_WAIT 10000000LL
-#define MAX_ERRORS 1000
-#define DEFAULT_VERBOSITY 4
-#define MAX_POLL_TIMEOUT 100000 /* 100 ms */
-#define DEFAULT_OUTPUT_LATENCY 200000 /* 200 ms */
-#define DEFAULT_MAX_RETENTION 40000 /* 40 ms */
-#define MAX_EIT_RETENTION 500000 /* 500 ms */
-#define DEFAULT_FRONTEND_TIMEOUT 30000000 /* 30 s */
-#define EXIT_STATUS_FRONTEND_TIMEOUT 100
+#include "config.h"
 
 /*****************************************************************************
  * Output configuration flags (for output_t -> i_config) - bit values

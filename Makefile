@@ -35,7 +35,7 @@ all: dvblast dvblastctl
 
 .PHONY: clean install uninstall dist
 
-%.o: %.c Makefile dvblast.h en50221.h comm.h asi.h mrtg-cnt.h
+%.o: %.c Makefile config.h dvblast.h en50221.h comm.h asi.h mrtg-cnt.h
 	@echo "CC      $<"
 	$(Q)$(CROSS)$(CC) $(CFLAGS) -c $<
 
