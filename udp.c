@@ -162,7 +162,7 @@ void udp_Open( void )
     {
         struct sockaddr_in6 *p_addr =
             (struct sockaddr_in6 *)p_bind_ai->ai_addr;
-        if ( IN6_IS_ADDR_MULTICAST( p_addr->sin6_addr.s6_addr ) )
+        if ( IN6_IS_ADDR_MULTICAST( &p_addr->sin6_addr ) )
         {
             struct ipv6_mreq imr;
             imr.ipv6mr_multiaddr = p_addr->sin6_addr;
@@ -184,6 +184,9 @@ void udp_Open( void )
         {
             if ( p_connect_ai != NULL )
             {
+#ifndef IP_ADD_SOURCE_MEMBERSHIP
+                msg_Err( NULL, "IP_ADD_SOURCE_MEMBERSHIP is unsupported." );
+#else
                 /* Source-specific multicast */
                 struct sockaddr_in *p_src =
                     (struct sockaddr_in *)&p_connect_ai->ai_addr;
@@ -198,14 +201,17 @@ void udp_Open( void )
                             (char *)&imr, sizeof(struct ip_mreq_source) ) < 0 )
                     msg_Warn( NULL, "couldn't join multicast group (%s)",
                               strerror(errno) );
+#endif
             }
             else if ( i_if_index )
             {
                 /* Linux-specific interface-bound multicast */
                 struct ip_mreqn imr;
                 imr.imr_multiaddr = p_addr->sin_addr;
+#if defined(__linux__)
                 imr.imr_address.s_addr = i_if_addr;
                 imr.imr_ifindex = i_if_index;
+#endif
 
                 if ( setsockopt( i_handle, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                                  (char *)&imr, sizeof(struct ip_mreqn) ) < 0 )

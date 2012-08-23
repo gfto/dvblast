@@ -2,6 +2,7 @@ VERSION_MAJOR = 2
 VERSION_MINOR = 2
 TOPDIR = `basename ${PWD}`
 GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
+uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
 CFLAGS += -Wall -Wformat-security -O3 -fomit-frame-pointer
 CFLAGS += -g
@@ -13,7 +14,14 @@ CFLAGS += -DVERSION_EXTRA=\"git-$(GIT_VER)\"
 else
 CFLAGS += -DVERSION_EXTRA=\"release\"
 endif
+
+ifeq ($(uname_S),Linux)
 LDLIBS += -lrt
+endif
+ifeq ($(uname_S),Darwin)
+LDLIBS += -liconv
+endif
+
 LDLIBS_DVBLAST += -lpthread
 
 OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm.o mrtg-cnt.o

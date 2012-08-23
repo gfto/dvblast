@@ -48,4 +48,14 @@
 #define DEFAULT_FRONTEND_TIMEOUT 30000000 /* 30 s */
 #define EXIT_STATUS_FRONTEND_TIMEOUT 100
 
+// Compatability defines
+#if defined(__APPLE__)
+#define ip_mreqn ip_mreq
+#endif
+
+#ifndef IPV6_ADD_MEMBERSHIP
+#define IPV6_ADD_MEMBERSHIP IPV6_JOIN_GROUP
+#define IPV6_DROP_MEMBERSHIP IPV6_LEAVE_GROUP
+#endif
+
 #endif

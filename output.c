@@ -175,7 +175,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     {
         struct sockaddr_in6 *p_addr =
             (struct sockaddr_in6 *)&p_output->config.connect_addr;
-        if ( IN6_IS_ADDR_MULTICAST( p_addr->sin6_addr.s6_addr ) )
+        if ( IN6_IS_ADDR_MULTICAST( &p_addr->sin6_addr ) )
             setsockopt( p_output->i_handle, IPPROTO_IPV6,
                         IPV6_MULTICAST_IF, (void *)&p_config->i_if_index_v6,
                         sizeof(p_config->i_if_index_v6) );
@@ -435,7 +435,7 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
         {
             struct sockaddr_in6 *p_addr =
                 (struct sockaddr_in6 *)&p_output->config.connect_addr;
-            if ( IN6_IS_ADDR_MULTICAST( p_addr->sin6_addr.s6_addr ) )
+            if ( IN6_IS_ADDR_MULTICAST( &p_addr->sin6_addr ) )
                 setsockopt( p_output->i_handle, IPPROTO_IPV6,
                             IPV6_MULTICAST_HOPS, (void *)&p_config->i_ttl,
                             sizeof(p_config->i_ttl) );
