@@ -12,7 +12,7 @@
  * http://sam.zoy.org/wtfpl/COPYING for more details.
  *****************************************************************************/
 
-#include <malloc.h>
+#include <stddef.h>
 
 typedef void * access_t;
 
