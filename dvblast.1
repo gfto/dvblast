@@ -22,7 +22,7 @@ DVBlast is designed to be the core of a custom IRD or CID, based on a PC with
 Linux-supported DVB cards.
 
 DVBlast does not do any kind of processing on the elementary streams, such as
-transcoding, PID remapping or remultiplexing. it does not stream from plain
+transcoding or remultiplexing. it does not stream from plain
 files, only DVB devices. If you were looking for these features, switch to VLC.
 .SH OPTIONS
 .PP
@@ -197,6 +197,11 @@ pass through all ESs from the PMT, of any type
 \fB\-Z\fR, \fB\-\-mrtg-file\fR <mrtg_file>
 Every 10 seconds log statistics in <mrtg_file>. The file has 4 numbers in it
 and the format is: <passed_bytes> <error_packets> <packets_with_seq_errors> <scrambled_packets>
+.TP
+\fB\-0\fR, \fB\-\-pidmap\fR <pmtpid,audiopid,videopid,spupid>
+Map the elementary stream pids to the values given for all elementary
+streams. Where there are multiple audio pids, then these will be mapped to
+audiopid, auiopid+1, audiopid +2 and so on.
 .SH SEE ALSO
 Read the README file for more information about the configuration of dvblast.
 .SH AUTHORS

@@ -115,6 +115,10 @@ static int i_ttl_global = 64;
 /* TPS Input log filename */
 char * psz_mrtg_file = NULL;
 
+/* PID mapping */
+bool b_do_remap = false;
+uint16_t pi_newpids[ N_MAP_PIDS ];  /* pmt, audio, video, spu */
+
 void (*pf_Open)( void ) = NULL;
 block_t * (*pf_Read)( mtime_t i_poll_timeout ) = NULL;
 void (*pf_Reset)( void ) = NULL;
@@ -454,7 +458,7 @@ void usage()
         "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] "
         "[-z] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] "
         "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] [-B <provider_name>]"
-        "[-J <DVB charset>] [-Q <quit timeout>] [-x <text|xml>]" );
+        "[-J <DVB charset>] [-Q <quit timeout>] [-0 pid_mapping] [-x <text|xml>]" );
 
     msg_Raw( NULL, "Input:" );
 #ifdef HAVE_ASI_SUPPORT
@@ -511,6 +515,7 @@ void usage()
     msg_Raw( NULL, "  -T --unique-ts-id     generate random unique TS ID for each output" );
     msg_Raw( NULL, "  -U --udp              use raw UDP rather than RTP (required by some IPTV set top boxes)" );
     msg_Raw( NULL, "  -z --any-type         pass through all ESs from the PMT, of any type" );
+    msg_Raw( NULL, "  -0 --pidmap <pmt_pid,audio_pid,video_pid,spu_pid>");
 
     msg_Raw( NULL, "Misc:" );
     msg_Raw( NULL, "  -h --help             display this full help" );
@@ -547,7 +552,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: 0123456789
+     * The only short options left are: 123456789
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -604,10 +609,11 @@ int main( int i_argc, char **pp_argv )
         { "version",         no_argument,       NULL, 'V' },
         { "mrtg-file",       required_argument, NULL, 'Z' },
         { "ca-number",       required_argument, NULL, 'y' },
+        { "pidmap",          required_argument, NULL, '0' },
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -879,6 +885,28 @@ int main( int i_argc, char **pp_argv )
             psz_mrtg_file = optarg;
             break;
 
+        case '0': {
+            /* We expect a comma separated list of numbers.
+               Put them into the pi_newpids array as they appear */
+            char *str1;
+            char *saveptr = NULL;
+            char *tok = NULL;
+            int i, i_newpid;
+            for (i = 0, str1 = optarg; i < N_MAP_PIDS; i++, str1 = NULL)
+            {
+                tok = strtok_r(str1, ",", &saveptr);
+                if ( !tok )
+                    break;
+                i_newpid = strtoul(tok, NULL, 0);
+                if ( !i_newpid ) {
+                     msg_Err( NULL, "Invalid pidmap string" );
+                     usage();
+                }
+                pi_newpids[i] = i_newpid;
+            }
+            b_do_remap = true;
+            break;
+        }
         case 'h':
         default:
             usage();

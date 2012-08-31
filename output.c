@@ -103,6 +103,16 @@ output_t *output_Create( const output_config_t *p_config )
     return p_output;
 }
 
+/* Init the mapped pids to unused */
+void init_pid_mapping( output_t *p_output )
+{
+    unsigned int i;
+    for ( i = 0; i < MAX_PIDS; i++ ) {
+        p_output->pi_newpids[i]  = UNUSED_PID;
+        p_output->pi_freepids[i] = UNUSED_PID;
+    }
+}
+
 /*****************************************************************************
  * output_Init : set up the output initial config
  *****************************************************************************/
@@ -134,6 +144,9 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     p_output->p_eit_ts_buffer = NULL;
     if ( b_random_tsid )
         p_output->i_tsid = rand() & 0xffff;
+
+    /* Init the mapped pids to unused */
+    init_pid_mapping( p_output );
 
     /* Init socket-related fields */
     p_output->config.i_family = p_config->i_family;
@@ -273,6 +286,24 @@ static void output_Flush( output_t *p_output )
 
     for ( i_block = 0; i_block < p_packet->i_depth; i_block++ )
     {
+        /* Do pid mapping here if needed.
+         * save the original pid in the block.
+         * set the pid to the new pid
+         * later we re-instate the old pid for the next output
+         */
+        if ( b_do_remap ) {
+            block_t *p_block = p_packet->pp_blocks[i_block];
+            uint16_t i_pid = ts_get_pid( p_block->p_ts );
+            p_block->tmp_pid = UNUSED_PID;
+            if ( p_output->pi_newpids[i_pid] != UNUSED_PID )
+            {
+                uint16_t i_newpid = p_output->pi_newpids[i_pid];
+                /* Need to map this pid to the new pid */
+                ts_set_pid( p_block->p_ts, i_newpid );
+                p_block->tmp_pid = i_pid;
+            }
+        }
+
         p_iov[i_iov].iov_base = p_packet->pp_blocks[i_block]->p_ts;
         p_iov[i_iov].iov_len = TS_SIZE;
         i_iov++;
@@ -298,6 +329,12 @@ static void output_Flush( output_t *p_output )
         p_packet->pp_blocks[i_block]->i_refcount--;
         if ( !p_packet->pp_blocks[i_block]->i_refcount )
             block_Delete( p_packet->pp_blocks[i_block] );
+        else if ( b_do_remap ) {
+            /* still referenced so re-instate the orignial pid if remapped */
+            block_t * p_block = p_packet->pp_blocks[i_block];
+            if (p_block->tmp_pid != UNUSED_PID)
+                ts_set_pid( p_block->p_ts, p_block->tmp_pid );
+        }
     }
     p_output->p_packets = p_packet->p_next;
     free( p_packet );

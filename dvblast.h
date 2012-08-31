@@ -26,6 +26,18 @@
 
 #include "config.h"
 
+/* Defines for pid mapping */
+#define N_MAP_PIDS                 4
+/* Offsets in the command line args for the pid mapping */
+typedef enum
+{
+    I_PMTPID = 0, I_APID, I_VPID, I_SPUPID
+} pidmap_offset;
+
+/* Impossible PID value */
+#define UNUSED_PID (MAX_PIDS + 1)
+
+
 /*****************************************************************************
  * Output configuration flags (for output_t -> i_config) - bit values
  * Bit  0 : Set for watch mode
@@ -52,6 +64,7 @@ typedef struct block_t
     uint8_t p_ts[TS_SIZE];
     int i_refcount;
     mtime_t i_dts;
+    uint16_t tmp_pid;
     struct block_t *p_next;
 } block_t;
 
@@ -110,6 +123,10 @@ typedef struct output_t
     block_t *p_eit_ts_buffer;
     uint8_t i_eit_ts_buffer_offset, i_eit_cc;
     uint16_t i_tsid;
+    // Arrays used for mapping pids.
+    // newpids is indexed using the original pid
+    uint16_t pi_newpids[MAX_PIDS];
+    uint16_t pi_freepids[MAX_PIDS];   // used where multiple streams of the same type are used
 } output_t;
 
 typedef struct ts_pid_info {
@@ -171,6 +188,11 @@ extern int i_asi_adapter;
 extern const char *psz_native_charset;
 extern const char *psz_dvb_charset;
 extern enum print_type_t i_print_type;
+
+/* pid mapping */
+extern bool b_do_remap;
+extern uint16_t pi_newpids[N_MAP_PIDS];
+extern void init_pid_mapping( output_t * );
 
 extern void (*pf_Open)( void );
 extern block_t * (*pf_Read)( mtime_t i_poll_timeout );

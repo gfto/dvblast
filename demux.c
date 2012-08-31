@@ -137,6 +137,48 @@ static void NewSDT( output_t *p_output );
 static void HandlePSIPacket( uint8_t *p_ts, mtime_t i_dts );
 static const char *get_pid_desc(uint16_t i_pid, uint16_t *i_sid);
 
+/*
+ * Remap an ES pid to a fixed value.
+ * Multiple streams of the same type use sequential pids
+ * Returns the new pid and updates the map tables
+*/
+uint16_t map_es_pid(output_t * p_output, uint16_t i_stream_type, uint16_t i_pid)
+{
+    uint16_t i_newpid = i_pid;
+
+    if (! b_do_remap )
+        return i_pid;
+
+    switch ( i_stream_type )
+    {
+        case 0x03: /* audio MPEG-1 */
+        case 0x04: /* audio */
+        case 0x0f: /* audio AAC ADTS */
+        case 0x11: /* audio AAC LATM */
+        case 0x81: /* ATSC AC-3 */
+        case 0x87: /* ATSC Enhanced AC-3 */
+            i_newpid = pi_newpids[I_APID];
+            break;
+        case 0x01: /* video MPEG-1 */
+        case 0x02: /* video */
+        case 0x10: /* video MPEG-4 */
+        case 0x1b: /* video H264 */
+            i_newpid = pi_newpids[I_VPID];
+            break;
+        case 0x06: /* Subtitles */
+            i_newpid = pi_newpids[I_SPUPID];
+            break;
+    }
+    /* Got the new base for the mapped pid. Find the next free one
+       we do this to ensure that multiple audios get unique pids */
+    while (p_output->pi_freepids[i_newpid] != UNUSED_PID)
+        i_newpid++;
+
+    p_output->pi_freepids[i_newpid] = i_pid;  /* Mark as in use */
+    p_output->pi_newpids[i_pid] = i_newpid;   /* Save the new pid */
+    return i_newpid;
+}
+
 /*****************************************************************************
  * FindSID
  *****************************************************************************/
@@ -976,6 +1018,10 @@ static void SendPAT( mtime_t i_dts )
 static void SendPMT( sid_t *p_sid, mtime_t i_dts )
 {
     int i;
+    int i_pmt_pid = p_sid->i_pmt_pid;
+
+    if ( b_do_remap )
+        i_pmt_pid = pi_newpids[ I_PMTPID ];
 
     for ( i = 0; i < i_nb_outputs; i++ )
     {
@@ -985,7 +1031,7 @@ static void SendPMT( sid_t *p_sid, mtime_t i_dts )
                && p_output->config.i_sid == p_sid->i_sid
                && p_output->p_pmt_section != NULL )
             OutputPSISection( p_output, p_output->p_pmt_section,
-                              p_sid->i_pmt_pid, &p_output->i_pmt_cc, i_dts,
+                              i_pmt_pid, &p_output->i_pmt_cc, i_dts,
                               NULL, NULL );
     }
 }
@@ -1149,7 +1195,13 @@ static void NewPAT( output_t *p_output )
     p = pat_get_program( p_output->p_pat_section, k++ );
     patn_init( p );
     patn_set_program( p, p_output->config.i_sid );
-    patn_set_pid( p, patn_get_pid( p_program ) );
+    if ( b_do_remap )
+    {
+        msg_Dbg( NULL, "Mapping PMT PID %d to %d\n", patn_get_pid( p_program ), pi_newpids[I_PMTPID] );
+        patn_set_pid( p, pi_newpids[I_PMTPID]);
+    } else {
+        patn_set_pid( p, patn_get_pid( p_program ) );
+    }
 
     p = pat_get_program( p_output->p_pat_section, k );
     pat_set_length( p_output->p_pat_section,
@@ -1197,6 +1249,7 @@ static void NewPMT( output_t *p_output )
     uint8_t *p_es, *p_current_es;
     uint8_t *p;
     uint16_t j, k;
+    uint16_t i_pcrpid;
 
     free( p_output->p_pmt_section );
     p_output->p_pmt_section = NULL;
@@ -1216,8 +1269,9 @@ static void NewPMT( output_t *p_output )
     pmt_set_program( p, p_output->config.i_sid );
     psi_set_version( p, p_output->i_pmt_version );
     psi_set_current( p );
-    pmt_set_pcrpid( p, pmt_get_pcrpid( p_current_pmt ) );
     pmt_set_desclength( p, 0 );
+    init_pid_mapping( p_output );
+
 
     CopyDescriptors( pmt_get_descs( p ), pmt_get_descs( p_current_pmt ) );
 
@@ -1237,13 +1291,21 @@ static void NewPMT( output_t *p_output )
         k++;
         pmtn_init( p_es );
         pmtn_set_streamtype( p_es, pmtn_get_streamtype( p_current_es ) );
-        pmtn_set_pid( p_es, i_pid );
+        pmtn_set_pid( p_es, map_es_pid(p_output, pmtn_get_streamtype( p_current_es ), i_pid) );
         pmtn_set_desclength( p_es, 0 );
 
         CopyDescriptors( pmtn_get_descs( p_es ),
                          pmtn_get_descs( p_current_es ) );
     }
 
+    /* Do the pcr pid after everything else as it may have been remapped */
+    i_pcrpid = pmt_get_pcrpid( p_current_pmt );
+    if ( p_output->pi_newpids[i_pcrpid] != UNUSED_PID ) {
+        msg_Dbg( NULL, "Mapping pcrpid from 0x%x to 0x%x\n",
+                 i_pcrpid,  p_output->pi_newpids[i_pcrpid] );
+        i_pcrpid = p_output->pi_newpids[i_pcrpid];
+    }
+    pmt_set_pcrpid( p, i_pcrpid );
     p_es = pmt_get_es( p, k );
     if ( p_es == NULL )
         /* This shouldn't happen if the incoming PMT is valid */
