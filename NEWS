@@ -4,6 +4,7 @@ Changes between 2.2 and 2.3:
   * Added support for building DVBlast on OS X.
   * Added support for uncommitted diseqc switches.
   * Fixed ECM pid selection.
+  * Added CA device addressing.
 
 Changes between 2.1 and 2.2:
 ----------------------------

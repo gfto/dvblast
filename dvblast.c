@@ -61,6 +61,7 @@ char *psz_srv_socket = NULL;
 static int i_priority = -1;
 int i_adapter = 0;
 int i_fenum = 0;
+int i_canum = 0;
 int i_frequency = 0;
 int i_inversion = -1;
 int i_srate = 27500000;
@@ -490,6 +491,7 @@ void usage()
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "  -w --select-pmts      set a PID filter on all PMTs" );
     msg_Raw( NULL, "  -O --lock-timeout     timeout for the lock operation (in ms)" );
+    msg_Raw( NULL, "  -y --ca-number <ca_device_number>" );
 #endif
 
     msg_Raw( NULL, "Output:" );
@@ -545,7 +547,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: y0123456789
+     * The only short options left are: 0123456789
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -601,10 +603,11 @@ int main( int i_argc, char **pp_argv )
         { "help",            no_argument,       NULL, 'h' },
         { "version",         no_argument,       NULL, 'V' },
         { "mrtg-file",       required_argument, NULL, 'Z' },
+        { "ca-number",       required_argument, NULL, 'y' },
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -662,6 +665,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'n':
             i_fenum = strtol( optarg, NULL, 0 );
+            break;
+
+        case 'y':
+            i_canum = strtol( optarg, NULL, 0 );
             break;
 
         case 'f':

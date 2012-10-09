@@ -1940,7 +1940,7 @@ void en50221_Init( void )
 
     memset( &caps, 0, sizeof( ca_caps_t ));
 
-    sprintf( psz_tmp, "/dev/dvb/adapter%d/ca0", i_adapter );
+    sprintf( psz_tmp, "/dev/dvb/adapter%d/ca%d", i_adapter, i_canum );
     if( (i_ca_handle = open(psz_tmp, O_RDWR | O_NONBLOCK)) < 0 )
     {
         msg_Warn( NULL, "failed opening CAM device %s (%s)",

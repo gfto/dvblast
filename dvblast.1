@@ -4,7 +4,7 @@ DVBlast \- Simple and powerful dvb streaming application
 .SH SYNOPSIS
 .B dvblast
 [\fI-q\fR] [\fI-c <config_file>\fR] [\fI-r <remote_socket>\fR] [\fI-t <ttl>\fR] [\fI-o <SSRC_IP>\fR]
-[\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend_number>\fR] [\fI-S <diseqc>\fR] [\fI-k <uncommitted port>\fR]
+[\fI-i <RT_priority>\fR] [\fI-a <adapter>\fR] [\fI-n <frontend_number>\fR] [\fI-y <ca_number>\fR] [\fI-S <diseqc>\fR] [\fI-k <uncommitted port>\fR]
 [\fI-f <frequency>\fR] [\fI-D <src_host>[:<src_port>][[@<src_mcast>][:<port>]][/<opts>]\fR] [\fI-A <ASI_adapter>\fR]
 [\fI-s <symbol_rate>\fR] [\fI-v <0|13|18>\fR] [\fI-p\fR] [\fI-b <bandwidth>\fR] [\fI-I <inversion>\fR]
 [\fI-F <fec_inner>\fR] [\fI-m <modulation>\fR] [\fI-R <rolloff>\fR] [\fI-P <pilot>\fR] [\fI-K <fec_lp>\fR]
@@ -125,6 +125,9 @@ DVB network name to declare in the NIT
 .TP
 \fB\-n\fR, \fB\-\-frontend\-number\fR <frontend number>
 The frontend number
+.TP
+\fB\-y\fR, \fB\-\-ca\-number\fR <ca_dev_number>
+CA device number. Default: 0
 .TP
 \fB\-N\fR, \fB\-\-network-id\fR <ID>
 DVB network ID to declare in the NIT
