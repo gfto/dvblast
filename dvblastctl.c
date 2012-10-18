@@ -573,6 +573,12 @@ int main( int i_argc, char **ppsz_argv )
         else \
             printf( "%s: %u\n", STRINGIFY(x), p_ret->info.x ); \
     } while(0)
+
+        if ( i_print_type == PRINT_XML )
+            printf( " <SETTING name=\"%s\"/>\n", p_ret->info.name );
+        else
+            printf( "name: %s\n", p_ret->info.name );
+
         PRINT_INFO( frequency_min );
         PRINT_INFO( frequency_max );
         PRINT_INFO( frequency_stepsize );
