@@ -6,6 +6,7 @@ Changes between 2.2 and 2.3:
   * Fixed ECM pid selection.
   * Added CA device addressing.
   * Added support for remapping ES pids to fixed values.
+  * Added support for multi-delivery system frontends.
 
 Changes between 2.1 and 2.2:
 ----------------------------

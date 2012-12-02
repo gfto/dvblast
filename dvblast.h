@@ -153,6 +153,7 @@ extern int i_comm_fd;
 extern int i_adapter;
 extern int i_fenum;
 extern int i_canum;
+extern char *psz_delsys;
 extern int i_frequency;
 extern int i_srate;
 extern int i_satnum;

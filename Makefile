@@ -45,7 +45,7 @@ all: dvblast dvblastctl
 
 %.o: %.c Makefile config.h dvblast.h en50221.h comm.h asi.h mrtg-cnt.h
 	@echo "CC      $<"
-	$(Q)$(CROSS)$(CC) $(CFLAGS) -c $<
+	$(Q)$(CROSS)$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
 
 dvblast: $(OBJ_DVBLAST)
 	@echo "LINK    $@"

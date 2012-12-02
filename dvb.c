@@ -47,6 +47,8 @@
 #include <linux/dvb/frontend.h>
 #include <linux/dvb/ca.h>
 
+#define MAX_DELIVERY_SYSTEMS 20
+
 #include "dvblast.h"
 #include "en50221.h"
 #include "comm.h"
@@ -82,7 +84,7 @@ void dvb_Open( void )
 {
     char psz_tmp[128];
 
-    msg_Dbg( NULL, "using linux-dvb API version %d.%d", DVB_API_VERSION, DVB_API_VERSION_MINOR );
+    msg_Dbg( NULL, "compiled with DVB API version %d.%d", DVB_API_VERSION, DVB_API_VERSION_MINOR );
 
     i_wallclock = mdate();
 
@@ -582,6 +584,10 @@ static int FrontendDoDiseqc(void)
 
 #if DVB_API_VERSION >= 5
 
+#if DVBAPI_VERSION < 505
+#warning Your linux-dvb headers are old, you should consider upgrading your kernel and/or compiling against different kernel headers
+#endif
+
 /*****************************************************************************
  * Helper functions for S2API
  *****************************************************************************/
@@ -727,22 +733,11 @@ static fe_hierarchy_t GetHierarchy(void)
 /*****************************************************************************
  * FrontendInfo : Print frontend info
  *****************************************************************************/
-static const char *GetFrontendTypeName( fe_type_t type )
+static void FrontendInfo( struct dvb_frontend_info info, uint32_t version,
+                          fe_delivery_system_t *p_systems, int i_systems )
 {
-    switch(type)
-    {
-        case FE_QPSK: return "QPSK (DVB-S/S2)";
-        case FE_QAM:  return "QAM  (DVB-C)";
-        case FE_OFDM: return "OFDM (DVB-T)";
-        case FE_ATSC: return "ATSC";
-        default: return "unknown";
-    }
-}
-
-static void FrontendInfo( struct dvb_frontend_info info )
-{
-    msg_Dbg( NULL, "Frontend \"%s\" type \"%s\" supports:",
-             info.name, GetFrontendTypeName(info.type) );
+    msg_Dbg( NULL, "using DVB API version %d.%d", version / 256, version % 256 );
+    msg_Dbg( NULL, "Frontend \"%s\" supports:", info.name );
     msg_Dbg( NULL, " frequency min: %d, max: %d, stepsize: %d, tolerance: %d",
              info.frequency_min, info.frequency_max,
              info.frequency_stepsize, info.frequency_tolerance );
@@ -750,7 +745,7 @@ static void FrontendInfo( struct dvb_frontend_info info )
              info.symbol_rate_min, info.symbol_rate_max, info.symbol_rate_tolerance);
     msg_Dbg( NULL, " capabilities:" );
 
-#define FRONTEND_INFO(caps,val,msg)                                             \
+#define FRONTEND_INFO(caps,val,msg)                                         \
     if ( caps & val )                                                       \
         msg_Dbg( NULL, "  %s", msg );
 
@@ -786,19 +781,71 @@ static void FrontendInfo( struct dvb_frontend_info info )
     FRONTEND_INFO( info.caps, FE_CAN_RECOVER, "FE_CAN_RECOVER" )
     FRONTEND_INFO( info.caps, FE_CAN_MUTE_TS, "FE_CAN_MUTE_TS" )
 #undef FRONTEND_INFO
+
+    msg_Dbg( NULL, " delivery systems:" );
+    int i;
+    for ( i = 0; i < i_systems; i++ )
+    {
+        switch ( p_systems[i] )
+        {
+#define DELSYS_INFO(delsys, msg)                                            \
+        case delsys: msg_Dbg( NULL, "  %s", msg); break;
+        DELSYS_INFO( SYS_ATSC, "ATSC" )
+        DELSYS_INFO( SYS_ATSCMH, "ATSCMH" )
+        DELSYS_INFO( SYS_CMMB, "CMBB" )
+        DELSYS_INFO( SYS_DAB, "DAB" )
+        DELSYS_INFO( SYS_DSS, "DSS" )
+        DELSYS_INFO( SYS_DVBC_ANNEX_B, "DVBC_ANNEX_B" )
+        DELSYS_INFO( SYS_DVBH, "DVBH" )
+        DELSYS_INFO( SYS_DVBS, "DVBS" )
+        DELSYS_INFO( SYS_DVBS2, "DVBS2" )
+        DELSYS_INFO( SYS_DVBT, "DVBT" )
+        DELSYS_INFO( SYS_ISDBC, "ISDBC" )
+        DELSYS_INFO( SYS_ISDBS, "ISDBS" )
+        DELSYS_INFO( SYS_ISDBT, "ISDBT" )
+        DELSYS_INFO( SYS_UNDEFINED, "UNDEFINED" )
+#if DVBAPI_VERSION >= 505
+        DELSYS_INFO( SYS_DVBC_ANNEX_A, "DVBC_ANNEX_A" )
+        DELSYS_INFO( SYS_DVBC_ANNEX_C, "DVBC_ANNEX_C" )
+        DELSYS_INFO( SYS_DVBT2, "DVBT2" )
+        DELSYS_INFO( SYS_TURBO, "TURBO" )
+#endif
+#if DVBAPI_VERSION >= 507
+        DELSYS_INFO( SYS_DTMB, "DTMB" )
+#endif
+        }
+    }
 }
 
 /*****************************************************************************
  * FrontendSet
  *****************************************************************************/
 /* S2API */
+#if DVBAPI_VERSION >= 505
+static struct dtv_property info_cmdargs[] = {
+    { .cmd = DTV_API_VERSION,     .u.data = 0 },
+};
+static struct dtv_properties info_cmdseq = {
+    .num = sizeof(info_cmdargs)/sizeof(struct dtv_property),
+    .props = info_cmdargs
+};
+
+static struct dtv_property enum_cmdargs[] = {
+    { .cmd = DTV_ENUM_DELSYS,     .u.data = 0 },
+};
+static struct dtv_properties enum_cmdseq = {
+    .num = sizeof(enum_cmdargs)/sizeof(struct dtv_property),
+    .props = enum_cmdargs
+};
+#endif
+
 static struct dtv_property dvbs_cmdargs[] = {
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS },
     { .cmd = DTV_FREQUENCY,       .u.data = 0 },
     { .cmd = DTV_MODULATION,      .u.data = QPSK },
     { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
     { .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
     { .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
-    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS },
     { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbs_cmdseq = {
@@ -807,12 +854,12 @@ static struct dtv_properties dvbs_cmdseq = {
 };
 
 static struct dtv_property dvbs2_cmdargs[] = {
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS2 },
     { .cmd = DTV_FREQUENCY,       .u.data = 0 },
     { .cmd = DTV_MODULATION,      .u.data = PSK_8 },
     { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
     { .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
     { .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
-    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS2 },
     { .cmd = DTV_PILOT,           .u.data = PILOT_AUTO },
     { .cmd = DTV_ROLLOFF,         .u.data = ROLLOFF_AUTO },
     { .cmd = DTV_TUNE },
@@ -823,11 +870,15 @@ static struct dtv_properties dvbs2_cmdseq = {
 };
 
 static struct dtv_property dvbc_cmdargs[] = {
+#if DVBAPI_VERSION >= 505
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBC_ANNEX_A },
+#else
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBC_ANNEX_AC },
+#endif
     { .cmd = DTV_FREQUENCY,       .u.data = 0 },
     { .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
     { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
     { .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
-    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBC_ANNEX_AC },
     { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbc_cmdseq = {
@@ -836,6 +887,7 @@ static struct dtv_properties dvbc_cmdseq = {
 };
 
 static struct dtv_property dvbt_cmdargs[] = {
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBT },
     { .cmd = DTV_FREQUENCY,       .u.data = 0 },
     { .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
     { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
@@ -845,7 +897,6 @@ static struct dtv_property dvbt_cmdargs[] = {
     { .cmd = DTV_GUARD_INTERVAL,  .u.data = GUARD_INTERVAL_AUTO },
     { .cmd = DTV_TRANSMISSION_MODE,.u.data = TRANSMISSION_MODE_AUTO },
     { .cmd = DTV_HIERARCHY,       .u.data = HIERARCHY_AUTO },
-    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBT },
     { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbt_cmdseq = {
@@ -854,10 +905,10 @@ static struct dtv_properties dvbt_cmdseq = {
 };
 
 static struct dtv_property atsc_cmdargs[] = {
-    { .cmd = DTV_FREQUENCY, .u.data = 0 },
-    { .cmd = DTV_MODULATION, .u.data = QAM_AUTO },
-    { .cmd = DTV_INVERSION, .u.data = INVERSION_AUTO },
     { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_ATSC },
+    { .cmd = DTV_FREQUENCY,       .u.data = 0 },
+    { .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
+    { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
     { .cmd = DTV_TUNE },
 };
 static struct dtv_properties atsc_cmdseq = {
@@ -865,18 +916,19 @@ static struct dtv_properties atsc_cmdseq = {
     .props = atsc_cmdargs
 };
 
-#define FREQUENCY 0
-#define MODULATION 1
-#define INVERSION 2
-#define SYMBOL_RATE 3
-#define BANDWIDTH 3
-#define FEC_INNER 4
-#define FEC_LP 5
-#define GUARD 6
-#define PILOT 6
-#define TRANSMISSION 7
-#define ROLLOFF 7
-#define HIERARCHY 8
+#define DELSYS 0
+#define FREQUENCY 1
+#define MODULATION 2
+#define INVERSION 3
+#define SYMBOL_RATE 4
+#define BANDWIDTH 4
+#define FEC_INNER 5
+#define FEC_LP 6
+#define GUARD 7
+#define PILOT 7
+#define TRANSMISSION 8
+#define ROLLOFF 8
+#define HIERARCHY 9
 
 struct dtv_property pclear[] = {
     { .cmd = DTV_CLEAR },
@@ -887,10 +939,73 @@ struct dtv_properties cmdclear = {
     .props = pclear
 };
 
+static fe_delivery_system_t
+FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
+{
+    if ( psz_delsys != NULL )
+    {
+        if ( !strcasecmp( psz_delsys, "DVBS" ) )
+            return SYS_DVBS;
+        if ( !strcasecmp( psz_delsys, "DVBS2" ) )
+            return SYS_DVBS2;
+        if ( !strcasecmp( psz_delsys, "DVBC_ANNEX_A" ) )
+#if DVBAPI_VERSION >= 505
+            return SYS_DVBC_ANNEX_A;
+#else
+            return SYS_DVBC_ANNEX_AC;
+#endif
+        if ( !strcasecmp( psz_delsys, "DVBT" ) )
+            return SYS_DVBT;
+        if ( !strcasecmp( psz_delsys, "ATSC" ) )
+            return SYS_ATSC;
+        msg_Err( NULL, "unknown delivery system %s", psz_delsys );
+        exit(1);
+    }
+
+    if ( i_systems == 1 )
+        return p_systems[0];
+
+    int i;
+    for ( i = 0; i < i_systems; i++ )
+    {
+        switch ( p_systems[i] )
+        {
+            case SYS_DVBS:
+                if ( i_frequency < 50000000 )
+                    return SYS_DVBS;
+                break;
+#if DVBAPI_VERSION >= 505
+            case SYS_DVBC_ANNEX_A:
+                if ( i_frequency > 50000000 || i_srate != 27500000 ||
+                     psz_modulation != NULL )
+                    return SYS_DVBC_ANNEX_A;
+                break;
+#else
+            case SYS_DVBC_ANNEX_AC:
+                if ( i_frequency > 50000000 || i_srate != 27500000 ||
+                     psz_modulation != NULL )
+                    return SYS_DVBC_ANNEX_AC;
+                break;
+#endif
+            case SYS_DVBT:
+                if ( i_frequency > 50000000 )
+                    return SYS_DVBT;
+                break;
+            default:
+                break;
+        }
+    }
+
+    msg_Warn( NULL, "couldn't guess delivery system, use --delsys" );
+    return p_systems[0];
+}
+
 static void FrontendSet( bool b_init )
 {
     struct dvb_frontend_info info;
     struct dtv_properties *p;
+    fe_delivery_system_t p_systems[MAX_DELIVERY_SYSTEMS];
+    int i_systems = 0;
 
     if ( ioctl( i_frontend, FE_GET_INFO, &info ) < 0 )
     {
@@ -898,8 +1013,68 @@ static void FrontendSet( bool b_init )
         exit(1);
     }
 
+    uint32_t version = 0x300;
+#if DVBAPI_VERSION >= 505
+    if ( ioctl( i_frontend, FE_GET_PROPERTY, &info_cmdseq ) < 0 )
+    {
+#endif
+        /* DVBv3 device */
+        switch ( info.type )
+        {
+        case FE_OFDM:
+            p_systems[i_systems++] = SYS_DVBT;
+#if DVBAPI_VERSION >= 505
+            if ( info.caps & FE_CAN_2G_MODULATION )
+                p_systems[i_systems++] = SYS_DVBT2;
+#endif
+            break;
+        case FE_QAM:
+#if DVBAPI_VERSION >= 505
+            p_systems[i_systems++] = SYS_DVBC_ANNEX_A;
+#else
+            p_systems[i_systems++] = SYS_DVBC_ANNEX_AC;
+#endif
+            break;
+        case FE_QPSK:
+            p_systems[i_systems++] = SYS_DVBS;
+            if ( info.caps & FE_CAN_2G_MODULATION )
+                p_systems[i_systems++] = SYS_DVBS2;
+            break;
+        case FE_ATSC:
+			if ( info.caps & (FE_CAN_8VSB | FE_CAN_16VSB) )
+				p_systems[i_systems++] = SYS_ATSC;
+			if ( info.caps & (FE_CAN_QAM_64 | FE_CAN_QAM_256 | FE_CAN_QAM_AUTO) )
+				p_systems[i_systems++] = SYS_DVBC_ANNEX_B;
+            break;
+        default:
+            msg_Err( NULL, "unknown frontend type %d", info.type );
+            exit(1);
+        }
+#if DVBAPI_VERSION >= 505
+    }
+    else
+    {
+        version = info_cmdargs[0].u.data;
+        if ( ioctl( i_frontend, FE_GET_PROPERTY, &enum_cmdseq ) < 0 )
+        {
+            msg_Err( NULL, "unable to query frontend" );
+            exit(1);
+        }
+        i_systems = enum_cmdargs[0].u.buffer.len;
+        if ( i_systems < 1 )
+        {
+            msg_Err( NULL, "no available delivery system" );
+            exit(1);
+        }
+
+        int i;
+        for ( i = 0; i < i_systems; i++ )
+            p_systems[i] = enum_cmdargs[0].u.buffer.data[i];
+    }
+#endif
+
     if ( b_init )
-        FrontendInfo( info );
+        FrontendInfo( info, version, p_systems, i_systems );
 
     /* Clear frontend commands */
     if ( ioctl( i_frontend, FE_SET_PROPERTY, &cmdclear ) < 0 )
@@ -908,10 +1083,12 @@ static void FrontendSet( bool b_init )
         exit(1);
     }
 
-    switch ( info.type )
+    fe_delivery_system_t system = FrontendGuessSystem( p_systems, i_systems );
+    switch ( system )
     {
-    case FE_OFDM:
+    case SYS_DVBT:
         p = &dvbt_cmdseq;
+        p->props[DELSYS].u.data = system;
         p->props[FREQUENCY].u.data = i_frequency;
         p->props[INVERSION].u.data = GetInversion();
         if ( psz_modulation != NULL )
@@ -923,14 +1100,18 @@ static void FrontendSet( bool b_init )
         p->props[TRANSMISSION].u.data = GetTransmission();
         p->props[HIERARCHY].u.data = GetHierarchy();
 
-        msg_Dbg( NULL, "tuning OFDM frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d",
+        msg_Dbg( NULL, "tuning DVB-T frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d",
                  i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
                  i_hierarchy,
                  psz_modulation == NULL ? "qam_auto" : psz_modulation,
                  i_guard, i_transmission );
         break;
 
-    case FE_QAM:
+#if DVBAPI_VERSION >= 505
+    case SYS_DVBC_ANNEX_A:
+#else
+    case SYS_DVBC_ANNEX_AC:
+#endif
         p = &dvbc_cmdseq;
         p->props[FREQUENCY].u.data = i_frequency;
         p->props[INVERSION].u.data = GetInversion();
@@ -938,12 +1119,13 @@ static void FrontendSet( bool b_init )
             p->props[MODULATION].u.data = GetModulation();
         p->props[SYMBOL_RATE].u.data = i_srate;
 
-        msg_Dbg( NULL, "tuning QAM frontend to f=%d srate=%d inversion=%d modulation=%s",
+        msg_Dbg( NULL, "tuning DVB-C frontend to f=%d srate=%d inversion=%d modulation=%s",
                  i_frequency, i_srate, i_inversion,
                  psz_modulation == NULL ? "qam_auto" : psz_modulation );
         break;
 
-    case FE_QPSK:
+    case SYS_DVBS:
+    case SYS_DVBS2:
         if ( psz_modulation != NULL )
         {
             p = &dvbs2_cmdseq;
@@ -959,12 +1141,12 @@ static void FrontendSet( bool b_init )
         p->props[FEC_INNER].u.data = GetFECInner(info.caps);
         p->props[FREQUENCY].u.data = FrontendDoDiseqc();
 
-        msg_Dbg( NULL, "tuning QPSK frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d",
+        msg_Dbg( NULL, "tuning DVB-S frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d",
                  i_frequency, i_srate, i_inversion, i_fec, i_rolloff,
                  psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot );
         break;
 
-    case FE_ATSC:
+    case SYS_ATSC:
         p = &atsc_cmdseq;
         p->props[FREQUENCY].u.data = i_frequency;
         p->props[INVERSION].u.data = GetInversion();

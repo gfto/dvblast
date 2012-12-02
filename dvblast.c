@@ -62,6 +62,7 @@ static int i_priority = -1;
 int i_adapter = 0;
 int i_fenum = 0;
 int i_canum = 0;
+char *psz_delsys = NULL;
 int i_frequency = 0;
 int i_inversion = -1;
 int i_srate = 27500000;
@@ -470,6 +471,8 @@ void usage()
 #endif
     msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
 #ifdef HAVE_DVB_SUPPORT
+    msg_Raw( NULL, "  -5 --delsys           delivery system" );
+    msg_Raw( NULL, "    DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC (default guessed)");
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
     msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
@@ -552,7 +555,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: 123456789
+     * The only short options left are: 12346789
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -564,6 +567,7 @@ int main( int i_argc, char **pp_argv )
         { "priority",        required_argument, NULL, 'i' },
         { "adapter",         required_argument, NULL, 'a' },
         { "frontend-number", required_argument, NULL, 'n' },
+        { "delsys",          required_argument, NULL, '5' },
         { "frequency",       required_argument, NULL, 'f' },
         { "fec-inner",       required_argument, NULL, 'F' },
         { "rolloff",         required_argument, NULL, 'R' },
@@ -613,7 +617,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -675,6 +679,10 @@ int main( int i_argc, char **pp_argv )
 
         case 'y':
             i_canum = strtol( optarg, NULL, 0 );
+            break;
+
+        case '5':
+            psz_delsys = optarg;
             break;
 
         case 'f':
