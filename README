@@ -146,6 +146,7 @@ Available options include :
  /mtu=XXXX (sets the maximum UDP packet size)
  /srvname=Some_Channel (set service name in SDT)
  /srvprovider=Some_Provider (set provider name in SDT)
+ /pidmap=pmt_pid,audio_pid,video_pid,spu_pid
 
 When setting text options like /srvname or /srvprovider, remember
 that the underscore character (_) will be replaced by space ( ).
@@ -190,6 +191,12 @@ the stream won't be compliant.
 DVBlast will only stream the PIDs passed. No PAT and PMT will be generated,
 so if they are not included the stream won't be compliant. Also the
 included PAT and PMT may contain ghost programs or ESes.
+
+4. PID remapping
+
+239.255.0.1:1234/udp/epg/tsid=42/ssrc=192.168.0.1/pidmap=pmt_pid,audio_pid,video_pid,spu_pid
+
+All four PIDs are required!
 
 Note that the CAM will not be programmed in that case (unless it has
 been programmed by another line of the config file). The file is read

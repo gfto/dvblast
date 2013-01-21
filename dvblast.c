@@ -144,6 +144,11 @@ void config_Init( output_config_t *p_config )
     p_config->i_if_index_v6 = -1;
 
     p_config->pi_pids = NULL;
+    p_config->b_do_remap = false;
+    unsigned int i;
+    for ( i = 0; i < N_MAP_PIDS; i++ ) {
+        p_config->pi_confpids[i]  = UNUSED_PID;
+    }
 }
 
 void config_Free( output_config_t *p_config )
@@ -259,6 +264,25 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
         {
             in_addr_t i_addr = inet_addr( ARG_OPTION("ssrc=") );
             memcpy( p_config->pi_ssrc, &i_addr, 4 * sizeof(uint8_t) );
+        }
+        else if ( IS_OPTION("pidmap=") )
+        {
+            char *str1;
+            char *saveptr = NULL;
+            char *tok = NULL;
+            int i, i_newpid;
+            for (i = 0, str1 = config_stropt( (ARG_OPTION("pidmap="))); i < N_MAP_PIDS; i++, str1 = NULL)
+            {
+                tok = strtok_r(str1, ",", &saveptr);
+                if ( !tok )
+                    break;
+                i_newpid = strtoul(tok, NULL, 0);
+                if ( !i_newpid ) {
+                     msg_Warn( NULL, "Invalid output pidmap setting" );
+                }
+                p_config->pi_confpids[i] = i_newpid;
+            }
+            p_config->b_do_remap = true;
         }
         else
             msg_Warn( NULL, "unrecognized option %s", psz_string );

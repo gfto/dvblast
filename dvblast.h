@@ -96,6 +96,10 @@ typedef struct output_config_t
     uint16_t i_sid; /* 0 if raw mode */
     uint16_t *pi_pids;
     int i_nb_pids;
+
+    /* for pidmap from config file */
+    bool b_do_remap;
+    uint16_t pi_confpids[N_MAP_PIDS];
 } output_config_t;
 
 typedef struct output_t
@@ -127,6 +131,10 @@ typedef struct output_t
     // newpids is indexed using the original pid
     uint16_t pi_newpids[MAX_PIDS];
     uint16_t pi_freepids[MAX_PIDS];   // used where multiple streams of the same type are used
+
+    /* For pidmap from config file */
+    bool b_do_remap;
+    uint16_t pi_confpids[N_MAP_PIDS];
 } output_t;
 
 typedef struct ts_pid_info {
