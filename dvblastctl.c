@@ -638,7 +638,9 @@ int main( int i_argc, char **ppsz_argv )
 #if DVBAPI_VERSION >= 501
         PRINT_CAPS( CAN_2G_MODULATION );
 #endif
+#if DVBAPI_VERSION >= 508
         PRINT_CAPS( CAN_MULTISTREAM );
+#endif
 #undef PRINT_CAPS
 
         if ( i_print_type == PRINT_TEXT )
