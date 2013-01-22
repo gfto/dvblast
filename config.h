@@ -29,11 +29,6 @@
 #define HAVE_DVB_SUPPORT
 #define HAVE_ASI_SUPPORT
 #define HAVE_CLOCK_NANOSLEEP
-#define HAVE_DVB_MULTISTREAM
-#if DVBAPI_VERSION < 508
-  #define DTV_STREAM_ID        42
-  #define FE_CAN_MULTISTREAM   0x4000000
-#endif
 #endif
 
 #define HAVE_ICONV

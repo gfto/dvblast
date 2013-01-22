@@ -47,6 +47,11 @@
 #include <linux/dvb/frontend.h>
 #include <linux/dvb/ca.h>
 
+#if DVBAPI_VERSION < 508
+  #define DTV_STREAM_ID        42
+  #define FE_CAN_MULTISTREAM   0x4000000
+#endif
+
 #define MAX_DELIVERY_SYSTEMS 20
 
 #include "dvblast.h"
