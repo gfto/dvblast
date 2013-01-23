@@ -2917,7 +2917,7 @@ uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size ) {
 
 uint8_t *demux_get_packed_PMT( uint16_t i_sid, unsigned int *pi_pack_size ) {
     sid_t *p_sid = FindSID( i_sid );
-    if ( p_sid != NULL && pmt_validate( p_sid->p_current_pmt ) )
+    if ( p_sid != NULL && p_sid->p_current_pmt && pmt_validate( p_sid->p_current_pmt ) )
         return psi_pack_section( p_sid->p_current_pmt, pi_pack_size );
     return NULL;
 }
