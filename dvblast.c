@@ -673,6 +673,12 @@ int main( int i_argc, char **pp_argv )
 
         case 'c':
             psz_conf_file = optarg;
+            /*
+             * When configuration file is used it is reasonable to assume that
+             * services may be added/removed. If b_select_pmts is not set dvblast
+             * is unable to start streaming newly added services in the config.
+             */
+            b_select_pmts = 1;
             break;
 
         case 'r':
