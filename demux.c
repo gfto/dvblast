@@ -897,6 +897,10 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
 
     p_pmt = p_sid->p_current_pmt;
     i_pmt_pid = p_sid->i_pmt_pid;
+    if ( p_pmt == NULL ) {
+        msg_Dbg(NULL, "no current PMT on sid %d\n", i_sid);
+        return;
+    }
 
     i_pcr_pid = pmt_get_pcrpid( p_pmt );
     j = 0;
