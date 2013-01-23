@@ -534,11 +534,14 @@ void outputs_Close( int i_num_outputs )
     {
         output_t *p_output = pp_outputs[i];
 
-        msg_Dbg( NULL, "removing %s", p_output->config.psz_displayname );
+        if ( p_output->config.i_config & OUTPUT_VALID )
+        {
+            msg_Dbg( NULL, "removing %s", p_output->config.psz_displayname );
 
-        if ( p_output->p_packets )
-            output_Flush( p_output );
-        output_Close( p_output );
+            if ( p_output->p_packets )
+                output_Flush( p_output );
+            output_Close( p_output );
+        }
 
         free( p_output );
     }
