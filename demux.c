@@ -1441,10 +1441,18 @@ static void NewSDT( output_t *p_output )
     p_service = sdt_get_service( p, 0 );
     sdtn_init( p_service );
     sdtn_set_sid( p_service, p_output->config.i_sid );
-    if ( sdtn_get_eitschedule(p_current_service) )
+
+    if ( (p_output->config.i_config & OUTPUT_EPG) == OUTPUT_EPG )
+    {
         sdtn_set_eitschedule(p_service);
-    if ( sdtn_get_eitpresent(p_current_service) )
         sdtn_set_eitpresent(p_service);
+    } else {
+        if ( sdtn_get_eitschedule(p_current_service) )
+            sdtn_set_eitschedule(p_service);
+        if ( sdtn_get_eitpresent(p_current_service) )
+            sdtn_set_eitpresent(p_service);
+    }
+
     sdtn_set_running( p_service, sdtn_get_running(p_current_service) );
     /* Do not set free_ca */
     sdtn_set_desclength( p_service, sdtn_get_desclength(p_current_service) );
