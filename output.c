@@ -73,6 +73,50 @@ static uint8_t p_pad_ts[TS_SIZE] = {
 };
 
 /*****************************************************************************
+ * RawFillHeaders - fill ipv4/udp headers for RAW socket
+ *****************************************************************************/
+static void RawFillHeaders(struct udprawpkt *dgram,
+                        in_addr_t ipsrc, in_addr_t ipdst,
+                        uint16_t portsrc, uint16_t portdst,
+                        uint8_t ttl, uint8_t tos, uint16_t len)
+{
+    struct iphdr *iph = &(dgram->iph);
+    struct udpheader *udph = &(dgram->udph);
+
+#ifdef DEBUG_SOCKET
+    char ipsrc_str[16], ipdst_str[16];
+    struct in_addr insrc, indst;
+    insrc.s_addr = ipsrc;
+    indst.s_addr = ipdst;
+    strncpy(ipsrc_str, inet_ntoa(insrc), 16);
+    strncpy(ipdst_str, inet_ntoa(indst), 16);
+    printf("Filling raw header (%p) (%s:%u -> %s:%u)\n", dgram, ipsrc_str, portsrc, ipdst_str, portdst);
+#endif
+
+    // Fill ip header
+    iph->ihl      = 5;              // ip header with no specific option
+    iph->version  = 4;
+    iph->tos      = tos;
+    iph->tot_len  = sizeof(struct udprawpkt) + len; // auto-htoned ?
+    iph->id       = htons(0);       // auto-generated if frag_off (flags) = 0 ?
+    iph->frag_off = 0;
+    iph->ttl      = ttl;
+    iph->protocol = IPPROTO_UDP;
+    iph->check    = 0;
+    iph->saddr    = ipsrc;
+    iph->daddr    = ipdst;
+
+    // Fill udp header
+    udph->source = htons(portsrc);
+    udph->dest   = htons(portdst);
+    udph->len    = htons(sizeof(struct udpheader) + len);
+    udph->check  = 0;
+
+    // Compute ip header checksum. Computed by kernel when frag_off = 0 ?
+    //iph->check = csum((unsigned short *)iph, sizeof(struct iphdr));
+}
+
+/*****************************************************************************
  * output_Create : create and insert the output_t structure
  *****************************************************************************/
 output_t *output_Create( const output_config_t *p_config )
@@ -157,7 +201,12 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
             sizeof(struct sockaddr_storage) );
     p_output->config.i_if_index_v6 = p_config->i_if_index_v6;
 
-    p_output->i_handle = socket( p_config->i_family, SOCK_DGRAM, IPPROTO_UDP );
+    if ( (p_config->i_config & OUTPUT_RAW) ) {
+        p_output->config.i_config |= OUTPUT_RAW;
+        p_output->i_handle = socket( AF_INET, SOCK_RAW, IPPROTO_RAW );
+    } else {
+        p_output->i_handle = socket( p_config->i_family, SOCK_DGRAM, IPPROTO_UDP );
+    }
     if ( p_output->i_handle < 0 )
     {
         msg_Err( NULL, "couldn't create socket (%s)", strerror(errno) );
@@ -183,6 +232,15 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
                             (void *)&p_bind_addr->sin_addr.s_addr,
                             sizeof(p_bind_addr->sin_addr.s_addr) );
         }
+    }
+
+    if ( (p_config->i_config & OUTPUT_RAW) ) {
+        struct sockaddr_in *p_connect_addr =
+            (struct sockaddr_in *)&p_output->config.connect_addr;
+        RawFillHeaders(&p_output->raw_pkt_header, inet_addr(p_config->psz_srcaddr),
+                p_connect_addr->sin_addr.s_addr,
+                (uint16_t) p_config->i_srcport, ntohs(p_connect_addr->sin_port),
+                p_config->i_ttl, p_config->i_tos, 0);
     }
 
     if ( p_config->i_family == AF_INET6 && p_config->i_if_index_v6 != -1 )
@@ -262,14 +320,21 @@ static void output_Flush( output_t *p_output )
 {
     packet_t *p_packet = p_output->p_packets;
     int i_block_cnt = output_BlockCount( p_output );
-    struct iovec p_iov[i_block_cnt + 1];
+    struct iovec p_iov[i_block_cnt + 2];
     uint8_t p_rtp_hdr[RTP_HEADER_SIZE];
-    int i_iov, i_block;
+    int i_iov = 0, i_payload_len, i_block;
+
+    if ( (p_output->config.i_config & OUTPUT_RAW) )
+    {
+        p_iov[i_iov].iov_base = &p_output->raw_pkt_header;
+        p_iov[i_iov].iov_len = sizeof(struct udprawpkt);
+        i_iov++;
+    }
 
     if ( !(p_output->config.i_config & OUTPUT_UDP) )
     {
-        p_iov[0].iov_base = p_rtp_hdr;
-        p_iov[0].iov_len = sizeof(p_rtp_hdr);
+        p_iov[i_iov].iov_base = p_rtp_hdr;
+        p_iov[i_iov].iov_len = sizeof(p_rtp_hdr);
 
         rtp_set_hdr( p_rtp_hdr );
         rtp_set_type( p_rtp_hdr, RTP_TYPE_TS );
@@ -280,10 +345,8 @@ static void output_Flush( output_t *p_output )
                                * 9 / 100 );
         rtp_set_ssrc( p_rtp_hdr, p_output->config.pi_ssrc );
 
-        i_iov = 1;
+        i_iov++;
     }
-    else
-        i_iov = 0;
 
     for ( i_block = 0; i_block < p_packet->i_depth; i_block++ )
     {
@@ -315,6 +378,16 @@ static void output_Flush( output_t *p_output )
         p_iov[i_iov].iov_base = p_pad_ts;
         p_iov[i_iov].iov_len = TS_SIZE;
         i_iov++;
+    }
+
+    
+    if ( (p_output->config.i_config & OUTPUT_RAW) )
+    {
+        i_payload_len = 0;
+        for ( i_block = 1; i_block < i_iov; i_block++ ) {
+            i_payload_len += p_iov[i_block].iov_len; 
+        }
+        p_output->raw_pkt_header.udph.len = htons(sizeof(struct udpheader) + i_payload_len);
     }
 
     if ( writev( p_output->i_handle, p_iov, i_iov ) < 0 )
@@ -452,6 +525,10 @@ output_t *output_Find( const output_config_t *p_config )
              p_config->i_if_index_v6 != p_output->config.i_if_index_v6 )
             continue;
 
+        if ( (p_config->i_config ^ p_output->config.i_config) & OUTPUT_RAW ) {
+            continue;
+        }
+
         return p_output;
     }
 
@@ -487,6 +564,7 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
                             (void *)&p_config->i_ttl, sizeof(p_config->i_ttl) );
         }
         p_output->config.i_ttl = p_config->i_ttl;
+        p_output->raw_pkt_header.iph.ttl = p_config->i_ttl;
     }
 
     if ( p_output->config.i_tos != p_config->i_tos )
@@ -495,6 +573,7 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
             setsockopt( p_output->i_handle, IPPROTO_IP, IP_TOS,
                         (void *)&p_config->i_tos, sizeof(p_config->i_tos) );
         p_output->config.i_tos = p_config->i_tos;
+        p_output->raw_pkt_header.iph.tos = p_config->i_tos;
     }
 
     if ( p_output->config.i_mtu != p_config->i_mtu
@@ -520,6 +599,11 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
         p_output->pi_confpids[I_APID]   = p_config->pi_confpids[I_APID];
         p_output->pi_confpids[I_VPID]   = p_config->pi_confpids[I_VPID];
         p_output->pi_confpids[I_SPUPID] = p_config->pi_confpids[I_SPUPID];
+    }
+
+    if ( p_config->i_config & OUTPUT_RAW ) {
+        p_output->raw_pkt_header.iph.saddr = inet_addr(p_config->psz_srcaddr);
+        p_output->raw_pkt_header.udph.source = htons(p_config->i_srcport);
     }
 }
 

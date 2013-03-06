@@ -137,11 +137,13 @@ void config_Init( output_config_t *p_config )
     p_config->psz_displayname = NULL;
     p_config->psz_service_name = NULL;
     p_config->psz_service_provider = NULL;
+    p_config->psz_srcaddr = NULL;
 
     p_config->i_family = AF_UNSPEC;
     p_config->connect_addr.ss_family = AF_UNSPEC;
     p_config->bind_addr.ss_family = AF_UNSPEC;
     p_config->i_if_index_v6 = -1;
+    p_config->i_srcport = 0;
 
     p_config->pi_pids = NULL;
     p_config->b_do_remap = false;
@@ -157,6 +159,7 @@ void config_Free( output_config_t *p_config )
     free( p_config->psz_service_name );
     free( p_config->psz_service_provider );
     free( p_config->pi_pids );
+    free( p_config->psz_srcaddr );
 }
 
 static void config_Defaults( output_config_t *p_config )
@@ -260,6 +263,19 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
                 free( p_config->psz_service_provider );
             p_config->psz_service_provider = config_stropt( ARG_OPTION("srvprovider=") );
         }
+        else if ( IS_OPTION("srcaddr=") )
+        {
+            if ( p_config->i_family != AF_INET ) {
+                msg_Err( NULL, "RAW sockets currently implemented for ipv4 only");
+                return false;
+            }
+            if ( !p_config->psz_srcaddr )
+                free( p_config->psz_srcaddr );
+            p_config->psz_srcaddr = config_stropt( ARG_OPTION("srcaddr=") );
+            p_config->i_config |= OUTPUT_RAW;
+        }
+        else if ( IS_OPTION("srcport=") )
+            p_config->i_srcport = strtol( ARG_OPTION("srcport="), NULL, 0 );
         else if ( IS_OPTION("ssrc=") )
         {
             in_addr_t i_addr = inet_addr( ARG_OPTION("ssrc=") );

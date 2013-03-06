@@ -23,6 +23,8 @@
 
 #include <netdb.h>
 #include <sys/socket.h>
+#include <netinet/udp.h>
+#include <netinet/ip.h>
 
 #include "config.h"
 
@@ -37,6 +39,21 @@ typedef enum
 /* Impossible PID value */
 #define UNUSED_PID (MAX_PIDS + 1)
 
+/*****************************************************************************
+ * Raw udp packet structure with flexible-array payload
+ *****************************************************************************/
+struct udpheader { // FAVOR_BSD hell ...
+  u_int16_t source;
+  u_int16_t dest;
+  u_int16_t len;
+  u_int16_t check;
+};
+
+struct udprawpkt {
+    struct  iphdr iph;
+    struct  udpheader udph;
+    uint8_t payload[];
+} __attribute__((packed));
 
 /*****************************************************************************
  * Output configuration flags (for output_t -> i_config) - bit values
@@ -47,6 +64,7 @@ typedef enum
  * Bit  4 : Set for file / FIFO output, unset for network (future use)
  * Bit  5 : Set if DVB conformance tables are inserted
  * Bit  6 : Set if DVB EIT schedule tables are forwarded
+ * Bit  7 : Set for RAW socket output
  *****************************************************************************/
 
 #define OUTPUT_WATCH         0x01
@@ -56,6 +74,7 @@ typedef enum
 #define OUTPUT_FILE          0x10
 #define OUTPUT_DVB           0x20
 #define OUTPUT_EPG           0x40
+#define OUTPUT_RAW           0x80
 
 typedef int64_t mtime_t;
 
@@ -90,6 +109,8 @@ typedef struct output_config_t
     int i_ttl;
     uint8_t i_tos;
     int i_mtu;
+    char *psz_srcaddr; /* raw packets */
+    int i_srcport;
 
     /* demux config */
     int i_tsid;
@@ -109,6 +130,7 @@ typedef struct output_t
     /* output */
     int i_handle;
     packet_t *p_packets, *p_last_packet;
+    struct udprawpkt raw_pkt_header;
     uint16_t i_seqnum;
     mtime_t i_ref_timestamp;
     mtime_t i_ref_wallclock;
