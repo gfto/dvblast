@@ -38,6 +38,8 @@
 #include <errno.h>
 #include <getopt.h>
 
+#include <iconv.h>
+
 #include <bitstream/mpeg/psi.h>
 #include <bitstream/dvb/si.h>
 #include <bitstream/dvb/si_print.h>
@@ -55,6 +57,8 @@ mtime_t now;
 
 int i_fd = -1;
 char psz_client_socket[PATH_MAX] = {0};
+
+static iconv_t iconv_handle = (iconv_t)-1;
 
 static void clean_client_socket() {
     if ( i_fd > -1 )
@@ -110,10 +114,48 @@ static char *iconv_append_null(const char *p_string, size_t i_length)
     return psz_string;
 }
 
+const char *psz_native_charset = "UTF-8";
+
 char *psi_iconv(void *_unused, const char *psz_encoding,
                   char *p_string, size_t i_length)
 {
-    return iconv_append_null(p_string, i_length);
+    static const char *psz_current_encoding = "";
+
+    char *psz_string, *p;
+    size_t i_out_length;
+
+    if (!strcmp(psz_encoding, psz_native_charset))
+        return iconv_append_null(p_string, i_length);
+
+    if (iconv_handle != (iconv_t)-1 &&
+        strcmp(psz_encoding, psz_current_encoding)) {
+        iconv_close(iconv_handle);
+        iconv_handle = (iconv_t)-1;
+    }
+
+    if (iconv_handle == (iconv_t)-1)
+        iconv_handle = iconv_open(psz_native_charset, psz_encoding);
+    if (iconv_handle == (iconv_t)-1) {
+        msg_Warn(NULL, "couldn't convert from %s to %s (%m)", psz_encoding,
+                psz_native_charset);
+        return iconv_append_null(p_string, i_length);
+    }
+
+    /* converted strings can be up to six times larger */
+    i_out_length = i_length * 6;
+    p = psz_string = malloc(i_out_length);
+    if (iconv(iconv_handle, &p_string, &i_length, &p, &i_out_length) == -1) {
+        msg_Warn(NULL, "couldn't convert from %s to %s (%m)", psz_encoding,
+                psz_native_charset);
+        free(psz_string);
+        return iconv_append_null(p_string, i_length);
+    }
+    if (i_length)
+        msg_Warn(NULL, "partial conversion from %s to %s", psz_encoding,
+                psz_native_charset);
+
+    *p = '\0';
+    return psz_string;
 }
 
 void print_pids_header( void )
@@ -804,6 +846,11 @@ int main( int i_argc, char **ppsz_argv )
 
     default:
         return_error( "Unknown command answer: %u", c_answer );
+    }
+
+    if (iconv_handle != (iconv_t)-1) {
+        iconv_close(iconv_handle);
+        iconv_handle = (iconv_t)-1;
     }
 
     return 0;
