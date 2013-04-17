@@ -130,7 +130,6 @@ typedef struct output_t
     /* output */
     int i_handle;
     packet_t *p_packets, *p_last_packet;
-    struct udprawpkt raw_pkt_header;
     uint16_t i_seqnum;
     mtime_t i_ref_timestamp;
     mtime_t i_ref_wallclock;
@@ -157,6 +156,8 @@ typedef struct output_t
     /* For pidmap from config file */
     bool b_do_remap;
     uint16_t pi_confpids[N_MAP_PIDS];
+
+    struct udprawpkt raw_pkt_header;
 } output_t;
 
 typedef struct ts_pid_info {
