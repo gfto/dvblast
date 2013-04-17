@@ -816,6 +816,8 @@ static void FrontendInfo( struct dvb_frontend_info info, uint32_t version,
 #endif
 #if DVBAPI_VERSION >= 507
         DELSYS_INFO( SYS_DTMB, "DTMB" )
+#else
+        DELSYS_INFO( SYS_DMBTH, "DMBTH" )
 #endif
         }
     }
