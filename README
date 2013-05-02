@@ -200,6 +200,24 @@ included PAT and PMT may contain ghost programs or ESes.
 
 All four PIDs are required!
 
+5. ES-Types
+
+224.1.1.50:30050/udp 1 4711 E:0x1b:0:0,E:0x04:0x0a:ger,E:0x06:0x56:deu
+
+DVBlast will stream PID's corresponding to es_type 0x1b (h.264 video), 0x04 (mpeg-2 audio)
+and teletext (0x06 = private data, 0x56 = teletext description table, deu = language).
+
+Splitting up the fields (example audio):
+  E: //indicates that you want to filter by es_type
+  0x04: es_type
+  0x0a: description type
+  ger:  language
+
+Further examples:
+224.1.1.50:30050/udp 1 4711 E:0x1b:0:0,E:0x04:0x0a:eng (streams HD video and mpeg-2 audio english)
+224.1.1.50:30050/udp 1 4711 E:0x02:0:0,E:0x04:0x0a:ger (streams mpeg-2 video and mpeg-2 audio german)
+
+
 Note that the CAM will not be programmed in that case (unless it has
 been programmed by another line of the config file). The file is read
 from the command-line :
