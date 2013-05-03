@@ -127,6 +127,9 @@ void (*pf_Reset)( void ) = NULL;
 int (*pf_SetFilter)( uint16_t i_pid ) = NULL;
 void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid ) = NULL;
 
+output_estype_options_t *p_estypes = NULL;
+int i_nb_estypes = 0;
+
 /*****************************************************************************
  * Configuration files
  *****************************************************************************/
@@ -359,11 +362,18 @@ static void config_ReadFile( char *psz_file )
         return;
     }
 
+    if (p_estypes != NULL)
+    {
+        free(p_estypes);
+        p_estypes = NULL;
+    }
+
     while ( fgets( psz_line, sizeof(psz_line), p_file ) != NULL )
     {
         output_config_t config;
         output_t *p_output;
         char *psz_token, *psz_parser;
+        char *psz_sub_token, *psz_sub_parser, *psz_estype;
 
         psz_parser = strchr( psz_line, '#' );
         if ( psz_parser != NULL )
@@ -410,9 +420,35 @@ static void config_ReadFile( char *psz_file )
                 psz_token = strtok_r( psz_token, ",", &psz_parser );
                 if ( psz_token == NULL )
                     break;
-                config.pi_pids = realloc( config.pi_pids,
+
+                if ( psz_token[0] == 'E')
+                {
+                    psz_estype = (char*) malloc(sizeof(char) * strlen(psz_token) + 1);
+                    memset(psz_estype, 0, strlen(psz_token) + 1);
+                    memcpy(psz_estype, psz_token+2, strlen(psz_token) + 1);
+                    p_estypes = realloc( p_estypes,
+                                 (i_nb_estypes + 1) * sizeof(output_estype_options_t));
+
+                    psz_sub_token = strtok_r( psz_estype, ":", &psz_sub_parser);
+                    if ( psz_sub_token != NULL)
+                        p_estypes[i_nb_estypes].i_es_type=strtol( psz_sub_token, NULL , 0);
+
+                    psz_sub_token = strtok_r( NULL, ":", &psz_sub_parser);
+                    if ( psz_sub_token != NULL )
+                        p_estypes[i_nb_estypes].i_tag = strtol(psz_sub_token, NULL, 0);
+
+                    psz_sub_token = strtok_r( NULL, ":", &psz_sub_parser);
+                    if ( psz_sub_token != NULL )
+                        p_estypes[i_nb_estypes].psz_option = strdup(psz_sub_token);
+
+                    i_nb_estypes++;
+                }
+                else
+                {
+                    config.pi_pids = realloc( config.pi_pids,
                                  (config.i_nb_pids + 1) * sizeof(uint16_t) );
-                config.pi_pids[config.i_nb_pids++] = strtol(psz_token, NULL, 0);
+                    config.pi_pids[config.i_nb_pids++] = strtol(psz_token, NULL, 0);
+                }
                 psz_token = NULL;
             }
         }
@@ -1139,6 +1175,9 @@ int main( int i_argc, char **pp_argv )
     outputs_Close( i_nb_outputs );
     demux_Close();
     free( p_network_name );
+
+    if ( p_estypes )
+      free(p_estypes);
 
     if ( b_enable_syslog )
         msg_Disconnect();

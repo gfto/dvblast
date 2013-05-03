@@ -51,6 +51,9 @@
 extern bool b_enable_emm;
 extern bool b_enable_ecm;
 
+extern output_estype_options_t *p_estypes;
+extern int i_nb_estypes;
+
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
@@ -126,6 +129,7 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
                      const uint16_t *pi_pids, int i_nb_pids );
 static bool SIDIsSelected( uint16_t i_sid );
 static bool PIDWouldBeSelected( uint8_t *p_es );
+static bool AdditionalPIDFiltering( uint8_t *p_es );
 static bool PMTNeedsDescrambling( uint8_t *p_pmt );
 static void FlushEIT( output_t *p_output, mtime_t i_dts );
 static void SendTDT( block_t *p_ts );
@@ -909,9 +913,12 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
         j++;
         if ( PIDWouldBeSelected( p_es ) )
         {
-            *ppi_wanted_pids = realloc( *ppi_wanted_pids,
+            if ( AdditionalPIDFiltering( p_es ) )
+            {
+                *ppi_wanted_pids = realloc( *ppi_wanted_pids,
                                   (*pi_nb_wanted_pids + 1) * sizeof(uint16_t) );
-            (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] = pmtn_get_pid( p_es );
+                (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] = pmtn_get_pid( p_es );
+            }
         }
     }
 
@@ -1306,7 +1313,7 @@ static void NewPMT( output_t *p_output )
         uint16_t i_pid = pmtn_get_pid( p_current_es );
 
         j++;
-        if ( (p_output->config.i_nb_pids || !PIDWouldBeSelected( p_current_es ))
+        if ( (p_output->config.i_nb_pids || !PIDWouldBeSelected( p_current_es ) || !AdditionalPIDFiltering( p_current_es ))
               && !IsIn( p_output->config.pi_pids, p_output->config.i_nb_pids,
                         i_pid ) )
             continue;
@@ -1643,6 +1650,60 @@ static bool PIDWouldBeSelected( uint8_t *p_es )
     /* FIXME: also parse IOD */
     return false;
 }
+
+/*****************************************************************************
+ * AdditionalPIDFiltering
+ *****************************************************************************/
+static bool AdditionalPIDFiltering( uint8_t *p_es )
+{
+    uint8_t i_type = pmtn_get_streamtype( p_es );
+    int i=0;
+
+    if ( p_estypes == NULL)
+        return true;
+
+    for (i=0;i<i_nb_estypes;i++)
+    {
+        if ( i_type == p_estypes[i].i_es_type)
+        {
+            if ( p_estypes[i].i_tag == 0)
+                return true;
+
+            uint16_t j = 0;
+            const uint8_t *p_desc;
+            while ( (p_desc = descs_get_desc( pmtn_get_descs( p_es ), j )) != NULL )
+            {
+                uint8_t i_tag = desc_get_tag( p_desc );
+                j++;
+                uint8_t *p_desc_n = NULL;
+                uint16_t k = 0;
+                char lang[4] = {0};
+
+                if( i_tag == p_estypes[i].i_tag)
+                {
+                    #define IF_DESC(id)                                                                                  \
+                       if( i_tag == 0x##id)                                                                              \
+                       {                                                                                                 \
+                           while ( (p_desc_n = desc##id##_get_language((uint8_t*)p_desc, k)) != NULL )                   \
+                           {                                                                                             \
+                               snprintf(lang, sizeof(lang), "%3.3s", (const char *)desc##id##n_get_code(p_desc_n));      \
+                               if( p_estypes[i].psz_option && memcmp(p_estypes[i].psz_option, lang, sizeof(lang)) == 0)  \
+                                   return true;                                                                          \
+                               k++;                                                                                      \
+                           }                                                                                             \
+                       }
+
+                    IF_DESC(46);
+                    IF_DESC(56);
+                    IF_DESC(59);
+                    IF_DESC(0a);
+                }
+            }
+        }
+    }
+    return false;
+}
+
 
 /*****************************************************************************
  * PIDCarriesPES
@@ -2298,7 +2359,9 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
         j++;
 
         if ( PIDWouldBeSelected( p_es ) )
-            SelectPID( i_sid, i_pid );
+            if ( AdditionalPIDFiltering( p_es ) )
+                SelectPID( i_sid, i_pid );
+
         p_pids[i_pid].b_pes = PIDCarriesPES( p_es );
 
         if ( b_enable_ecm )

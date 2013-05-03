@@ -123,6 +123,13 @@ typedef struct output_config_t
     uint16_t pi_confpids[N_MAP_PIDS];
 } output_config_t;
 
+typedef struct output_estype_options_t
+{
+    int i_es_type;
+    int i_tag;
+    char *psz_option;
+} output_estype_options_t;
+
 typedef struct output_t
 {
     output_config_t config;
