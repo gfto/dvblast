@@ -88,7 +88,6 @@ typedef struct block_t
 } block_t;
 
 typedef struct packet_t packet_t;
-typedef struct output_estype_options_t output_estype_options_t;
 
 typedef struct output_config_t
 {
