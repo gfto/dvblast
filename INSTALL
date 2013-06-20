@@ -27,3 +27,7 @@ To install biTStream, clone git repository and run `make install`.
     git clone git://git.videolan.org/bitstream.git
     cd bitstream
     make install
+
+If you wish to support Deltacast ASI cards, you will first need to install
+the Deltacast StreamMaster drivers and SDK, which are downloadable from the
+Deltacast website (login required).

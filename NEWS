@@ -9,6 +9,7 @@ Changes between 2.2 and 2.3:
     globally and per output.
   * Added support for multi-delivery system frontends.
   * Added support for multistream that appeared in Linux 3.6
+  * Added support for Deltacast ASI cards
 
 Changes between 2.1 and 2.2:
 ----------------------------

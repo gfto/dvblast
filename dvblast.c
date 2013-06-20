@@ -854,15 +854,32 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'A':
-            i_asi_adapter = strtol( optarg, NULL, 0 );
+#ifdef HAVE_ASI_SUPPORT
             if ( pf_Open != NULL )
                 usage();
-#ifdef HAVE_ASI_SUPPORT
-            pf_Open = asi_Open;
-            pf_Read = asi_Read;
-            pf_Reset = asi_Reset;
-            pf_SetFilter = asi_SetFilter;
-            pf_UnsetFilter = asi_UnsetFilter;
+            if ( strncmp(optarg, "deltacast:", 10) == 0)
+            {
+#ifdef HAVE_ASI_DELTACAST_SUPPORT
+                i_asi_adapter = strtol( optarg+10, NULL, 0 );
+                pf_Open = asi_deltacast_Open;
+                pf_Read = asi_deltacast_Read;
+                pf_Reset = asi_deltacast_Reset;
+                pf_SetFilter = asi_deltacast_SetFilter;
+                pf_UnsetFilter = asi_deltacast_UnsetFilter;
+#else
+                msg_Err( NULL, "DVBlast is compiled without Deltacast ASI support.");
+                exit(1);
+#endif
+            }
+            else
+            {
+                i_asi_adapter = strtol( optarg, NULL, 0 );
+                pf_Open = asi_Open;
+                pf_Read = asi_Read;
+                pf_Reset = asi_Reset;
+                pf_SetFilter = asi_SetFilter;
+                pf_UnsetFilter = asi_UnsetFilter;
+            }
 #else
             msg_Err( NULL, "DVBlast is compiled without ASI support.");
             exit(1);

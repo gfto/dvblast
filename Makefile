@@ -3,6 +3,7 @@ VERSION_MINOR = 2
 TOPDIR = `basename ${PWD}`
 GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
+deltacast_inc := $(shell sh -c 'test -f /usr/include/StreamMaster.h && echo -n Y')
 
 CFLAGS += -Wall -Wformat-security -O3 -fomit-frame-pointer
 CFLAGS += -g
@@ -22,9 +23,14 @@ ifeq ($(uname_S),Darwin)
 LDLIBS += -liconv
 endif
 
+ifeq ($(deltacast_inc),Y)
+CFLAGS += -DHAVE_ASI_DELTACAST_SUPPORT
+LDLIBS += -lstreammaster
+endif
+
 LDLIBS_DVBLAST += -lpthread
 
-OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm.o mrtg-cnt.o
+OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm.o mrtg-cnt.o asi-deltacast.o
 OBJ_DVBLASTCTL = util.o dvblastctl.o
 
 ifndef V
@@ -43,7 +49,7 @@ all: dvblast dvblastctl
 
 .PHONY: clean install uninstall dist
 
-%.o: %.c Makefile config.h dvblast.h en50221.h comm.h asi.h mrtg-cnt.h
+%.o: %.c Makefile config.h dvblast.h en50221.h comm.h asi.h mrtg-cnt.h asi-deltacast.h
 	@echo "CC      $<"
 	$(Q)$(CROSS)$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
 

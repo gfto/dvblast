@@ -31,7 +31,9 @@ files, only DVB devices. If you were looking for these features, switch to VLC.
 Address of the adapter
 .TP
 \fB\-A\fR, \fB\-\-asi\-adapter\fR
-Read packets from an ASI adapter (0-n)
+Read packets from an ASI adapter (0-n). If support for Deltacast ASI cards is
+compiled in, prefix the adapter number with "deltacast:" to select a Deltacast
+input. Deltacast inputs are numbered as (100 * card number) + channel number.
 .TP
 \fB\-b\fR, \fB\-\-bandwidth\fR <bandwidth>
 Frontend bandwidth

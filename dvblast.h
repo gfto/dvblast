@@ -284,6 +284,14 @@ void asi_Reset( void );
 int asi_SetFilter( uint16_t i_pid );
 void asi_UnsetFilter( int i_fd, uint16_t i_pid );
 
+#ifdef HAVE_ASI_DELTACAST_SUPPORT
+void asi_deltacast_Open( void );
+block_t * asi_deltacast_Read( mtime_t i_poll_timeout );
+void asi_deltacast_Reset( void );
+int asi_deltacast_SetFilter( uint16_t i_pid );
+void asi_deltacast_UnsetFilter( int i_fd, uint16_t i_pid );
+#endif
+
 void demux_Open( void );
 void demux_Run( block_t *p_ts );
 void demux_Change( output_t *p_output, const output_config_t *p_config );

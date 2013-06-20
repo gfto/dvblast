@@ -73,6 +73,11 @@ If you own a Computer Modules DVB-ASI input card, you can have DVBlast
 filter and demultiplex the inputs. You just need to specify the slot number
 with -A.
 
+If you own a Deltacast ASI input card, you can have DVBlast filter and
+demultiplex the inputs. You just need to specify the input as
+"-A deltacast:<x>" where <x> is 100 * the card number (0 based) + the channel
+number (0 based).
+
 DVBlast can also read from a UDP or RTP IPv4 source carrying for
 instance a multi-program transport stream. The address is specified with
 -D. See the 'advanced features' section for information on how to create
