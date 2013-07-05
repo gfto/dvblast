@@ -2367,6 +2367,22 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
                             pid_found = 1;
                             break;
                         }
+                        if ( !pid_found )
+                        {
+                            /* Check if PID is described in the global PMT descriptors */
+                            int r = 0;
+                            uint8_t *p_g_desc;
+                            while ( (p_g_desc = descs_get_desc( pmt_get_descs( p_sid->p_current_pmt ), r++ )) != NULL)
+                            {
+                                if ( desc_get_tag( p_g_desc ) != 0x09 || !desc09_validate( p_g_desc ) )
+                                    continue;
+                                if ( ca_desc_find( pmt_get_descs( p_pmt ) + DESCS_HEADER_SIZE, descs_get_length( pmt_get_descs( p_pmt ) ), desc09_get_pid( p_desc ) ) != NULL )
+                                {
+                                    pid_found = 1;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     if ( !pid_found )
                         UnselectPID( i_sid, desc09_get_pid( p_desc ) );
