@@ -278,8 +278,8 @@ void comm_Read( void )
     uint32_t *p_size = (uint32_t *)&p_answer[4];
     *p_size = i_answer_size + COMM_HEADER_SIZE;
 
-    msg_Dbg( NULL, "answering %d to %d with size %zd", i_answer, i_command,
-             i_answer_size );
+/*    msg_Dbg( NULL, "answering %d to %d with size %zd", i_answer, i_command,
+             i_answer_size ); */
 
 #define min(a, b) (a < b ? a : b)
     ssize_t i_sended = 0;
