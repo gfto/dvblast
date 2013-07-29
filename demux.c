@@ -2199,6 +2199,52 @@ static void HandleCATSection( uint16_t i_pid, uint8_t *p_section,
     HandleCAT( i_dts );
 }
 
+static void mark_pmt_pids( uint8_t *p_pmt, uint8_t pid_map[], uint8_t marker )
+{
+    uint16_t j, k;
+    uint8_t *p_es;
+    uint8_t *p_desc;
+
+    uint16_t i_pcr_pid = pmt_get_pcrpid( p_pmt );
+
+    if ( b_enable_ecm )
+    {
+        j = 0;
+        while ( (p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL )
+        {
+            if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                continue;
+            pid_map[ desc09_get_pid( p_desc ) ] |= marker;
+        }
+    }
+
+    if ( i_pcr_pid != PADDING_PID )
+        pid_map[ i_pcr_pid ] |= marker;
+
+    j = 0;
+    while ( (p_es = pmt_get_es( p_pmt, j )) != NULL )
+    {
+        uint16_t i_pid = pmtn_get_pid( p_es );
+        j++;
+
+        if ( PIDWouldBeSelected( p_es ) )
+            pid_map[ i_pid ] |= marker;
+
+        p_pids[i_pid].b_pes = PIDCarriesPES( p_es );
+
+        if ( b_enable_ecm )
+        {
+            k = 0;
+            while ( (p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL )
+            {
+                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                    continue;
+                pid_map[ desc09_get_pid( p_desc ) ] |= marker;
+            }
+        }
+    }
+}
+
 /*****************************************************************************
  * HandlePMT
  *****************************************************************************/
@@ -2207,11 +2253,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
     uint16_t i_sid = pmt_get_program( p_pmt );
     sid_t *p_sid;
     bool b_needs_descrambling, b_needed_descrambling, b_is_selected;
-    uint16_t i_pcr_pid;
-    uint8_t *p_es;
-    uint8_t *p_desc;
-    uint16_t j;
-    uint16_t k;
+    uint8_t pid_map[MAX_PIDS];
 
     p_sid = FindSID( i_sid );
     if ( p_sid == NULL )
@@ -2261,136 +2303,44 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
         goto out_pmt;
     }
 
+    memset( pid_map, 0, sizeof(pid_map) );
+
     b_needs_descrambling = PMTNeedsDescrambling( p_pmt );
     b_needed_descrambling = p_sid->p_current_pmt != NULL ?
                             PMTNeedsDescrambling( p_sid->p_current_pmt ) :
                             false;
     b_is_selected = SIDIsSelected( i_sid );
-    i_pcr_pid = pmt_get_pcrpid( p_pmt );
 
     if ( i_ca_handle && b_is_selected &&
          !b_needs_descrambling && b_needed_descrambling )
         en50221_DeletePMT( p_sid->p_current_pmt );
 
-    if ( b_enable_ecm )
-    {
-        j = 0;
-        while ( (p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL )
-        {
-            if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
-                continue;
-            SelectPID( i_sid, desc09_get_pid( p_desc ) );
-        }
-    }
-
-    if ( p_sid->p_current_pmt == NULL
-          || i_pcr_pid != pmt_get_pcrpid( p_sid->p_current_pmt ) )
-    {
-        if ( i_pcr_pid != PADDING_PID
-              && i_pcr_pid != p_sid->i_pmt_pid )
-            SelectPID( i_sid, i_pcr_pid );
-    }
-
-    j = 0;
-    while ( (p_es = pmt_get_es( p_pmt, j )) != NULL )
-    {
-        uint16_t i_pid = pmtn_get_pid( p_es );
-        j++;
-
-        if ( PIDWouldBeSelected( p_es ) )
-            SelectPID( i_sid, i_pid );
-        p_pids[i_pid].b_pes = PIDCarriesPES( p_es );
-
-        if ( b_enable_ecm )
-        {
-            k = 0;
-            while ( (p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL )
-            {
-                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
-                    continue;
-                SelectPID( i_sid, desc09_get_pid( p_desc ) );
-            }
-        }
-    }
-
     if ( p_sid->p_current_pmt != NULL )
     {
-        if ( b_enable_ecm )
-        {
-            j = 0;
-            while ((p_desc = descs_get_desc( pmt_get_descs( p_sid->p_current_pmt ), j++ )) != NULL)
-            {
-                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
-                    continue;
-                if ( ca_desc_find( pmt_get_descs(p_pmt) + DESCS_HEADER_SIZE, descs_get_length(pmt_get_descs(p_pmt)), desc09_get_pid( p_desc ) ) == NULL )
-                    UnselectPID( i_sid, desc09_get_pid( p_desc ) );
-            }
-        }
-
-        uint16_t i_current_pcr_pid = pmt_get_pcrpid( p_sid->p_current_pmt );
-        if ( i_current_pcr_pid != i_pcr_pid
-              && i_current_pcr_pid != PADDING_PID )
-        {
-            if ( pmt_find_es( p_pmt, i_current_pcr_pid ) == NULL )
-                UnselectPID( i_sid, i_current_pcr_pid );
-        }
-
-        j = 0;
-        while ( (p_es = pmt_get_es( p_sid->p_current_pmt, j )) != NULL )
-        {
-            j++;
-
-            if ( PIDWouldBeSelected( p_es ) )
-            {
-                uint16_t i_current_pid = pmtn_get_pid( p_es );
-
-                if ( pmt_find_es( p_pmt, i_current_pid ) == NULL )
-                    UnselectPID( i_sid, i_current_pid );
-            }
-
-            if ( b_enable_ecm )
-            {
-                k = 0;
-                while ((p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL)
-                {
-                    if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
-                        continue;
-                    uint16_t f = 0;
-                    uint8_t *p_pmt_es;
-                    int pid_found = 0;
-                    while ( (p_pmt_es = pmt_get_es( p_pmt, f++ )) != NULL )
-                    {
-                        if ( ca_desc_find( pmtn_get_descs( p_pmt_es ) + DESCS_HEADER_SIZE,
-                                           descs_get_length( pmtn_get_descs( p_pmt_es ) ),
-                                           desc09_get_pid( p_desc ) ) != NULL )
-                        {
-                            pid_found = 1;
-                            break;
-                        }
-                        if ( !pid_found )
-                        {
-                            /* Check if PID is described in the global PMT descriptors */
-                            int r = 0;
-                            uint8_t *p_g_desc;
-                            while ( (p_g_desc = descs_get_desc( pmt_get_descs( p_sid->p_current_pmt ), r++ )) != NULL)
-                            {
-                                if ( desc_get_tag( p_g_desc ) != 0x09 || !desc09_validate( p_g_desc ) )
-                                    continue;
-                                if ( ca_desc_find( pmt_get_descs( p_pmt ) + DESCS_HEADER_SIZE, descs_get_length( pmt_get_descs( p_pmt ) ), desc09_get_pid( p_desc ) ) != NULL )
-                                {
-                                    pid_found = 1;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if ( !pid_found )
-                        UnselectPID( i_sid, desc09_get_pid( p_desc ) );
-                }
-            }
-        }
-
+        mark_pmt_pids( p_sid->p_current_pmt, pid_map, 0x02 );
         free( p_sid->p_current_pmt );
+    }
+
+    mark_pmt_pids( p_pmt, pid_map, 0x01 );
+
+    /* Start to stream PIDs */
+    int pid;
+    for ( pid = 0; pid < MAX_PIDS; pid++ )
+    {
+        /* The pid does not exist in the old PMT and in the new PMT. Ignore this pid. */
+        if ( !pid_map[ pid ] )
+            continue;
+
+        switch ( pid_map[ pid ] & 0x03 ) {
+        case 0x03: /* The pid exists in the old PMT and in the new PMT. The pid was already selected in case 0x01. */
+            continue;
+        case 0x02: /* The pid does not exist in the new PMT but exists in the old PMT. Unselect it. */
+            UnselectPID( i_sid, pid );
+            break;
+        case 0x01: /* The pid exists in new PMT. Select it. */
+            SelectPID( i_sid, pid );
+            break;
+        }
     }
 
     p_sid->p_current_pmt = p_pmt;
