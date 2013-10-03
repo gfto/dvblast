@@ -73,7 +73,8 @@ struct ret_frontend_status
 {
     struct dvb_frontend_info info;
     fe_status_t i_status;
-    int32_t i_ber, i_strength, i_snr;
+    uint32_t i_ber;
+    int16_t i_strength, i_snr;
 };
 
 struct ret_mmi_status

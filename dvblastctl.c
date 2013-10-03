@@ -710,11 +710,11 @@ int main( int i_argc, char **ppsz_argv )
         {
             if ( i_print_type == PRINT_XML )
             {
-                printf(" <VALUE bit_error_rate=\"%d\"/>\n", p_ret->i_ber);
+                printf(" <VALUE bit_error_rate=\"%u\"/>\n", p_ret->i_ber);
                 printf(" <VALUE signal_strength=\"%d\"/>\n", p_ret->i_strength);
                 printf(" <VALUE SNR=\"%d\"/>\n", p_ret->i_snr);
             } else {
-                printf("\nBit error rate: %d\n", p_ret->i_ber);
+                printf("\nBit error rate: %u\n", p_ret->i_ber);
                 printf("Signal strength: %d\n", p_ret->i_strength);
                 printf("SNR: %d\n", p_ret->i_snr);
             }
