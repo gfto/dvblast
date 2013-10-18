@@ -739,7 +739,8 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'f':
-            i_frequency = strtol( optarg, NULL, 0 );
+            if (optarg && optarg[0] != '-')
+                i_frequency = strtol( optarg, NULL, 0 );
             if ( pf_Open != NULL )
                 usage();
 #ifdef HAVE_DVB_SUPPORT

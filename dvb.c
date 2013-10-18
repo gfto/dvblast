@@ -95,15 +95,22 @@ void dvb_Open( void )
 
     i_wallclock = mdate();
 
-    sprintf( psz_tmp, "/dev/dvb/adapter%d/frontend%d", i_adapter, i_fenum );
-    if( (i_frontend = open(psz_tmp, O_RDWR | O_NONBLOCK)) < 0 )
+    if ( i_frequency )
     {
-        msg_Err( NULL, "opening device %s failed (%s)", psz_tmp,
-                 strerror(errno) );
-        exit(1);
-    }
+        sprintf( psz_tmp, "/dev/dvb/adapter%d/frontend%d", i_adapter, i_fenum );
+        if( (i_frontend = open(psz_tmp, O_RDWR | O_NONBLOCK)) < 0 )
+        {
+            msg_Err( NULL, "opening device %s failed (%s)", psz_tmp,
+                     strerror(errno) );
+            exit(1);
+        }
 
-    FrontendSet(true);
+        FrontendSet(true);
+    }
+    else
+    {
+        i_frontend = -1;
+    }
 
     sprintf( psz_tmp, "/dev/dvb/adapter%d/dvr%d", i_adapter, i_fenum );
 
@@ -129,7 +136,8 @@ void dvb_Open( void )
  *****************************************************************************/
 void dvb_Reset( void )
 {
-    FrontendSet(true);
+    if ( i_frequency )
+        FrontendSet(true);
 }
 
 /*****************************************************************************
@@ -138,14 +146,18 @@ void dvb_Reset( void )
 block_t *dvb_Read( mtime_t i_poll_timeout )
 {
     struct pollfd ufds[4];
-    int i_ret, i_nb_fd = 2;
+    int i_ret, i_nb_fd = 1;
     block_t *p_blocks = NULL;
 
     memset( ufds, 0, sizeof(ufds) );
     ufds[0].fd = i_dvr;
     ufds[0].events = POLLIN;
-    ufds[1].fd = i_frontend;
-    ufds[1].events = POLLERR | POLLPRI;
+    if ( i_frontend != -1 )
+    {
+        ufds[1].fd = i_frontend;
+        ufds[1].events = POLLERR | POLLPRI;
+        i_nb_fd++;
+    }
     if ( i_comm_fd != -1 )
     {
         ufds[i_nb_fd].fd = i_comm_fd;
@@ -185,7 +197,8 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
                 && i_wallclock > i_last_packet + DVR_READ_TIMEOUT )
     {
         msg_Warn( NULL, "no DVR output, resetting" );
-        FrontendSet(false);
+        if ( i_frequency )
+            FrontendSet(false);
         en50221_Reset();
     }
 
@@ -218,7 +231,8 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
             exit(EXIT_STATUS_FRONTEND_TIMEOUT);
         }
         msg_Warn( NULL, "no lock, tuning again" );
-        FrontendSet(false);
+        if ( i_frequency )
+            FrontendSet(false);
     }
 
     if ( i_comm_fd != -1 && ufds[2].revents )
@@ -419,7 +433,8 @@ static void FrontendPoll( void )
             {
                 /* The frontend was reinited. */
                 msg_Warn( NULL, "reiniting frontend");
-                FrontendSet(true);
+                if ( i_frequency )
+                    FrontendSet(true);
             }
         }
 #undef IF_UP

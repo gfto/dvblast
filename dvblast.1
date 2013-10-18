@@ -69,7 +69,9 @@ Enable EPG pass through (EIT data)
 Maximum retention allowed between input and output (default: 40 ms)
 .TP
 \fB\-f\fR, \fB\-\-frequency\fR <frequency>
-Frontend frequency
+Frontend frequency. If '\-' is specified instead of a numeric value,
+the frontend will be not be tuned by dvblast and you should use external
+tuning tool (szap) to tune it.
 .TP
 \fB\-F\fR, \fB\-\-fec\-inner\fR <FEC>
 Forward Error Correction used by satellite (FEC Inner)
