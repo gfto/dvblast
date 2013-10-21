@@ -499,7 +499,7 @@ void usage()
 #endif
         "[-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*] "
         "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] "
-        "[-z] [-C [-e] [-M <network name] [-N <network ID>]] [-T] [-j <system charset>] "
+        "[-z] [-C [-e] [-M <network name>] [-N <network ID>]] [-T] [-j <system charset>] "
         "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] [-B <provider_name>] "
         "[-1 <mis_id>] [-2 <size>] [-5 <DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC>] -y <ca_dev_number> "
         "[-J <DVB charset>] [-Q <quit timeout>] [-0 pid_mapping] [-x <text|xml>]" );
