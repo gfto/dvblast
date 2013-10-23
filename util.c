@@ -83,6 +83,7 @@ void msg_Info( void *_unused, const char *psz_format, ... )
             vsyslog( LOG_INFO, psz_fmt, args );
         else
             vfprintf( stderr, psz_fmt, args );
+        va_end(args);
     }
 }
 
@@ -102,6 +103,7 @@ void msg_Err( void *_unused, const char *psz_format, ... )
             vsyslog( LOG_ERR, psz_fmt, args );
         else
             vfprintf( stderr, psz_fmt, args );
+        va_end(args);
     }
 }
 
@@ -121,6 +123,7 @@ void msg_Warn( void *_unused, const char *psz_format, ... )
             vsyslog( LOG_WARNING, psz_fmt, args );
         else
             vfprintf( stderr, psz_fmt, args );
+        va_end(args);
     }
 }
 
@@ -140,6 +143,7 @@ void msg_Dbg( void *_unused, const char *psz_format, ... )
             vsyslog( LOG_DEBUG, psz_fmt, args );
         else
             vfprintf( stderr, psz_fmt, args );
+        va_end(args);
     }
 }
 
@@ -157,6 +161,7 @@ void msg_Raw( void *_unused, const char *psz_format, ... )
         vsyslog( LOG_NOTICE, psz_fmt, args );
     else
         vfprintf( stderr, psz_fmt, args );
+    va_end(args);
 }
 
 /*****************************************************************************

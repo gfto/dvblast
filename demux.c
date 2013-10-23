@@ -1893,6 +1893,7 @@ static void demux_Print(void *_unused, const char *psz_format, ...)
     if ( i_print_type != PRINT_XML )
         strcat(psz_fmt, "\n");
     vprintf(psz_fmt, args);
+    va_end(args);
 }
 
 /*****************************************************************************

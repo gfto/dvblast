@@ -86,6 +86,7 @@ static void psi_print(void *_unused, const char *psz_format, ...)
     strcpy(psz_fmt, psz_format);
     strcat(psz_fmt, "\n");
     vprintf(psz_fmt, args);
+    va_end(args);
 }
 
 __attribute__ ((format(printf, 1, 2)))
@@ -103,6 +104,7 @@ void return_error( const char *psz_format, ... )
         snprintf( psz_fmt, sizeof(psz_fmt) - 1, "ERROR: %s\n", psz_format );
     psz_fmt[sizeof(psz_fmt) - 1] = '\0';
     vfprintf( stderr, psz_fmt, args );
+    va_end(args);
     exit(255);
 }
 
