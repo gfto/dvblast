@@ -214,6 +214,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
         return -errno;
     }
 
+    int ret = 0;
     if ( p_config->bind_addr.ss_family != AF_UNSPEC )
     {
         if ( bind( p_output->i_handle, (struct sockaddr *)&p_config->bind_addr,
@@ -228,13 +229,15 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
                 (struct sockaddr_in *)&p_output->config.bind_addr;
 
             if ( IN_MULTICAST( ntohl( p_connect_addr->sin_addr.s_addr ) ) )
-                setsockopt( p_output->i_handle, IPPROTO_IP, IP_MULTICAST_IF,
-                            (void *)&p_bind_addr->sin_addr.s_addr,
-                            sizeof(p_bind_addr->sin_addr.s_addr) );
+                ret = setsockopt( p_output->i_handle, IPPROTO_IP,
+                                  IP_MULTICAST_IF,
+                                  (void *)&p_bind_addr->sin_addr.s_addr,
+                                  sizeof(p_bind_addr->sin_addr.s_addr) );
         }
     }
 
-    if ( (p_config->i_config & OUTPUT_RAW) ) {
+    if ( (p_config->i_config & OUTPUT_RAW) )
+    {
         struct sockaddr_in *p_connect_addr =
             (struct sockaddr_in *)&p_output->config.connect_addr;
         RawFillHeaders(&p_output->raw_pkt_header, inet_addr(p_config->psz_srcaddr),
@@ -248,10 +251,15 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
         struct sockaddr_in6 *p_addr =
             (struct sockaddr_in6 *)&p_output->config.connect_addr;
         if ( IN6_IS_ADDR_MULTICAST( &p_addr->sin6_addr ) )
-            setsockopt( p_output->i_handle, IPPROTO_IPV6,
-                        IPV6_MULTICAST_IF, (void *)&p_config->i_if_index_v6,
-                        sizeof(p_config->i_if_index_v6) );
+            ret = setsockopt( p_output->i_handle, IPPROTO_IPV6,
+                              IPV6_MULTICAST_IF,
+                              (void *)&p_config->i_if_index_v6,
+                              sizeof(p_config->i_if_index_v6) );
     }
+
+    if (ret == -1)
+        msg_Warn( NULL, "couldn't join multicast address (%s)",
+                  strerror(errno) );
 
     if ( connect( p_output->i_handle,
                   (struct sockaddr *)&p_output->config.connect_addr,
@@ -540,6 +548,7 @@ output_t *output_Find( const output_config_t *p_config )
  *****************************************************************************/
 void output_Change( output_t *p_output, const output_config_t *p_config )
 {
+    int ret = 0;
     memcpy( p_output->config.pi_ssrc, p_config->pi_ssrc, 4 * sizeof(uint8_t) );
     p_output->config.i_output_latency = p_config->i_output_latency;
     p_output->config.i_max_retention = p_config->i_max_retention;
@@ -551,17 +560,18 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
             struct sockaddr_in6 *p_addr =
                 (struct sockaddr_in6 *)&p_output->config.connect_addr;
             if ( IN6_IS_ADDR_MULTICAST( &p_addr->sin6_addr ) )
-                setsockopt( p_output->i_handle, IPPROTO_IPV6,
-                            IPV6_MULTICAST_HOPS, (void *)&p_config->i_ttl,
-                            sizeof(p_config->i_ttl) );
+                ret = setsockopt( p_output->i_handle, IPPROTO_IPV6,
+                                  IPV6_MULTICAST_HOPS, (void *)&p_config->i_ttl,
+                                  sizeof(p_config->i_ttl) );
         }
         else
         {
             struct sockaddr_in *p_addr =
                 (struct sockaddr_in *)&p_output->config.connect_addr;
             if ( IN_MULTICAST( ntohl( p_addr->sin_addr.s_addr ) ) )
-                setsockopt( p_output->i_handle, IPPROTO_IP, IP_MULTICAST_TTL,
-                            (void *)&p_config->i_ttl, sizeof(p_config->i_ttl) );
+                ret = setsockopt( p_output->i_handle, IPPROTO_IP,
+                                  IP_MULTICAST_TTL, (void *)&p_config->i_ttl,
+                                  sizeof(p_config->i_ttl) );
         }
         p_output->config.i_ttl = p_config->i_ttl;
         p_output->raw_pkt_header.iph.ttl = p_config->i_ttl;
@@ -570,11 +580,15 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
     if ( p_output->config.i_tos != p_config->i_tos )
     {
         if ( p_output->config.i_family == AF_INET )
-            setsockopt( p_output->i_handle, IPPROTO_IP, IP_TOS,
-                        (void *)&p_config->i_tos, sizeof(p_config->i_tos) );
+            ret = setsockopt( p_output->i_handle, IPPROTO_IP, IP_TOS,
+                              (void *)&p_config->i_tos,
+                              sizeof(p_config->i_tos) );
         p_output->config.i_tos = p_config->i_tos;
         p_output->raw_pkt_header.iph.tos = p_config->i_tos;
     }
+
+    if (ret == -1)
+        msg_Warn( NULL, "couldn't change socket (%s)", strerror(errno) );
 
     if ( p_output->config.i_mtu != p_config->i_mtu
           || ((p_output->config.i_config ^ p_config->i_config) & OUTPUT_UDP) )
