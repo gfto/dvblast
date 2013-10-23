@@ -44,6 +44,8 @@ void comm_Open( void )
     int i_size = COMM_MAX_MSG_CHUNK;
     struct sockaddr_un sun_server;
 
+    unlink( psz_srv_socket );
+
     if ( (i_comm_fd = socket( AF_UNIX, SOCK_DGRAM, 0 )) == -1 )
     {
         msg_Err( NULL, "cannot create comm socket (%s)", strerror(errno) );
