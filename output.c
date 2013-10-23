@@ -591,6 +591,7 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
             p_packet = realloc( p_packet, sizeof(packet_t *)
                                  + (i_block_cnt - 1) * sizeof(block_t *) );
             p_packet->pp_blocks = &p_packet->p_blocks;
+            p_output->p_last_packet = p_packet;
         }
     }
     if ( p_config->b_do_remap )
