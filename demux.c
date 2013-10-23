@@ -2723,7 +2723,7 @@ static void HandlePSIPacket( uint8_t *p_ts, mtime_t i_dts )
  *****************************************************************************/
 static const char *h222_stream_type_desc(uint8_t i_stream_type) {
     /* See ISO/IEC 13818-1 : 2000 (E) | Table 2-29 - Stream type assignments, Page 66 (48) */
-    if (i_stream_type == 0 || (i_stream_type > 0x1c && i_stream_type < 0x7e))
+    if (i_stream_type == 0)
         return "Reserved stream";
     switch (i_stream_type) {
         case 0x01: return "11172-2 video (MPEG-1)";
