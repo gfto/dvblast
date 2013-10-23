@@ -102,6 +102,7 @@ static mtime_t i_last_dts = -1;
 static int i_demux_fd;
 static int i_nb_errors = 0;
 static mtime_t i_last_error = 0;
+static mtime_t i_last_reset = 0;
 
 #ifdef HAVE_ICONV
 static iconv_t iconv_handle = (iconv_t)-1;
@@ -482,8 +483,12 @@ static void demux_Handle( block_t *p_ts )
                              < p_ts->p_ts + TS_SIZE
                           && !pes_validate(p_payload) ) )
                 {
-                    p_output->i_nb_errors++;
-                    p_output->i_last_error = i_wallclock;
+                    if ( i_wallclock >
+                            i_last_reset + WATCHDOG_REFRACTORY_PERIOD )
+                    {
+                        p_output->i_nb_errors++;
+                        p_output->i_last_error = i_wallclock;
+                    }
                 }
                 else if ( i_wallclock > p_output->i_last_error + WATCHDOG_WAIT )
                     p_output->i_nb_errors = 0;
@@ -497,6 +502,7 @@ static void demux_Handle( block_t *p_ts )
                     msg_Warn( NULL,
                              "too many errors for stream %s, resetting",
                              p_output->config.psz_displayname );
+                    i_last_reset = i_wallclock;
                     en50221_Reset();
                 }
             }
