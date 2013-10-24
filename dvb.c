@@ -736,54 +736,54 @@ static fe_hierarchy_t GetHierarchy(void)
 /*****************************************************************************
  * FrontendInfo : Print frontend info
  *****************************************************************************/
-static void FrontendInfo( struct dvb_frontend_info info, uint32_t version,
+static void FrontendInfo( struct dvb_frontend_info *info, uint32_t version,
                           fe_delivery_system_t *p_systems, int i_systems )
 {
     msg_Dbg( NULL, "using DVB API version %d.%d", version / 256, version % 256 );
-    msg_Dbg( NULL, "Frontend \"%s\" supports:", info.name );
+    msg_Dbg( NULL, "Frontend \"%s\" supports:", info->name );
     msg_Dbg( NULL, " frequency min: %d, max: %d, stepsize: %d, tolerance: %d",
-             info.frequency_min, info.frequency_max,
-             info.frequency_stepsize, info.frequency_tolerance );
+             info->frequency_min, info->frequency_max,
+             info->frequency_stepsize, info->frequency_tolerance );
     msg_Dbg( NULL, " symbolrate min: %d, max: %d, tolerance: %d",
-             info.symbol_rate_min, info.symbol_rate_max, info.symbol_rate_tolerance);
+             info->symbol_rate_min, info->symbol_rate_max, info->symbol_rate_tolerance);
     msg_Dbg( NULL, " capabilities:" );
 
 #define FRONTEND_INFO(caps,val,msg)                                         \
     if ( caps & val )                                                       \
         msg_Dbg( NULL, "  %s", msg );
 
-    FRONTEND_INFO( info.caps, FE_IS_STUPID, "FE_IS_STUPID" )
-    FRONTEND_INFO( info.caps, FE_CAN_INVERSION_AUTO, "INVERSION_AUTO" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_1_2, "FEC_1_2" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_2_3, "FEC_2_3" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_3_4, "FEC_3_4" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_4_5, "FEC_4_5" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_5_6, "FEC_5_6" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_6_7, "FEC_6_7" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_7_8, "FEC_7_8" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_8_9, "FEC_8_9" )
-    FRONTEND_INFO( info.caps, FE_CAN_FEC_AUTO,"FEC_AUTO")
-    FRONTEND_INFO( info.caps, FE_CAN_QPSK,   "QPSK" )
-    FRONTEND_INFO( info.caps, FE_CAN_QAM_16, "QAM_16" )
-    FRONTEND_INFO( info.caps, FE_CAN_QAM_32, "QAM_32" )
-    FRONTEND_INFO( info.caps, FE_CAN_QAM_64, "QAM_64" )
-    FRONTEND_INFO( info.caps, FE_CAN_QAM_128,"QAM_128")
-    FRONTEND_INFO( info.caps, FE_CAN_QAM_256,"QAM_256")
-    FRONTEND_INFO( info.caps, FE_CAN_QAM_AUTO,"QAM_AUTO" )
-    FRONTEND_INFO( info.caps, FE_CAN_TRANSMISSION_MODE_AUTO, "TRANSMISSION_MODE_AUTO" )
-    FRONTEND_INFO( info.caps, FE_CAN_BANDWIDTH_AUTO, "BANDWIDTH_AUTO" )
-    FRONTEND_INFO( info.caps, FE_CAN_GUARD_INTERVAL_AUTO, "GUARD_INTERVAL_AUTO" )
-    FRONTEND_INFO( info.caps, FE_CAN_HIERARCHY_AUTO, "HIERARCHY_AUTO" )
-    FRONTEND_INFO( info.caps, FE_CAN_8VSB, "8VSB" )
-    FRONTEND_INFO( info.caps, FE_CAN_16VSB,"16VSB" )
-    FRONTEND_INFO( info.caps, FE_HAS_EXTENDED_CAPS, "EXTENDED_CAPS" )
+    FRONTEND_INFO( info->caps, FE_IS_STUPID, "FE_IS_STUPID" )
+    FRONTEND_INFO( info->caps, FE_CAN_INVERSION_AUTO, "INVERSION_AUTO" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_1_2, "FEC_1_2" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_2_3, "FEC_2_3" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_3_4, "FEC_3_4" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_4_5, "FEC_4_5" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_5_6, "FEC_5_6" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_6_7, "FEC_6_7" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_7_8, "FEC_7_8" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_8_9, "FEC_8_9" )
+    FRONTEND_INFO( info->caps, FE_CAN_FEC_AUTO,"FEC_AUTO")
+    FRONTEND_INFO( info->caps, FE_CAN_QPSK,   "QPSK" )
+    FRONTEND_INFO( info->caps, FE_CAN_QAM_16, "QAM_16" )
+    FRONTEND_INFO( info->caps, FE_CAN_QAM_32, "QAM_32" )
+    FRONTEND_INFO( info->caps, FE_CAN_QAM_64, "QAM_64" )
+    FRONTEND_INFO( info->caps, FE_CAN_QAM_128,"QAM_128")
+    FRONTEND_INFO( info->caps, FE_CAN_QAM_256,"QAM_256")
+    FRONTEND_INFO( info->caps, FE_CAN_QAM_AUTO,"QAM_AUTO" )
+    FRONTEND_INFO( info->caps, FE_CAN_TRANSMISSION_MODE_AUTO, "TRANSMISSION_MODE_AUTO" )
+    FRONTEND_INFO( info->caps, FE_CAN_BANDWIDTH_AUTO, "BANDWIDTH_AUTO" )
+    FRONTEND_INFO( info->caps, FE_CAN_GUARD_INTERVAL_AUTO, "GUARD_INTERVAL_AUTO" )
+    FRONTEND_INFO( info->caps, FE_CAN_HIERARCHY_AUTO, "HIERARCHY_AUTO" )
+    FRONTEND_INFO( info->caps, FE_CAN_8VSB, "8VSB" )
+    FRONTEND_INFO( info->caps, FE_CAN_16VSB,"16VSB" )
+    FRONTEND_INFO( info->caps, FE_HAS_EXTENDED_CAPS, "EXTENDED_CAPS" )
 #if DVBAPI_VERSION >= 501
-    FRONTEND_INFO( info.caps, FE_CAN_2G_MODULATION, "2G_MODULATION" )
+    FRONTEND_INFO( info->caps, FE_CAN_2G_MODULATION, "2G_MODULATION" )
 #endif
-    FRONTEND_INFO( info.caps, FE_CAN_MULTISTREAM, "MULTISTREAM" )
-    FRONTEND_INFO( info.caps, FE_NEEDS_BENDING, "NEEDS_BENDING" )
-    FRONTEND_INFO( info.caps, FE_CAN_RECOVER, "FE_CAN_RECOVER" )
-    FRONTEND_INFO( info.caps, FE_CAN_MUTE_TS, "FE_CAN_MUTE_TS" )
+    FRONTEND_INFO( info->caps, FE_CAN_MULTISTREAM, "MULTISTREAM" )
+    FRONTEND_INFO( info->caps, FE_NEEDS_BENDING, "NEEDS_BENDING" )
+    FRONTEND_INFO( info->caps, FE_CAN_RECOVER, "FE_CAN_RECOVER" )
+    FRONTEND_INFO( info->caps, FE_CAN_MUTE_TS, "FE_CAN_MUTE_TS" )
 #undef FRONTEND_INFO
 
     msg_Dbg( NULL, " delivery systems:" );
@@ -1049,10 +1049,10 @@ static void FrontendSet( bool b_init )
                 p_systems[i_systems++] = SYS_DVBS2;
             break;
         case FE_ATSC:
-			if ( info.caps & (FE_CAN_8VSB | FE_CAN_16VSB) )
-				p_systems[i_systems++] = SYS_ATSC;
-			if ( info.caps & (FE_CAN_QAM_64 | FE_CAN_QAM_256 | FE_CAN_QAM_AUTO) )
-				p_systems[i_systems++] = SYS_DVBC_ANNEX_B;
+            if ( info.caps & (FE_CAN_8VSB | FE_CAN_16VSB) )
+                p_systems[i_systems++] = SYS_ATSC;
+            if ( info.caps & (FE_CAN_QAM_64 | FE_CAN_QAM_256 | FE_CAN_QAM_AUTO) )
+                p_systems[i_systems++] = SYS_DVBC_ANNEX_B;
             break;
         default:
             msg_Err( NULL, "unknown frontend type %d", info.type );
@@ -1082,7 +1082,7 @@ static void FrontendSet( bool b_init )
 #endif
 
     if ( b_init )
-        FrontendInfo( info, version, p_systems, i_systems );
+        FrontendInfo( &info, version, p_systems, i_systems );
 
     /* Clear frontend commands */
     if ( ioctl( i_frontend, FE_SET_PROPERTY, &cmdclear ) < 0 )
