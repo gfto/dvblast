@@ -1012,7 +1012,7 @@ static void FrontendSet( bool b_init )
 {
     struct dvb_frontend_info info;
     struct dtv_properties *p;
-    fe_delivery_system_t p_systems[MAX_DELIVERY_SYSTEMS];
+    fe_delivery_system_t p_systems[MAX_DELIVERY_SYSTEMS] = { 0 };
     int i_systems = 0;
 
     if ( ioctl( i_frontend, FE_GET_INFO, &info ) < 0 )
