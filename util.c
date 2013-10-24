@@ -423,6 +423,9 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
     unsigned int i, i_offset = 0;
 
     pp_sections = psi_table_allocate();
+    if ( !pp_sections )
+        return NULL;
+
     psi_table_init( pp_sections );
 
     for ( i = 0; i < PSI_TABLE_MAX_SECTIONS; i++ ) {
@@ -432,7 +435,11 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
         /* Must use allocated section not p_flat_section + offset directly! */
         uint8_t *p_section_local = psi_private_allocate();
         memcpy( p_section_local, p_section, i_section_len );
-        psi_table_section( pp_sections, p_section_local );
+        if ( !psi_table_section( pp_sections, p_section_local ) )
+        {
+            psi_table_free( pp_sections );
+            return NULL;
+        }
 
         i_offset += i_section_len;
         if ( i_offset >= i_size - 1 )

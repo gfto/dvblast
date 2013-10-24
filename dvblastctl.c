@@ -546,6 +546,11 @@ int main( int i_argc, char **ppsz_argv )
         uint8_t *p_flat_data = p_buffer + COMM_HEADER_SIZE;
         unsigned int i_flat_data_size = i_size - COMM_HEADER_SIZE;
         uint8_t **pp_sections = psi_unpack_sections( p_flat_data, i_flat_data_size );
+        if ( !pp_sections )
+        {
+            return_error( "Error unpacking PSI" );
+            break;
+        }
 
         switch( c_answer )
         {
