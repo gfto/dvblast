@@ -160,7 +160,7 @@ void msg_Raw( void *_unused, const char *psz_format, ... )
     if ( i_syslog )
         vsyslog( LOG_NOTICE, psz_fmt, args );
     else
-        vfprintf( stderr, psz_fmt, args );
+        vfprintf( stdout, psz_fmt, args );
     va_end(args);
 }
 
