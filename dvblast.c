@@ -622,7 +622,7 @@ int main( int i_argc, char **pp_argv )
         { "inversion",       required_argument, NULL, 'I' },
         { "modulation",      required_argument, NULL, 'm' },
         { "pilot",           required_argument, NULL, 'P' },
-        { "mutistream-id",   required_argument, NULL, '1' },
+        { "multistream-id",  required_argument, NULL, '1' },
         { "fec-lp",          required_argument, NULL, 'K' },
         { "guard",           required_argument, NULL, 'G' },
         { "hierarchy",       required_argument, NULL, 'H' },
