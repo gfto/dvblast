@@ -104,6 +104,12 @@ Port number for uncommitted diseqc (0: no uncommitted diseqc, 1\-4)
 \fB\-K\fR, \fB\-\-fec-lp\fR
 DVB-T low priority FEC (default auto)
 .TP
+\fB\-1\fR, \fB\-\-delsys\fR <delivery_system>
+Select delivery system. Possible values: DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC (default guessed)
+.TP
+\fB\-5\fR, \fB\-\-multistream\-id\fR <stream_id>
+Set stream ID for multistream capable transponders. Value: 0-255 (default: 0)
+.TP
 \fB\-l\fR, \fB\-\-logger\fR
 Send messages to syslog instead of stderr
 .TP
