@@ -191,7 +191,10 @@ Voltage to apply to the LNB (QPSK)
 Only display the version
 .TP
 \fB\-w\fR, \fB\-\-select-pmts\fR
-set a PID filter on all PMTs
+Set a PID filter on all PMTs. This option is automatically enabled
+when config file is used. To disable setting PMT filters in case of
+config file is used, add \-\-select-pmts \fBafter\fR \-\-config\-file <file>
+parameter.
 .TP
 \fB\-x\fR, \fB\-\-print\fR
 Print interesting events on stdout in a given format
