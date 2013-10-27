@@ -221,6 +221,7 @@ extern int i_asi_adapter;
 extern const char *psz_native_charset;
 extern const char *psz_dvb_charset;
 extern enum print_type_t i_print_type;
+extern bool b_print_enabled;
 
 /* pid mapping */
 extern bool b_do_remap;

@@ -2030,7 +2030,7 @@ static void HandlePAT( mtime_t i_dts )
     }
 
     pat_table_print( pp_current_pat_sections, msg_Dbg, NULL, PRINT_TEXT );
-    if ( i_print_type != -1 )
+    if ( b_print_enabled )
     {
         pat_table_print( pp_current_pat_sections, demux_Print, NULL,
                          i_print_type );
@@ -2168,7 +2168,7 @@ static void HandleCAT( mtime_t i_dts )
     }
 
     cat_table_print( pp_current_cat_sections, msg_Dbg, NULL, PRINT_TEXT );
-    if ( i_print_type != -1 )
+    if ( b_print_enabled )
     {
         cat_table_print( pp_current_cat_sections, demux_Print, NULL,
                          i_print_type );
@@ -2363,7 +2363,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
     UpdatePMT( i_sid );
 
     pmt_print( p_pmt, msg_Dbg, NULL, demux_Iconv, NULL, PRINT_TEXT );
-    if ( i_print_type != -1 )
+    if ( b_print_enabled )
     {
         pmt_print( p_pmt, demux_Print, NULL, demux_Iconv, NULL,
                    i_print_type );
@@ -2411,7 +2411,7 @@ static void HandleNIT( mtime_t i_dts )
 
     nit_table_print( pp_current_nit_sections, msg_Dbg, NULL,
                      demux_Iconv, NULL, PRINT_TEXT );
-    if ( i_print_type != -1 )
+    if ( b_print_enabled )
     {
         nit_table_print( pp_current_nit_sections, demux_Print, NULL,
                          demux_Iconv, NULL, i_print_type );
@@ -2535,7 +2535,7 @@ static void HandleSDT( mtime_t i_dts )
 
     sdt_table_print( pp_current_sdt_sections, msg_Dbg, NULL,
                      demux_Iconv, NULL, PRINT_TEXT );
-    if ( i_print_type != -1 )
+    if ( b_print_enabled )
     {
         sdt_table_print( pp_current_sdt_sections, demux_Print, NULL,
                          demux_Iconv, NULL, i_print_type );

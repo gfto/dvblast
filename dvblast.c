@@ -95,7 +95,8 @@ int i_asi_adapter = 0;
 const char *psz_native_charset = "UTF-8";
 const char *psz_dvb_charset = "ISO_8859-1";
 const char *psz_provider_name = NULL;
-print_type_t i_print_type = -1;
+print_type_t i_print_type = PRINT_TEXT;
+bool b_print_enabled = false;
 
 volatile sig_atomic_t b_conf_reload = 0;
 volatile sig_atomic_t b_exit_now = 0;
@@ -940,12 +941,16 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'x':
+            b_print_enabled = true;
             if ( !strcmp(optarg, "text") )
                 i_print_type = PRINT_TEXT;
             else if ( !strcmp(optarg, "xml") )
                 i_print_type = PRINT_XML;
             else
+            {
+                b_print_enabled = false;
                 msg_Warn( NULL, "unrecognized print type %s", optarg );
+            }
             /* Make stdout line-buffered */
             setvbuf(stdout, NULL, _IOLBF, 0);
             break;
