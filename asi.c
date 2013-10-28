@@ -52,7 +52,7 @@
  * (typically ~100 TS packets) to fill up. And the buffer size cannot be
  * adjusted afer startup. --Meuuh
  */
-#undef USE_HARDWARE_FILTERING
+//#define USE_HARDWARE_FILTERING
 
 /*****************************************************************************
  * Local declarations
