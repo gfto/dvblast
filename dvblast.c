@@ -542,6 +542,7 @@ void usage()
     msg_Raw( NULL, "  -w --select-pmts      set a PID filter on all PMTs (auto on, when config file is used)" );
     msg_Raw( NULL, "  -O --lock-timeout     timeout for the lock operation (in ms)" );
     msg_Raw( NULL, "  -y --ca-number <ca_device_number>" );
+    msg_Raw( NULL, "  -2 --dvr-buf-size <size> set the size of the DVR TS buffer in bytes (default: %d)", i_dvr_buffer_size);
 #endif
 
     msg_Raw( NULL, "Output:" );
@@ -598,7 +599,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: 2346789
+     * The only short options left are: 346789
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -658,10 +659,11 @@ int main( int i_argc, char **pp_argv )
         { "mrtg-file",       required_argument, NULL, 'Z' },
         { "ca-number",       required_argument, NULL, 'y' },
         { "pidmap",          required_argument, NULL, '0' },
+        { "dvr-buf-size",    required_argument, NULL, '2' },
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:1:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:1:2:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -990,6 +992,15 @@ int main( int i_argc, char **pp_argv )
             b_do_remap = true;
             break;
         }
+        case '2':
+            i_dvr_buffer_size = strtol( optarg, NULL, 0 );
+            if (!i_dvr_buffer_size)
+                usage();	// it exits
+            /* roundup to packet size */
+            i_dvr_buffer_size += TS_SIZE - 1;
+            i_dvr_buffer_size /= TS_SIZE;
+            i_dvr_buffer_size *= TS_SIZE;
+            break;
         case 'h':
         default:
             usage();

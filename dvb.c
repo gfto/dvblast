@@ -68,6 +68,8 @@
 #define MAX_READ_ONCE 50
 #define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
 
+int i_dvr_buffer_size = DVR_BUFFER_SIZE;
+
 static int i_frontend, i_dvr;
 static fe_status_t i_last_status;
 static mtime_t i_frontend_timeout;
@@ -112,7 +114,7 @@ void dvb_Open( void )
         exit(1);
     }
 
-    if ( ioctl( i_dvr, DMX_SET_BUFFER_SIZE, DVR_BUFFER_SIZE ) < 0 )
+    if ( ioctl( i_dvr, DMX_SET_BUFFER_SIZE, i_dvr_buffer_size ) < 0 )
     {
         msg_Warn( NULL, "couldn't set %s buffer size (%s)", psz_tmp,
                  strerror(errno) );
