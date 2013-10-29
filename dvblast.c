@@ -994,6 +994,7 @@ int main( int i_argc, char **pp_argv )
             b_do_remap = true;
             break;
         }
+#ifdef HAVE_DVB_SUPPORT
         case '2':
             i_dvr_buffer_size = strtol( optarg, NULL, 0 );
             if (!i_dvr_buffer_size)
@@ -1003,6 +1004,7 @@ int main( int i_argc, char **pp_argv )
             i_dvr_buffer_size /= TS_SIZE;
             i_dvr_buffer_size *= TS_SIZE;
             break;
+#endif
         case 'h':
         default:
             usage();
