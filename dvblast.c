@@ -93,7 +93,7 @@ size_t i_network_name_size;
 char *psz_udp_src = NULL;
 int i_asi_adapter = 0;
 const char *psz_native_charset = "UTF-8";
-const char *psz_dvb_charset = "ISO_8859-1";
+const char *psz_dvb_charset = "ISO-8859-1";
 const char *psz_provider_name = NULL;
 print_type_t i_print_type = PRINT_TEXT;
 bool b_print_enabled = false;
@@ -569,7 +569,7 @@ void usage()
     msg_Raw( NULL, "  -h --help             display this full help" );
     msg_Raw( NULL, "  -i --priority <RT priority>" );
     msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8)" );
-    msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default ISO_8859-1)" );
+    msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default ISO-8859-1)" );
     msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
     msg_Raw( NULL, "  -g --logger-ident     program name that will be used in syslog messages" );
     msg_Raw( NULL, "  -x --print            print interesting events on stdout in a given format" );
