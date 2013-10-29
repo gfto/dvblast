@@ -332,7 +332,7 @@ static void demux_Handle( block_t *p_ts )
             printf("<ERROR type=\"invalid_ts\"/>\n");
             break;
         case PRINT_TEXT:
-            printf("lost TS sync");
+            printf("lost TS sync\n");
             break;
         default:
             break;
@@ -380,7 +380,7 @@ static void demux_Handle( block_t *p_ts )
                    i_pid, expected_cc, i_cc, pid_desc, i_sid );
             break;
         case PRINT_TEXT:
-            printf("TS discontinuity (PID=%hu) (expected_cc=%u) (got_cc=%u) (PID_carries=%s) (sid=%d)",
+            printf("TS discontinuity (PID=%hu) (expected_cc=%u) (got_cc=%u) (PID_carries=%s) (sid=%d)\n",
                    i_pid, expected_cc, i_cc, pid_desc, i_sid );
             break;
         default:
@@ -404,7 +404,7 @@ static void demux_Handle( block_t *p_ts )
                    i_pid, pid_desc, i_sid );
             break;
         case PRINT_TEXT:
-            printf("transport_error_indicator (PID=%hu) (PID_carries=%s) (sid=%u)",
+            printf("transport_error_indicator (PID=%hu) (PID_carries=%s) (sid=%u)\n",
                    i_pid, pid_desc, i_sid );
             break;
         default:
