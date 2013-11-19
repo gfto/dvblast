@@ -347,7 +347,8 @@ struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
     hint.ai_flags = AI_PASSIVE | AI_NUMERICHOST | AI_NUMERICSERV | AI_ADDRCONFIG;
     if ( (i_ret = getaddrinfo( psz_node, psz_port, NULL, &p_res )) != 0 )
     {
-        msg_Warn( NULL, "getaddrinfo error: %s", gai_strerror(i_ret) );
+        msg_Warn( NULL, "getaddrinfo(host=%s, port=%s) error: %s",
+            psz_node, psz_port ? psz_port : "", gai_strerror(i_ret) );
         free( psz_string );
         return NULL;
     }
