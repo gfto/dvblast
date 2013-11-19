@@ -188,12 +188,11 @@ void udp_Open( void )
                 msg_Err( NULL, "IP_ADD_SOURCE_MEMBERSHIP is unsupported." );
 #else
                 /* Source-specific multicast */
-                struct sockaddr_in *p_src =
-                    (struct sockaddr_in *)&p_connect_ai->ai_addr;
+                struct sockaddr *p_src = p_connect_ai->ai_addr;
                 struct ip_mreq_source imr;
                 imr.imr_multiaddr = p_addr->sin_addr;
                 imr.imr_interface.s_addr = i_if_addr;
-                imr.imr_sourceaddr = p_src->sin_addr;
+                imr.imr_sourceaddr = ((struct sockaddr_in *)p_src)->sin_addr;
                 if ( i_if_index )
                     msg_Warn( NULL, "ignoring ifindex option in SSM" );
 
