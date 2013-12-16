@@ -930,6 +930,7 @@ static struct dtv_properties dvbt_cmdseq = {
     .props = dvbt_cmdargs
 };
 
+/* ATSC + DVB-C annex B */
 static struct dtv_property atsc_cmdargs[] = {
     { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_ATSC },
     { .cmd = DTV_FREQUENCY,       .u.data = 0 },
@@ -981,6 +982,8 @@ FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
 #else
             return SYS_DVBC_ANNEX_AC;
 #endif
+        if ( !strcasecmp( psz_delsys, "DVBC_ANNEX_B" ) )
+            return SYS_DVBC_ANNEX_B;
         if ( !strcasecmp( psz_delsys, "DVBT" ) )
             return SYS_DVBT;
         if ( !strcasecmp( psz_delsys, "ATSC" ) )
@@ -1148,6 +1151,19 @@ static void FrontendSet( bool b_init )
 
         msg_Dbg( NULL, "tuning DVB-C frontend to f=%d srate=%d inversion=%d modulation=%s",
                  i_frequency, i_srate, i_inversion,
+                 psz_modulation == NULL ? "qam_auto" : psz_modulation );
+        break;
+
+    case SYS_DVBC_ANNEX_B:
+        p = &atsc_cmdseq;
+        p->props[DELSYS].u.data = system;
+        p->props[FREQUENCY].u.data = i_frequency;
+        p->props[INVERSION].u.data = GetInversion();
+        if ( psz_modulation != NULL )
+            p->props[MODULATION].u.data = GetModulation();
+
+        msg_Dbg( NULL, "tuning ATSC cable frontend to f=%d inversion=%d modulation=%s",
+                 i_frequency, i_inversion,
                  psz_modulation == NULL ? "qam_auto" : psz_modulation );
         break;
 
