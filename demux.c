@@ -143,12 +143,15 @@ static const char *get_pid_desc(uint16_t i_pid, uint16_t *i_sid);
  * Multiple streams of the same type use sequential pids
  * Returns the new pid and updates the map tables
 */
-uint16_t map_es_pid(output_t * p_output, uint16_t i_stream_type, uint16_t i_pid)
+uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
 {
     uint16_t i_newpid = i_pid;
+    uint16_t i_stream_type = pmtn_get_streamtype(p_es);
 
     if (! b_do_remap && !p_output->b_do_remap )
         return i_pid;
+
+    msg_Dbg(NULL, "REMAP: Found elementary stream type 0x%02x with original PID 0x%x (%u):", i_stream_type, i_pid, i_pid);
 
     switch ( i_stream_type )
     {
@@ -172,24 +175,53 @@ uint16_t map_es_pid(output_t * p_output, uint16_t i_stream_type, uint16_t i_pid)
             else
                 i_newpid = p_output->pi_confpids[I_VPID];
             break;
-        case 0x06: /* Subtitles */
-            if ( b_do_remap )
-                i_newpid = pi_newpids[I_SPUPID];
-            else
-                i_newpid = p_output->pi_confpids[I_SPUPID];
+        case 0x06: { /* PES Private Data - We must check the descriptors */
+            /* By default, nothing identified */
+            uint8_t SubStreamType = N_MAP_PIDS;
+            uint16_t j = 0;
+            const uint8_t *p_desc;
+            /* Loop over the descriptors */
+            while ( (p_desc = descs_get_desc( pmtn_get_descs( p_es ), j )) != NULL )
+            {
+                /* Get the descriptor tag */
+                uint8_t i_tag = desc_get_tag( p_desc );
+                j++;
+                /* Check if the tag is: A/52, Enhanced A/52, DTS, AAC */
+                if (i_tag == 0x6a || i_tag == 0x7a || i_tag == 0x7b || i_tag == 0x7c)
+                    SubStreamType=I_APID;
+                /* Check if the tag is: VBI + teletext, teletext, dvbsub */
+                if (i_tag == 0x46 || i_tag == 0x56 || i_tag == 0x59)
+                    SubStreamType=I_SPUPID;
+            }
+            /* Audio found */
+            if (SubStreamType==I_APID) {
+                msg_Dbg(NULL, "REMAP: PES Private Data stream identified as [Audio]");
+                if ( b_do_remap )
+                    i_newpid = pi_newpids[I_APID];
+                else
+                    i_newpid = p_output->pi_confpids[I_APID];
+            }
+            /* Subtitle found */
+            if (SubStreamType==I_SPUPID) {
+                msg_Dbg(NULL, "REMAP: PES Private Data stream identified as [Subtitle]");
+                if ( b_do_remap )
+                    i_newpid = pi_newpids[I_SPUPID];
+                else
+                    i_newpid = p_output->pi_confpids[I_SPUPID];
+            }
             break;
+        }
     }
+
     /* Got the new base for the mapped pid. Find the next free one
        we do this to ensure that multiple audios get unique pids */
-    if ( b_do_remap )
-    {
-        while (p_output->pi_freepids[i_newpid] != UNUSED_PID)
-            i_newpid++;
-        p_output->pi_freepids[i_newpid] = i_pid;  /* Mark as in use */
-        p_output->pi_newpids[i_pid] = i_newpid;   /* Save the new pid */
-    } else {
-        p_output->pi_newpids[i_pid] = i_newpid;
-    }
+    while (p_output->pi_freepids[i_newpid] != UNUSED_PID)
+        i_newpid++;
+    p_output->pi_freepids[i_newpid] = i_pid;  /* Mark as in use */
+    p_output->pi_newpids[i_pid] = i_newpid;   /* Save the new pid */
+
+    msg_Dbg(NULL, "REMAP: => Elementary stream is remapped to PID 0x%x (%u)", i_newpid, i_newpid);
+
     return i_newpid;
 }
 
@@ -1322,7 +1354,7 @@ static void NewPMT( output_t *p_output )
         k++;
         pmtn_init( p_es );
         pmtn_set_streamtype( p_es, pmtn_get_streamtype( p_current_es ) );
-        pmtn_set_pid( p_es, map_es_pid(p_output, pmtn_get_streamtype( p_current_es ), i_pid) );
+        pmtn_set_pid( p_es, map_es_pid(p_output, p_current_es, i_pid) );
         pmtn_set_desclength( p_es, 0 );
 
         CopyDescriptors( pmtn_get_descs( p_es ),
@@ -1332,9 +1364,11 @@ static void NewPMT( output_t *p_output )
     /* Do the pcr pid after everything else as it may have been remapped */
     i_pcrpid = pmt_get_pcrpid( p_current_pmt );
     if ( p_output->pi_newpids[i_pcrpid] != UNUSED_PID ) {
-        msg_Dbg( NULL, "Mapping pcrpid from 0x%x to 0x%x\n",
-                 i_pcrpid,  p_output->pi_newpids[i_pcrpid] );
+        msg_Dbg( NULL, "REMAP: The PCR PID was changed from 0x%x (%u) to 0x%x (%u)\n",
+                 i_pcrpid, i_pcrpid, p_output->pi_newpids[i_pcrpid], p_output->pi_newpids[i_pcrpid] );
         i_pcrpid = p_output->pi_newpids[i_pcrpid];
+    } else {
+        msg_Dbg( NULL, "The PCR PID has kept its original value of 0x%x (%u)\n", i_pcrpid, i_pcrpid);
     }
     pmt_set_pcrpid( p, i_pcrpid );
     p_es = pmt_get_es( p, k );
