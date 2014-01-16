@@ -425,7 +425,10 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
 
     pp_sections = psi_table_allocate();
     if ( !pp_sections )
+    {
+        msg_Err( NULL, "%s: cannot allocate PSI table\n", __func__ );
         return NULL;
+    }
 
     psi_table_init( pp_sections );
 
@@ -435,6 +438,12 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
 
         /* Must use allocated section not p_flat_section + offset directly! */
         uint8_t *p_section_local = psi_private_allocate();
+        if ( !p_section_local )
+        {
+            msg_Err( NULL, "%s: cannot allocate PSI private\n", __func__ );
+            psi_table_free( pp_sections );
+            return NULL;
+        }
         memcpy( p_section_local, p_section, i_section_len );
         if ( !psi_table_section( pp_sections, p_section_local ) )
         {
