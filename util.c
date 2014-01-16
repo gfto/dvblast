@@ -436,6 +436,13 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
         uint8_t *p_section = p_flat_sections + i_offset;
         uint16_t i_section_len = psi_get_length( p_section ) + PSI_HEADER_SIZE;
 
+        if ( !psi_validate( p_section ) )
+        {
+            msg_Err( NULL, "%s: Invalid section %d\n", __func__, i );
+            psi_table_free( pp_sections );
+            return NULL;
+        }
+
         /* Must use allocated section not p_flat_section + offset directly! */
         uint8_t *p_section_local = psi_private_allocate();
         if ( !p_section_local )
@@ -445,11 +452,12 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
             return NULL;
         }
         memcpy( p_section_local, p_section, i_section_len );
-        if ( !psi_table_section( pp_sections, p_section_local ) )
-        {
-            psi_table_free( pp_sections );
-            return NULL;
-        }
+
+        /* We ignore the return value of psi_table_section(), because it is useless
+           in this case. We are building the table section by section and when we have
+           more than one section in a table, psi_table_section() returns false when section
+           0 is added.  */
+        psi_table_section( pp_sections, p_section_local );
 
         i_offset += i_section_len;
         if ( i_offset >= i_size - 1 )
