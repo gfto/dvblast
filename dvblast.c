@@ -828,7 +828,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'w':
-            b_select_pmts = !b_select_pmts;
+            b_select_pmts = 1; //!b_select_pmts;
             break;
 
         case 'U':
@@ -905,7 +905,6 @@ int main( int i_argc, char **pp_argv )
 
         case 'Y':
             b_enable_ecm = true;
-            b_dvb_global = true;
             break;
  
         case 'e':
