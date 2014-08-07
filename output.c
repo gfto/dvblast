@@ -190,7 +190,6 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
         p_output->i_tsid = rand() & 0xffff;
 
     /* Init the mapped pids to unused */
-    p_output->b_do_remap = p_config->b_do_remap;
     init_pid_mapping( p_output );
 
     /* Init socket-related fields */
@@ -363,7 +362,7 @@ static void output_Flush( output_t *p_output )
          * set the pid to the new pid
          * later we re-instate the old pid for the next output
          */
-        if ( b_do_remap || p_output->b_do_remap ) {
+        if ( b_do_remap || p_output->config.b_do_remap ) {
             block_t *p_block = p_packet->pp_blocks[i_block];
             uint16_t i_pid = ts_get_pid( p_block->p_ts );
             p_block->tmp_pid = UNUSED_PID;
@@ -411,7 +410,7 @@ static void output_Flush( output_t *p_output )
         p_packet->pp_blocks[i_block]->i_refcount--;
         if ( !p_packet->pp_blocks[i_block]->i_refcount )
             block_Delete( p_packet->pp_blocks[i_block] );
-        else if ( b_do_remap || p_output->b_do_remap ) {
+        else if ( b_do_remap || p_output->config.b_do_remap ) {
             /* still referenced so re-instate the orignial pid if remapped */
             block_t * p_block = p_packet->pp_blocks[i_block];
             if (p_block->tmp_pid != UNUSED_PID)
@@ -607,13 +606,6 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
             p_packet->pp_blocks = &p_packet->p_blocks;
             p_output->p_last_packet = p_packet;
         }
-    }
-    if ( p_config->b_do_remap )
-    {
-        p_output->pi_confpids[I_PMTPID] = p_config->pi_confpids[I_PMTPID];
-        p_output->pi_confpids[I_APID]   = p_config->pi_confpids[I_APID];
-        p_output->pi_confpids[I_VPID]   = p_config->pi_confpids[I_VPID];
-        p_output->pi_confpids[I_SPUPID] = p_config->pi_confpids[I_SPUPID];
     }
 
     if ( p_config->i_config & OUTPUT_RAW ) {

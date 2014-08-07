@@ -143,12 +143,12 @@ static const char *get_pid_desc(uint16_t i_pid, uint16_t *i_sid);
  * Multiple streams of the same type use sequential pids
  * Returns the new pid and updates the map tables
 */
-uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
+static uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
 {
     uint16_t i_newpid = i_pid;
     uint16_t i_stream_type = pmtn_get_streamtype(p_es);
 
-    if (! b_do_remap && !p_output->b_do_remap )
+    if ( !b_do_remap && !p_output->config.b_do_remap )
         return i_pid;
 
     msg_Dbg(NULL, "REMAP: Found elementary stream type 0x%02x with original PID 0x%x (%u):", i_stream_type, i_pid, i_pid);
@@ -164,7 +164,7 @@ uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
             if ( b_do_remap )
                 i_newpid = pi_newpids[I_APID];
             else
-                i_newpid = p_output->pi_confpids[I_APID];
+                i_newpid = p_output->config.pi_confpids[I_APID];
             break;
         case 0x01: /* video MPEG-1 */
         case 0x02: /* video */
@@ -173,7 +173,7 @@ uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
             if ( b_do_remap )
                 i_newpid = pi_newpids[I_VPID];
             else
-                i_newpid = p_output->pi_confpids[I_VPID];
+                i_newpid = p_output->config.pi_confpids[I_VPID];
             break;
         case 0x06: { /* PES Private Data - We must check the descriptors */
             /* By default, nothing identified */
@@ -199,7 +199,7 @@ uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
                 if ( b_do_remap )
                     i_newpid = pi_newpids[I_APID];
                 else
-                    i_newpid = p_output->pi_confpids[I_APID];
+                    i_newpid = p_output->config.pi_confpids[I_APID];
             }
             /* Subtitle found */
             if (SubStreamType==I_SPUPID) {
@@ -207,11 +207,14 @@ uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
                 if ( b_do_remap )
                     i_newpid = pi_newpids[I_SPUPID];
                 else
-                    i_newpid = p_output->pi_confpids[I_SPUPID];
+                    i_newpid = p_output->config.pi_confpids[I_SPUPID];
             }
             break;
         }
     }
+
+    if (!i_newpid)
+        return i_pid;
 
     /* Got the new base for the mapped pid. Find the next free one
        we do this to ensure that multiple audios get unique pids */
@@ -586,9 +589,19 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     bool b_service_name_change =
         (!streq(p_output->config.psz_service_name, p_config->psz_service_name) ||
          !streq(p_output->config.psz_service_provider, p_config->psz_service_provider));
+    bool b_remap_change = p_output->config.i_new_sid != p_config->i_new_sid ||
+        p_output->config.b_do_remap != p_config->b_do_remap ||
+        p_output->config.pi_confpids[I_PMTPID] != p_config->pi_confpids[I_PMTPID] ||
+        p_output->config.pi_confpids[I_APID] != p_config->pi_confpids[I_APID] ||
+        p_output->config.pi_confpids[I_VPID] != p_config->pi_confpids[I_VPID] ||
+        p_output->config.pi_confpids[I_SPUPID] != p_config->pi_confpids[I_SPUPID];
     int i;
 
     p_output->config.i_config = p_config->i_config;
+    p_output->config.i_new_sid = p_config->i_new_sid;
+    p_output->config.b_do_remap = p_config->b_do_remap;
+    memcpy(p_output->config.pi_confpids, p_config->pi_confpids,
+           sizeof(uint16_t) * N_MAP_PIDS);
 
     /* Change output settings related to service_name and service_provider . */
     free( p_output->config.psz_service_name );
@@ -610,7 +623,6 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
             p_output->i_tsid = rand() & 0xffff;
         b_tsid_change = true;
     }
-    p_output->config.i_tsid = p_config->i_tsid;
 
     if ( !b_sid_change && p_config->i_nb_pids == p_output->config.i_nb_pids &&
          (!p_config->i_nb_pids ||
@@ -701,7 +713,7 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     p_output->config.i_nb_pids = i_nb_pids;
 
 out_change:
-    if ( b_sid_change )
+    if ( b_sid_change || b_remap_change )
     {
         NewSDT( p_output );
         NewNIT( p_output );
@@ -1086,8 +1098,8 @@ static void SendPMT( sid_t *p_sid, mtime_t i_dts )
                && p_output->config.i_sid == p_sid->i_sid
                && p_output->p_pmt_section != NULL )
         {
-            if ( p_output->b_do_remap )
-                i_pmt_pid = p_output->pi_confpids[I_PMTPID];
+            if ( p_output->config.b_do_remap && p_output->config.pi_confpids[I_PMTPID] )
+                i_pmt_pid = p_output->config.pi_confpids[I_PMTPID];
 
             OutputPSISection( p_output, p_output->p_pmt_section,
                               i_pmt_pid, &p_output->i_pmt_cc, i_dts,
@@ -1153,11 +1165,14 @@ static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
                && (!b_epg || (p_output->config.i_config & OUTPUT_EPG))
                && p_output->config.i_sid == p_sid->i_sid )
         {
-            if ( eit_get_tsid( p_eit ) != p_output->i_tsid )
-            {
-                eit_set_tsid( p_eit, p_output->i_tsid );
-                psi_set_crc( p_eit );
-            }
+            eit_set_tsid( p_eit, p_output->i_tsid );
+
+            if ( p_output->config.i_new_sid )
+                eit_set_sid( p_eit, p_output->config.i_new_sid );
+            else
+                eit_set_sid( p_eit, p_output->config.i_sid );
+
+            psi_set_crc( p_eit );
 
             OutputPSISection( p_output, p_eit, EIT_PID, &p_output->i_eit_cc,
                               i_dts, &p_output->p_eit_ts_buffer,
@@ -1254,14 +1269,22 @@ static void NewPAT( output_t *p_output )
 
     p = pat_get_program( p_output->p_pat_section, k++ );
     patn_init( p );
-    patn_set_program( p, p_output->config.i_sid );
+    if ( p_output->config.i_new_sid )
+    {
+        msg_Dbg( NULL, "Mapping PAT SID %d to %d", p_output->config.i_sid,
+                 p_output->config.i_new_sid );
+        patn_set_program( p, p_output->config.i_new_sid );
+    }
+    else
+        patn_set_program( p, p_output->config.i_sid );
+
     if ( b_do_remap )
     {
-        msg_Dbg( NULL, "Mapping PMT PID %d to %d\n", patn_get_pid( p_program ), pi_newpids[I_PMTPID] );
+        msg_Dbg( NULL, "Mapping PMT PID %d to %d", patn_get_pid( p_program ), pi_newpids[I_PMTPID] );
         patn_set_pid( p, pi_newpids[I_PMTPID]);
-    } else if ( p_output->b_do_remap ) {
-        msg_Dbg( NULL, "Mapping PMT PID %d to %d\n", patn_get_pid( p_program ), p_output->pi_confpids[I_PMTPID] );
-        patn_set_pid( p, p_output->pi_confpids[I_PMTPID]);
+    } else if ( p_output->config.b_do_remap && p_output->config.pi_confpids[I_PMTPID] ) {
+        msg_Dbg( NULL, "Mapping PMT PID %d to %d", patn_get_pid( p_program ), p_output->config.pi_confpids[I_PMTPID] );
+        patn_set_pid( p, p_output->config.pi_confpids[I_PMTPID]);
     } else {
         patn_set_pid( p, patn_get_pid( p_program ) );
     }
@@ -1329,7 +1352,14 @@ static void NewPMT( output_t *p_output )
     p = p_output->p_pmt_section = psi_allocate();
     pmt_init( p );
     psi_set_length( p, PSI_MAX_SIZE );
-    pmt_set_program( p, p_output->config.i_sid );
+    if ( p_output->config.i_new_sid )
+    {
+        msg_Dbg( NULL, "Mapping PMT SID %d to %d", p_output->config.i_sid,
+                 p_output->config.i_new_sid );
+        pmt_set_program( p, p_output->config.i_new_sid );
+    }
+    else
+        pmt_set_program( p, p_output->config.i_sid );
     psi_set_version( p, p_output->i_pmt_version );
     psi_set_current( p );
     pmt_set_desclength( p, 0 );
@@ -1364,11 +1394,11 @@ static void NewPMT( output_t *p_output )
     /* Do the pcr pid after everything else as it may have been remapped */
     i_pcrpid = pmt_get_pcrpid( p_current_pmt );
     if ( p_output->pi_newpids[i_pcrpid] != UNUSED_PID ) {
-        msg_Dbg( NULL, "REMAP: The PCR PID was changed from 0x%x (%u) to 0x%x (%u)\n",
+        msg_Dbg( NULL, "REMAP: The PCR PID was changed from 0x%x (%u) to 0x%x (%u)",
                  i_pcrpid, i_pcrpid, p_output->pi_newpids[i_pcrpid], p_output->pi_newpids[i_pcrpid] );
         i_pcrpid = p_output->pi_newpids[i_pcrpid];
     } else {
-        msg_Dbg( NULL, "The PCR PID has kept its original value of 0x%x (%u)\n", i_pcrpid, i_pcrpid);
+        msg_Dbg( NULL, "The PCR PID has kept its original value of 0x%x (%u)", i_pcrpid, i_pcrpid);
     }
     pmt_set_pcrpid( p, i_pcrpid );
     p_es = pmt_get_es( p, k );
@@ -1480,7 +1510,14 @@ static void NewSDT( output_t *p_output )
 
     p_service = sdt_get_service( p, 0 );
     sdtn_init( p_service );
-    sdtn_set_sid( p_service, p_output->config.i_sid );
+    if ( p_output->config.i_new_sid )
+    {
+        msg_Dbg( NULL, "Mapping SDT SID %d to %d", p_output->config.i_sid,
+                 p_output->config.i_new_sid );
+        sdtn_set_sid( p_service, p_output->config.i_new_sid );
+    }
+    else
+        sdtn_set_sid( p_service, p_output->config.i_sid );
 
     if ( (p_output->config.i_config & OUTPUT_EPG) == OUTPUT_EPG )
     {

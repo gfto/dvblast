@@ -152,6 +152,7 @@ Available options include :
  /srvname=Some_Channel (set service name in SDT)
  /srvprovider=Some_Provider (set provider name in SDT)
  /pidmap=pmt_pid,audio_pid,video_pid,spu_pid
+ /newsid=XX (set output service ID)
  /srcaddr=XXX.XXX.XXX.XXX (use RAW packets and set source IPv4)
  /srcport=XX (set source port, depends on /srcaddr)
 
