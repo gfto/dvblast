@@ -275,6 +275,7 @@ void msleep( mtime_t delay );
 void hexDump( uint8_t *p_data, uint32_t i_len );
 struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
                                    uint16_t i_default_port );
+char *config_stropt( char *psz_string );
 
 uint8_t *psi_pack_section( uint8_t *p_sections, unsigned int *pi_size );
 uint8_t *psi_pack_sections( uint8_t **pp_sections, unsigned int *pi_size );

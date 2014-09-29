@@ -177,7 +177,7 @@ static void config_Defaults( output_config_t *p_config )
     memcpy( p_config->pi_ssrc, pi_ssrc_global, 4 * sizeof(uint8_t) );
 }
 
-static char *config_stropt( char *psz_string )
+char *config_stropt( char *psz_string )
 {
     char *ret, *tmp;
     if ( !psz_string || strlen( psz_string ) == 0 )

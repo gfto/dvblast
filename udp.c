@@ -34,6 +34,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <net/if.h>
 #include <arpa/inet.h>
 #include <errno.h>
 
@@ -64,6 +65,7 @@ void udp_Open( void )
     int i_if_index = 0;
     in_addr_t i_if_addr = INADDR_ANY;
     int i_mtu = 0;
+    char *psz_ifname = NULL;
 
     char *psz_bind, *psz_string = strdup( psz_udp_src );
     char *psz_save = psz_string;
@@ -109,7 +111,13 @@ void udp_Open( void )
             i_if_index = strtol( ARG_OPTION("ifindex="), NULL, 0 );
         else if ( IS_OPTION("ifaddr=") )
             i_if_addr = inet_addr( ARG_OPTION("ifaddr=") );
-        else
+        else if ( IS_OPTION("ifname=") )
+        {
+            psz_ifname = config_stropt( ARG_OPTION("ifname=") );
+            if (strlen(psz_ifname) >= IFNAMSIZ) {
+                psz_ifname[IFNAMSIZ-1] = '\0';
+            }
+        } else
             msg_Warn( NULL, "unrecognized option %s", psz_string );
 
 #undef IS_OPTION
@@ -229,6 +237,17 @@ void udp_Open( void )
                     msg_Warn( NULL, "couldn't join multicast group (%s)",
                               strerror(errno) );
             }
+#ifdef SO_BINDTODEVICE
+            if (psz_ifname) {
+                if ( setsockopt( i_handle, SOL_SOCKET, SO_BINDTODEVICE,
+                                 psz_ifname, strlen(psz_ifname)+1 ) < 0 ) {
+                    msg_Err( NULL, "couldn't bind to device %s (%s)",
+                             psz_ifname, strerror(errno) );
+                }
+                free(psz_ifname);
+                psz_ifname = NULL;
+            }
+#endif
         }
     }
 
