@@ -2150,7 +2150,14 @@ void en50221_Poll( void )
                 InitSlot( NULL, i_slot );
             else if ( p_slot->i_init_timeout < i_wallclock )
             {
-                msg_Dbg( NULL, "en50221_Poll: resetting slot %d", i_slot );
+                switch (i_print_type) {
+                case PRINT_XML:
+                    printf("<EVENT type=\"reset\" cause=\"cam_mute\" />\n");
+                    break;
+                default:
+                    msg_Warn( NULL, "no answer from CAM, resetting slot %d",
+                              i_slot );
+                }
                 ResetSlot( i_slot );
                 continue;
             }
@@ -2175,9 +2182,14 @@ void en50221_Poll( void )
         {
             if ( TPDUSend( NULL, i_slot, T_DATA_LAST, NULL, 0 ) != 0 )
             {
-                msg_Err( NULL,
-                         "en50221_Poll: couldn't send TPDU on slot %d, resetting",
-                         i_slot );
+                switch (i_print_type) {
+                case PRINT_XML:
+                    printf("<EVENT type=\"reset\" cause=\"cam_error\" />\n");
+                    break;
+                default:
+                    msg_Warn( NULL, "couldn't send TPDU, resetting slot %d",
+                              i_slot );
+                }
                 ResetSlot( i_slot );
             }
         }

@@ -455,8 +455,14 @@ static void demux_Handle( block_t *p_ts )
     if ( i_nb_errors > MAX_ERRORS )
     {
         i_nb_errors = 0;
-        msg_Warn( NULL,
-                 "too many transport errors, tuning again" );
+        switch (i_print_type) {
+        case PRINT_XML:
+            printf("<EVENT type=\"reset\" cause=\"transport\" />\n");
+            break;
+        default:
+            msg_Warn( NULL,
+                     "too many transport errors, tuning again" );
+        }
         pf_Reset();
     }
 
@@ -534,9 +540,15 @@ static void demux_Handle( block_t *p_ts )
                     for ( j = 0; j < i_nb_outputs; j++ )
                         pp_outputs[j]->i_nb_errors = 0;
 
-                    msg_Warn( NULL,
-                             "too many errors for stream %s, resetting",
-                             p_output->config.psz_displayname );
+                    switch (i_print_type) {
+                    case PRINT_XML:
+                        printf("<EVENT type=\"reset\" cause=\"scrambling\" />\n");
+                        break;
+                    default:
+                        msg_Warn( NULL,
+                                 "too many errors for stream %s, resetting",
+                                 p_output->config.psz_displayname );
+                    }
                     i_last_reset = i_wallclock;
                     en50221_Reset();
                 }

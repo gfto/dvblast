@@ -196,7 +196,13 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
     else if ( !i_frontend_timeout
                 && i_wallclock > i_last_packet + DVR_READ_TIMEOUT )
     {
-        msg_Warn( NULL, "no DVR output, resetting" );
+        switch (i_print_type) {
+        case PRINT_XML:
+            printf("<EVENT type=\"reset\" cause=\"dvr\" />\n");
+            break;
+        default:
+            msg_Warn( NULL, "no DVR output, resetting" );
+        }
         if ( i_frequency )
             FrontendSet(false);
         en50221_Reset();
@@ -230,7 +236,13 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
             }
             exit(EXIT_STATUS_FRONTEND_TIMEOUT);
         }
-        msg_Warn( NULL, "no lock, tuning again" );
+        switch (i_print_type) {
+        case PRINT_XML:
+            printf("<EVENT type=\"reset\" cause=\"nolock\" />\n");
+            break;
+        default:
+            msg_Warn( NULL, "no lock, tuning again" );
+        }
         if ( i_frequency )
             FrontendSet(false);
     }
