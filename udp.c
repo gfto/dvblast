@@ -109,8 +109,11 @@ void udp_Open( void )
             i_mtu = strtol( ARG_OPTION("mtu="), NULL, 0 );
         else if ( IS_OPTION("ifindex=") )
             i_if_index = strtol( ARG_OPTION("ifindex="), NULL, 0 );
-        else if ( IS_OPTION("ifaddr=") )
-            i_if_addr = inet_addr( ARG_OPTION("ifaddr=") );
+        else if ( IS_OPTION("ifaddr=") ) {
+            char *option = config_stropt( ARG_OPTION("ifaddr=") );
+            i_if_addr = inet_addr( option );
+            free( option );
+        }
         else if ( IS_OPTION("ifname=") )
         {
             psz_ifname = config_stropt( ARG_OPTION("ifname=") );
