@@ -346,10 +346,16 @@ static void output_Flush( output_t *p_output )
         rtp_set_hdr( p_rtp_hdr );
         rtp_set_type( p_rtp_hdr, RTP_TYPE_TS );
         rtp_set_seqnum( p_rtp_hdr, p_output->i_seqnum++ );
+        /* Older RTP timestamp calculation */
+        /*
         rtp_set_timestamp( p_rtp_hdr,
                            p_output->i_ref_timestamp
                             + (p_packet->i_dts - p_output->i_ref_wallclock)
                                * 9 / 100 );
+        */
+        /* New timestamp based only on local time when sent */
+        /* 90 kHz clock = 90000 counts per second */
+        rtp_set_timestamp( p_rtp_hdr, i_wallclock * 9 / 100);
         rtp_set_ssrc( p_rtp_hdr, p_output->config.pi_ssrc );
 
         i_iov++;
