@@ -850,6 +850,8 @@ static void FrontendInfo( struct dvb_frontend_info *info, uint32_t version,
 #else
         DELSYS_INFO( SYS_DMBTH, "DMBTH" )
 #endif
+        default: msg_Dbg( NULL, "  Unknown delivery system %u", p_systems[i]);
+            break;
         }
     }
 }
