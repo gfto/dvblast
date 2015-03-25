@@ -1163,8 +1163,6 @@ int main( int i_argc, char **pp_argv )
             demux_Run( p_ts );
         }
         i_poll_timeout = output_Send();
-        if ( i_poll_timeout == -1 || i_poll_timeout > MAX_POLL_TIMEOUT )
-            i_poll_timeout = MAX_POLL_TIMEOUT;
     }
 
     mrtgClose();

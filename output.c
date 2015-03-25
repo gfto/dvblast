@@ -470,6 +470,7 @@ void output_Put( output_t *p_output, block_t *p_block )
 mtime_t output_Send( void )
 {
     mtime_t i_earliest_dts = -1;
+    mtime_t i_poll_timeout;
     int i;
 
     if ( output_dup.config.i_config & OUTPUT_VALID )
@@ -502,7 +503,20 @@ mtime_t output_Send( void )
                               + p_output->config.i_output_latency;
     }
 
-    return i_earliest_dts == -1 ? -1 : i_earliest_dts - i_wallclock;
+    /* Calculate the maximum time to wait before sending the next packet */
+    if ( i_earliest_dts == -1 ) {
+        return (MAX_POLL_TIMEOUT);
+    } else {
+        i_poll_timeout = i_earliest_dts - i_wallclock;
+        if (i_poll_timeout > MAX_POLL_TIMEOUT) {
+            return (MAX_POLL_TIMEOUT);
+        } else if (i_poll_timeout < MIN_POLL_TIMEOUT) {
+            return (MIN_POLL_TIMEOUT);
+        } else {
+            return (i_poll_timeout);
+        }
+    }
+
 }
 
 /*****************************************************************************
