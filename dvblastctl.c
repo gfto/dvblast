@@ -142,6 +142,7 @@ char *psi_iconv(void *_unused, const char *psz_encoding,
                 psz_native_charset);
         return iconv_append_null(p_string, i_length);
     }
+    psz_current_encoding = psz_encoding;
 
     /* converted strings can be up to six times larger */
     i_out_length = i_length * 6;
