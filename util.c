@@ -1,7 +1,7 @@
 /*****************************************************************************
  * util.c
  *****************************************************************************
- * Copyright (C) 2004 VideoLAN
+ * Copyright (C) 2004, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
@@ -72,19 +72,24 @@ void msg_Disconnect( void )
  *****************************************************************************/
 void msg_Info( void *_unused, const char *psz_format, ... )
 {
-    if ( i_verbose >= VERB_INFO )
-    {
-        va_list args;
-        char psz_fmt[MAX_MSG];
-        va_start( args, psz_format );
+    if ( i_verbose < VERB_INFO )
+        return;
 
+    va_list args;
+    va_start( args, psz_format );
+
+    if ( !i_syslog )
+    {
+        char psz_fmt[MAX_MSG];
         snprintf( psz_fmt, MAX_MSG, "info: %s\n", psz_format );
-        if ( i_syslog )
-            vsyslog( LOG_INFO, psz_fmt, args );
-        else
-            vfprintf( stderr, psz_fmt, args );
-        va_end(args);
+        vfprintf( stderr, psz_fmt, args );
     }
+    else
+    {
+        vsyslog( LOG_INFO, psz_format, args );
+    }
+
+    va_end(args);
 }
 
 /*****************************************************************************
@@ -92,19 +97,24 @@ void msg_Info( void *_unused, const char *psz_format, ... )
  *****************************************************************************/
 void msg_Err( void *_unused, const char *psz_format, ... )
 {
-    if ( i_verbose >= VERB_ERR )
-    {
-        va_list args;
-        char psz_fmt[MAX_MSG];
-        va_start( args, psz_format );
+    if ( i_verbose < VERB_ERR )
+        return;
 
+    va_list args;
+    va_start( args, psz_format );
+
+    if ( !i_syslog )
+    {
+        char psz_fmt[MAX_MSG];
         snprintf( psz_fmt, MAX_MSG, "error: %s\n", psz_format );
-        if ( i_syslog )
-            vsyslog( LOG_ERR, psz_fmt, args );
-        else
-            vfprintf( stderr, psz_fmt, args );
-        va_end(args);
+        vfprintf( stderr, psz_fmt, args );
     }
+    else
+    {
+        vsyslog( LOG_ERR, psz_format, args );
+    }
+
+    va_end(args);
 }
 
 /*****************************************************************************
@@ -112,19 +122,24 @@ void msg_Err( void *_unused, const char *psz_format, ... )
  *****************************************************************************/
 void msg_Warn( void *_unused, const char *psz_format, ... )
 {
-    if ( i_verbose >= VERB_WARN )
-    {
-        va_list args;
-        char psz_fmt[MAX_MSG];
-        va_start( args, psz_format );
+    if ( i_verbose < VERB_WARN )
+        return;
 
+    va_list args;
+    va_start( args, psz_format );
+
+    if ( !i_syslog )
+    {
+        char psz_fmt[MAX_MSG];
         snprintf( psz_fmt, MAX_MSG, "warning: %s\n", psz_format );
-        if ( i_syslog )
-            vsyslog( LOG_WARNING, psz_fmt, args );
-        else
-            vfprintf( stderr, psz_fmt, args );
-        va_end(args);
+        vfprintf( stderr, psz_fmt, args );
     }
+    else
+    {
+        vsyslog( LOG_WARNING, psz_format, args );
+    }
+
+    va_end(args);
 }
 
 /*****************************************************************************
@@ -132,19 +147,24 @@ void msg_Warn( void *_unused, const char *psz_format, ... )
  *****************************************************************************/
 void msg_Dbg( void *_unused, const char *psz_format, ... )
 {
-    if ( i_verbose >= VERB_DBG )
-    {
-        va_list args;
-        char psz_fmt[MAX_MSG];
-        va_start( args, psz_format );
+    if ( i_verbose < VERB_DBG )
+        return;
 
+    va_list args;
+    va_start( args, psz_format );
+
+    if ( !i_syslog )
+    {
+        char psz_fmt[MAX_MSG];
         snprintf( psz_fmt, MAX_MSG, "debug: %s\n", psz_format );
-        if ( i_syslog )
-            vsyslog( LOG_DEBUG, psz_fmt, args );
-        else
-            vfprintf( stderr, psz_fmt, args );
-        va_end(args);
+        vfprintf( stderr, psz_fmt, args );
     }
+    else
+    {
+        vsyslog( LOG_DEBUG, psz_format, args );
+    }
+
+    va_end(args);
 }
 
 /*****************************************************************************
@@ -157,10 +177,7 @@ void msg_Raw( void *_unused, const char *psz_format, ... )
     va_start( args, psz_format );
 
     snprintf( psz_fmt, MAX_MSG, "%s\n", psz_format );
-    if ( i_syslog )
-        vsyslog( LOG_NOTICE, psz_fmt, args );
-    else
-        vfprintf( stdout, psz_fmt, args );
+    vfprintf( stderr, psz_fmt, args );
     va_end(args);
 }
 
