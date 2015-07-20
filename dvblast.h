@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvblast.h
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -192,6 +192,7 @@ extern int i_verbose;
 extern output_t **pp_outputs;
 extern int i_nb_outputs;
 extern output_t output_dup;
+extern bool b_passthrough;
 extern char *psz_srv_socket;
 extern int i_comm_fd;
 extern int i_adapter;
@@ -236,6 +237,7 @@ extern const char *psz_native_charset;
 extern const char *psz_dvb_charset;
 extern enum print_type_t i_print_type;
 extern bool b_print_enabled;
+extern FILE *print_fh;
 
 /* pid mapping */
 extern bool b_do_remap;

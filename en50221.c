@@ -1039,12 +1039,15 @@ static void ApplicationInformationHandle( access_t * p_access, int i_session_id,
             {
             case PRINT_XML:
                 psz_name = dvb_string_xml_escape(psz_name);
-                printf("<STATUS type=\"cam\" status=\"1\" cam_name=\"%s\" cam_type=\"%d\" cam_manufacturer=\"%d\" cam_product=\"%d\" />\n",
-                       psz_name, i_type, i_manufacturer, i_code);
+                fprintf(print_fh, "<STATUS type=\"cam\" status=\"1\" cam_name=\"%s\" cam_type=\"%d\" cam_manufacturer=\"%d\" cam_product=\"%d\" />\n",
+                        psz_name, i_type, i_manufacturer, i_code);
+                break;
+            case PRINT_TEXT:
+                fprintf(print_fh, "CAM name: %s type: %d manufacturer: %d product: %d\n",
+                        psz_name, i_type, i_manufacturer, i_code);
                 break;
             default:
-                printf("CAM: name=%s type=%d manufacturer=%d product=%d\n",
-                       psz_name, i_type, i_manufacturer, i_code);
+                break;
             }
             free(psz_name);
         }
@@ -1882,7 +1885,10 @@ static void ResetSlot( int i_slot )
     switch (i_print_type)
     {
     case PRINT_XML:
-        printf("<STATUS type=\"cam\" status=\"0\" />\n");
+        fprintf(print_fh, "<STATUS type=\"cam\" status=\"0\" />\n");
+        break;
+    case PRINT_TEXT:
+        fprintf(print_fh, "CAM none\n");
         break;
     default:
         break;
@@ -2150,13 +2156,18 @@ void en50221_Poll( void )
                 InitSlot( NULL, i_slot );
             else if ( p_slot->i_init_timeout < i_wallclock )
             {
+                msg_Warn( NULL, "no answer from CAM, resetting slot %d",
+                          i_slot );
                 switch (i_print_type) {
                 case PRINT_XML:
-                    printf("<EVENT type=\"reset\" cause=\"cam_mute\" />\n");
+                    fprintf(print_fh,
+                            "<EVENT type=\"reset\" cause=\"cam_mute\" />\n");
                     break;
+                case PRINT_TEXT:
+                   fprintf(print_fh, "reset cause: cam_mute\n");
+                   break;
                 default:
-                    msg_Warn( NULL, "no answer from CAM, resetting slot %d",
-                              i_slot );
+                   break;
                 }
                 ResetSlot( i_slot );
                 continue;
@@ -2182,13 +2193,18 @@ void en50221_Poll( void )
         {
             if ( TPDUSend( NULL, i_slot, T_DATA_LAST, NULL, 0 ) != 0 )
             {
+                msg_Warn( NULL, "couldn't send TPDU, resetting slot %d",
+                          i_slot );
                 switch (i_print_type) {
                 case PRINT_XML:
-                    printf("<EVENT type=\"reset\" cause=\"cam_error\" />\n");
+                    fprintf(print_fh,
+                            "<EVENT type=\"reset\" cause=\"cam_error\" />\n");
+                    break;
+                case PRINT_TEXT:
+                    fprintf(print_fh, "reset cause: cam_error\n");
                     break;
                 default:
-                    msg_Warn( NULL, "couldn't send TPDU, resetting slot %d",
-                              i_slot );
+                    break;
                 }
                 ResetSlot( i_slot );
             }

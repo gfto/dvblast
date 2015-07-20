@@ -301,12 +301,16 @@ block_t *udp_Read( mtime_t i_poll_timeout )
 
         if ( !i_last_packet )
         {
+            msg_Info( NULL, "frontend has acquired lock" );
             switch (i_print_type) {
             case PRINT_XML:
-                printf("<STATUS type=\"lock\" status=\"1\"/>\n");
+                fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\"/>\n");
+                break;
+            case PRINT_TEXT:
+                fprintf(print_fh, "lock status: 1\n");
                 break;
             default:
-                printf("frontend has acquired lock\n" );
+                break;
             }
         }
         i_last_packet = i_wallclock;
@@ -359,11 +363,15 @@ block_t *udp_Read( mtime_t i_poll_timeout )
                 memcpy( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) );
                 switch (i_print_type) {
                 case PRINT_XML:
-                    printf("<STATUS type=\"source\" source=\"%s\"/>\n",
-                           inet_ntoa( addr ));
+                    fprintf(print_fh,
+                            "<STATUS type=\"source\" source=\"%s\"/>\n",
+                            inet_ntoa( addr ));
+                    break;
+                case PRINT_TEXT:
+                    fprintf(print_fh, "source: %s\n", inet_ntoa( addr ) );
                     break;
                 default:
-                    printf("new RTP source: %s\n", inet_ntoa( addr ) );
+                    break;
                 }
             }
             i_seqnum = rtp_get_seqnum(p_rtp_hdr) + 1;
@@ -388,12 +396,16 @@ err:
     }
     else if ( i_last_packet && i_last_packet + UDP_LOCK_TIMEOUT < i_wallclock )
     {
+        msg_Dbg( NULL, "frontend has lost lock" );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<STATUS type=\"lock\" status=\"0\"/>\n");
+            fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "lock status: 0\n" );
             break;
         default:
-            printf("frontend has lost lock\n" );
+            break;
         }
         i_last_packet = 0;
     }

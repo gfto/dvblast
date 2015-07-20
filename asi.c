@@ -233,10 +233,13 @@ block_t *asi_Read( mtime_t i_poll_timeout )
         {
             switch (i_print_type) {
             case PRINT_XML:
-                printf("<STATUS type=\"lock\" status=\"1\"/>\n");
+                fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\"/>\n");
+                break;
+            case PRINT_TEXT:
+                fprintf(print_fh, "frontend has acquired lock\n");
                 break;
             default:
-                printf("frontend has acquired lock\n" );
+                break;
             }
         }
         i_last_packet = i_wallclock;
@@ -275,10 +278,13 @@ block_t *asi_Read( mtime_t i_poll_timeout )
     {
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<STATUS type=\"lock\" status=\"0\"/>\n");
+            fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "frontend has lost lock\n");
             break;
         default:
-            printf("frontend has lost lock\n" );
+            break;
         }
         i_last_packet = 0;
     }

@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvblast.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -56,6 +56,7 @@ mtime_t i_wallclock = 0;
 output_t **pp_outputs = NULL;
 int i_nb_outputs = 0;
 output_t output_dup;
+bool b_passthrough = false;
 static char *psz_conf_file = NULL;
 char *psz_srv_socket = NULL;
 static int i_priority = -1;
@@ -97,6 +98,7 @@ const char *psz_dvb_charset = "ISO-8859-1";
 const char *psz_provider_name = NULL;
 print_type_t i_print_type = PRINT_TEXT;
 bool b_print_enabled = false;
+FILE *print_fh;
 
 volatile sig_atomic_t b_conf_reload = 0;
 volatile sig_atomic_t b_exit_now = 0;
@@ -494,7 +496,7 @@ void usage()
         "[-G <guard interval>] [-H <hierarchy>] [-X <transmission>] [-O <lock timeout>] "
 #endif
         "[-D [<src host>[:<src port>]@]<src mcast>[:<port>][/<opts>]*] "
-        "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] "
+        "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-3] "
         "[-z] [-C [-e] [-M <network name>] [-N <network ID>]] [-T] [-j <system charset>] "
         "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] [-B <provider_name>] "
         "[-1 <mis_id>] [-2 <size>] [-5 <DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC>] -y <ca_dev_number> "
@@ -546,6 +548,7 @@ void usage()
     msg_Raw( NULL, "  -c --config-file <config file>" );
     msg_Raw( NULL, "  -C --dvb-compliance   pass through or build the mandatory DVB tables" );
     msg_Raw( NULL, "  -d --duplicate        duplicate all received packets to a given destination" );
+    msg_Raw( NULL, "  -3 --passthrough      duplicate all received packets to stdout" );
     msg_Raw( NULL, "  -W --emm-passthrough  pass through EMM data (CA system data)" );
     msg_Raw( NULL, "  -Y --ecm-passthrough  pass through ECM data (CA program data)" );
     msg_Raw( NULL, "  -e --epg-passthrough  pass through DVB EIT schedule tables" );
@@ -589,14 +592,14 @@ int main( int i_argc, char **pp_argv )
     int c;
     struct sigaction sa;
     sigset_t set;
-
     int b_enable_syslog = 0;
+    print_fh = stdout;
 
     if ( i_argc == 1 )
         usage();
 
     /*
-     * The only short options left are: 346789
+     * The only short options left are: 46789
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -634,6 +637,7 @@ int main( int i_argc, char **pp_argv )
         { "latency",         required_argument, NULL, 'L' },
         { "retention",       required_argument, NULL, 'E' },
         { "duplicate",       required_argument, NULL, 'd' },
+        { "passthrough",     no_argument,       NULL, '3' },
         { "rtp-input",       required_argument, NULL, 'D' },
         { "asi-adapter",     required_argument, NULL, 'A' },
         { "any-type",        no_argument,       NULL, 'z' },
@@ -660,7 +664,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:1:2:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:3D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:1:2:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -843,6 +847,11 @@ int main( int i_argc, char **pp_argv )
             psz_dup_config = optarg;
             break;
 
+        case '3':
+            b_passthrough = true;
+            print_fh = stderr;
+            break;
+
         case 'D':
             psz_udp_src = optarg;
             if ( pf_Open != NULL )
@@ -950,8 +959,6 @@ int main( int i_argc, char **pp_argv )
                 b_print_enabled = false;
                 msg_Warn( NULL, "unrecognized print type %s", optarg );
             }
-            /* Make stdout line-buffered */
-            setvbuf(stdout, NULL, _IOLBF, 0);
             break;
 
         case 'Q':
@@ -1011,15 +1018,22 @@ int main( int i_argc, char **pp_argv )
     if ( b_enable_syslog )
         msg_Connect( psz_syslog_ident ? psz_syslog_ident : pp_argv[0] );
 
+    if ( b_print_enabled )
+    {
+        /* Make std* line-buffered */
+        setvbuf(print_fh, NULL, _IOLBF, 0);
+    }
+
     if ( i_verbose )
         DisplayVersion();
 
     msg_Warn( NULL, "restarting" );
+
     switch (i_print_type) 
     {
         case PRINT_XML:
-            printf("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
-            printf("<TS>\n");
+            fprintf(print_fh, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+            fprintf(print_fh, "<TS>\n");
             break;
         default:
             break;
@@ -1148,7 +1162,7 @@ int main( int i_argc, char **pp_argv )
             switch (i_print_type)
             {
             case PRINT_XML:
-                printf("</TS>\n");
+                fprintf(print_fh, "</TS>\n");
                 break;
             default:
                 break;

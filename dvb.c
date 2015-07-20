@@ -196,12 +196,16 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
     else if ( !i_frontend_timeout
                 && i_wallclock > i_last_packet + DVR_READ_TIMEOUT )
     {
+        msg_Warn( NULL, "no DVR output, resetting" );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<EVENT type=\"reset\" cause=\"dvr\" />\n");
+            fprintf(print_fh, "<EVENT type=\"reset\" cause=\"dvr\" />\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "reset cause: dvr\n");
             break;
         default:
-            msg_Warn( NULL, "no DVR output, resetting" );
+            break;
         }
         if ( i_frequency )
             FrontendSet(false);
@@ -229,19 +233,23 @@ block_t *dvb_Read( mtime_t i_poll_timeout )
             msg_Err( NULL, "no lock" );
             switch (i_print_type) {
             case PRINT_XML:
-                printf("</TS>\n");
+                fprintf(print_fh, "</TS>\n");
                 break;
             default:
                 break;
             }
             exit(EXIT_STATUS_FRONTEND_TIMEOUT);
         }
+        msg_Warn( NULL, "no lock, tuning again" );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<EVENT type=\"reset\" cause=\"nolock\" />\n");
+            fprintf(print_fh, "<EVENT type=\"reset\" cause=\"nolock\" />\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "reset cause: nolock\n");
             break;
         default:
-            msg_Warn( NULL, "no lock, tuning again" );
+            break;
         }
         if ( i_frequency )
             FrontendSet(false);
@@ -409,10 +417,13 @@ static void FrontendPoll( void )
                 msg_Info( NULL, "frontend has acquired lock" );
                 switch (i_print_type) {
                 case PRINT_XML:
-                    printf("<STATUS type=\"lock\" status=\"1\" />\n");
+                    fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\" />\n");
+                    break;
+                case PRINT_TEXT:
+                    fprintf(print_fh, "lock status: 1\n");
                     break;
                 default:
-                    printf("frontend has acquired lock\n" );
+                    break;
                 }
                 i_frontend_timeout = 0;
                 i_last_packet = i_wallclock;
@@ -433,10 +444,13 @@ static void FrontendPoll( void )
                 msg_Dbg( NULL, "frontend has lost lock" );
                 switch (i_print_type) {
                 case PRINT_XML:
-                    printf("<STATUS type=\"lock\" status=\"0\"/>\n");
+                    fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
+                    break;
+                case PRINT_TEXT:
+                    fprintf(print_fh, "lock status: 0\n");
                     break;
                 default:
-                    printf("frontend has lost lock\n" );
+                    break;
                 }
                 i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
             }

@@ -361,18 +361,6 @@ static void demux_Handle( block_t *p_ts )
     if ( !ts_validate( p_ts->p_ts ) )
     {
         msg_Warn( NULL, "lost TS sync" );
-        switch ( i_print_type )
-        {
-        case PRINT_XML:
-            printf("<ERROR type=\"invalid_ts\"/>\n");
-            break;
-        case PRINT_TEXT:
-            printf("lost TS sync\n");
-            break;
-        default:
-            break;
-        }
-
         block_Delete( p_ts );
         return;
     }
@@ -407,20 +395,6 @@ static void demux_Handle( block_t *p_ts )
 
         msg_Warn( NULL, "TS discontinuity on pid %4hu expected_cc %2u got %2u (%s, sid %d)",
                 i_pid, expected_cc, i_cc, pid_desc, i_sid );
-
-        switch ( i_print_type )
-        {
-        case PRINT_XML:
-            printf("<ERROR type=\"invalid_discontinuity\" pid=\"%hu\" expected_cc=\"%u\" got_cc=\"%u\" pid_carries=\"%s\" sid=\"%u\" />\n",
-                   i_pid, expected_cc, i_cc, pid_desc, i_sid );
-            break;
-        case PRINT_TEXT:
-            printf("TS discontinuity (PID=%hu) (expected_cc=%u) (got_cc=%u) (PID_carries=%s) (sid=%d)\n",
-                   i_pid, expected_cc, i_cc, pid_desc, i_sid );
-            break;
-        default:
-            break;
-        }
     }
 
     if ( ts_get_transporterror( p_ts->p_ts ) )
@@ -432,19 +406,6 @@ static void demux_Handle( block_t *p_ts )
 
         msg_Warn( NULL, "transport_error_indicator on pid %hu (%s, sid %u)",
                    i_pid, pid_desc, i_sid );
-        switch ( i_print_type )
-        {
-        case PRINT_XML:
-            printf("<ERROR type=\"transport_error\" pid=\"%hu\" pid_carries=\"%s\" sid=\"%u\" />\n",
-                   i_pid, pid_desc, i_sid );
-            break;
-        case PRINT_TEXT:
-            printf("transport_error_indicator (PID=%hu) (PID_carries=%s) (sid=%u)\n",
-                   i_pid, pid_desc, i_sid );
-            break;
-        default:
-            break;
-        }
 
         i_nb_errors++;
         i_last_error = i_wallclock;
@@ -455,13 +416,17 @@ static void demux_Handle( block_t *p_ts )
     if ( i_nb_errors > MAX_ERRORS )
     {
         i_nb_errors = 0;
+        msg_Warn( NULL,
+                 "too many transport errors, tuning again" );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<EVENT type=\"reset\" cause=\"transport\" />\n");
+            fprintf(print_fh, "<EVENT type=\"reset\" cause=\"transport\" />\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "reset cause: transport\n");
             break;
         default:
-            msg_Warn( NULL,
-                     "too many transport errors, tuning again" );
+            break;
         }
         pf_Reset();
     }
@@ -540,14 +505,19 @@ static void demux_Handle( block_t *p_ts )
                     for ( j = 0; j < i_nb_outputs; j++ )
                         pp_outputs[j]->i_nb_errors = 0;
 
+                    msg_Warn( NULL,
+                             "too many errors for stream %s, resetting",
+                             p_output->config.psz_displayname );
+
                     switch (i_print_type) {
                     case PRINT_XML:
-                        printf("<EVENT type=\"reset\" cause=\"scrambling\" />\n");
+                        fprintf(print_fh, "<EVENT type=\"reset\" cause=\"scrambling\" />\n");
+                        break;
+                    case PRINT_TEXT:
+                        fprintf(print_fh, "reset cause: scrambling");
                         break;
                     default:
-                        msg_Warn( NULL,
-                                 "too many errors for stream %s, resetting",
-                                 p_output->config.psz_displayname );
+                        break;
                     }
                     i_last_reset = i_wallclock;
                     en50221_Reset();
@@ -2004,10 +1974,13 @@ static void HandlePAT( mtime_t i_dts )
         msg_Warn( NULL, "invalid PAT received" );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_pat\"/>\n");
+            fprintf(print_fh, "<ERROR type=\"invalid_pat\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_pat\n");
             break;
         default:
-            printf("invalid PAT received\n");
+            break;
         }
         psi_table_free( pp_next_pat_sections );
         psi_table_init( pp_next_pat_sections );
@@ -2119,7 +2092,7 @@ static void HandlePAT( mtime_t i_dts )
         pat_table_print( pp_current_pat_sections, demux_Print, NULL,
                          i_print_type );
         if ( i_print_type == PRINT_XML )
-            printf("\n");
+            fprintf(print_fh, "\n");
     }
 
 out_pat:
@@ -2137,10 +2110,13 @@ static void HandlePATSection( uint16_t i_pid, uint8_t *p_section,
         msg_Warn( NULL, "invalid PAT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_pat_section\"/>\n");
+            fprintf(print_fh, "<ERROR type=\"invalid_pat_section\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_pat_section\n");
             break;
         default:
-            printf("invalid PAT section received on PID %hu\n", i_pid);
+            break;
         }
         free( p_section );
         return;
@@ -2178,10 +2154,13 @@ static void HandleCAT( mtime_t i_dts )
         msg_Warn( NULL, "invalid CAT received" );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_cat\"/>\n");
+            fprintf(print_fh, "<ERROR type=\"invalid_cat\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_cat\n");
             break;
         default:
-            printf("invalid CAT received\n");
+            break;
         }
         psi_table_free( pp_next_cat_sections );
         psi_table_init( pp_next_cat_sections );
@@ -2257,7 +2236,7 @@ static void HandleCAT( mtime_t i_dts )
         cat_table_print( pp_current_cat_sections, demux_Print, NULL,
                          i_print_type );
         if ( i_print_type == PRINT_XML )
-            printf("\n");
+            fprintf(print_fh, "\n");
     }
 
 out_cat:
@@ -2275,10 +2254,13 @@ static void HandleCATSection( uint16_t i_pid, uint8_t *p_section,
         msg_Warn( NULL, "invalid CAT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_cat_section\"/>\n");
+            fprintf(print_fh, "<ERROR type=\"invalid_cat_section\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_cat_section\n");
             break;
         default:
-            printf("invalid CAT section received on PID %hu\n", i_pid);
+            break;
         }
         free( p_section );
         return;
@@ -2360,12 +2342,15 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
         msg_Warn( NULL, "invalid PMT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"ghost_pmt\" program=\"%hu\n pid=\"%hu\"/>\n",
-                   i_sid, i_pid);
+            fprintf(print_fh, "<ERROR type=\"ghost_pmt\" program=\"%hu\n pid=\"%hu\"/>\n",
+                    i_sid, i_pid);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: ghost_pmt program: %hu pid: %hu\n",
+                    i_sid, i_pid);
             break;
         default:
-            printf("ghost PMT for service %hu carried on PID %hu\n", i_sid,
-                   i_pid);
+            break;
         }
         free( p_pmt );
         return;
@@ -2384,11 +2369,15 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
         msg_Warn( NULL, "invalid PMT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_pmt_section\" pid=\"%hu\"/>\n",
-                   i_pid);
+            fprintf(print_fh, "<ERROR type=\"invalid_pmt_section\" pid=\"%hu\"/>\n",
+                    i_pid);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_pmt_section pid: %hu\n",
+                    i_pid);
             break;
         default:
-            printf("invalid PMT section received on PID %hu\n", i_pid);
+            break;
         }
         free( p_pmt );
         goto out_pmt;
@@ -2452,7 +2441,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
         pmt_print( p_pmt, demux_Print, NULL, demux_Iconv, NULL,
                    i_print_type );
         if ( i_print_type == PRINT_XML )
-            printf("\n");
+            fprintf(print_fh, "\n");
     }
 
 out_pmt:
@@ -2478,10 +2467,13 @@ static void HandleNIT( mtime_t i_dts )
         msg_Warn( NULL, "invalid NIT received" );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_nit\"/>\n");
+            fprintf(print_fh, "<ERROR type=\"invalid_nit\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_nit\n");
             break;
         default:
-            printf("invalid NIT received\n");
+            break;
         }
         psi_table_free( pp_next_nit_sections );
         psi_table_init( pp_next_nit_sections );
@@ -2500,7 +2492,7 @@ static void HandleNIT( mtime_t i_dts )
         nit_table_print( pp_current_nit_sections, demux_Print, NULL,
                          demux_Iconv, NULL, i_print_type );
         if ( i_print_type == PRINT_XML )
-            printf("\n");
+            fprintf(print_fh, "\n");
     }
 
 out_nit:
@@ -2518,11 +2510,15 @@ static void HandleNITSection( uint16_t i_pid, uint8_t *p_section,
         msg_Warn( NULL, "invalid NIT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_nit_section\" pid=\"%hu\"/>\n",
-                   i_pid);
+            fprintf(print_fh, "<ERROR type=\"invalid_nit_section\" pid=\"%hu\"/>\n",
+                    i_pid);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_nit_section pid: %hu\n",
+                    i_pid);
             break;
         default:
-            printf("invalid NIT section received on PID %hu\n", i_pid);
+            break;
         }
         free( p_section );
         return;
@@ -2562,10 +2558,13 @@ static void HandleSDT( mtime_t i_dts )
         msg_Warn( NULL, "invalid SDT received" );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_sdt\"/>\n");
+            fprintf(print_fh, "<ERROR type=\"invalid_sdt\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_sdt\n");
             break;
         default:
-            printf("invalid SDT received\n");
+            break;
         }
         psi_table_free( pp_next_sdt_sections );
         psi_table_init( pp_next_sdt_sections );
@@ -2624,7 +2623,7 @@ static void HandleSDT( mtime_t i_dts )
         sdt_table_print( pp_current_sdt_sections, demux_Print, NULL,
                          demux_Iconv, NULL, i_print_type );
         if ( i_print_type == PRINT_XML )
-            printf("\n");
+            fprintf(print_fh, "\n");
     }
 
 out_sdt:
@@ -2642,11 +2641,15 @@ static void HandleSDTSection( uint16_t i_pid, uint8_t *p_section,
         msg_Warn( NULL, "invalid SDT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_sdt_section\" pid=\"%hu\"/>\n",
-                   i_pid);
+            fprintf(print_fh, "<ERROR type=\"invalid_sdt_section\" pid=\"%hu\"/>\n",
+                    i_pid);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_sdt_section pid: %hu\n",
+                    i_pid);
             break;
         default:
-            printf("invalid SDT section received on PID %hu\n", i_pid);
+            break;
         }
         free( p_section );
         return;
@@ -2679,11 +2682,15 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
         msg_Warn( NULL, "invalid EIT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_eit_section\" pid=\"%hu\"/>\n",
-                   i_pid);
+            fprintf(print_fh, "<ERROR type=\"invalid_eit_section\" pid=\"%hu\"/>\n",
+                    i_pid);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_eit_section pid: %hu\n",
+                    i_pid);
             break;
         default:
-            printf("invalid EIT section received on PID %hu\n", i_pid);
+            break;
         }
         free( p_eit );
         return;
@@ -2705,10 +2712,13 @@ static void HandleSection( uint16_t i_pid, uint8_t *p_section, mtime_t i_dts )
         msg_Warn( NULL, "invalid section on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
-            printf("<ERROR type=\"invalid_section\" pid=\"%hu\"/>\n", i_pid);
+            fprintf(print_fh, "<ERROR type=\"invalid_section\" pid=\"%hu\"/>\n", i_pid);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "error type: invalid_section pid: %hu\n", i_pid);
             break;
         default:
-            printf("invalid section on PID %hu\n", i_pid);
+            break;
         }
         free( p_section );
         return;
