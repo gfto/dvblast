@@ -1,5 +1,5 @@
-VERSION_MAJOR = 2
-VERSION_MINOR = 2
+VERSION_MAJOR = 3
+VERSION_MINOR = 0
 TOPDIR = `basename ${PWD}`
 GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
@@ -28,7 +28,7 @@ CFLAGS += -DHAVE_ASI_DELTACAST_SUPPORT
 LDLIBS += -lstreammaster
 endif
 
-LDLIBS_DVBLAST += -lpthread
+LDLIBS_DVBLAST += -lpthread -lev
 
 OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm.o mrtg-cnt.o asi-deltacast.o
 OBJ_DVBLASTCTL = util.o dvblastctl.o
@@ -59,7 +59,7 @@ dvblast: $(OBJ_DVBLAST)
 
 dvblastctl: $(OBJ_DVBLASTCTL)
 	@echo "LINK    $@"
-	$(Q)$(CROSS)$(CC) -o $@ $(OBJ_DVBLASTCTL) $(LDLIBS_DVBLAST) $(LDLIBS)
+	$(Q)$(CROSS)$(CC) -o $@ $(OBJ_DVBLASTCTL) $(LDLIBS)
 
 clean:
 	@echo "CLEAN   $(CLEAN_OBJS)"

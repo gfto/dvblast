@@ -1,7 +1,7 @@
 /*****************************************************************************
  * demux.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -36,6 +36,7 @@
 
 #include "dvblast.h"
 #include "en50221.h"
+#include "mrtg-cnt.h"
 
 #ifdef HAVE_ICONV
 #include <iconv.h>
@@ -47,9 +48,6 @@
 #include <bitstream/dvb/si.h>
 #include <bitstream/dvb/si_print.h>
 #include <bitstream/mpeg/psi_print.h>
-
-extern bool b_enable_emm;
-extern bool b_enable_ecm;
 
 /*****************************************************************************
  * Local declarations
@@ -86,7 +84,9 @@ typedef struct sid_t
     uint8_t *p_current_pmt;
 } sid_t;
 
-ts_pid_t p_pids[MAX_PIDS];
+mtime_t i_wallclock = 0;
+
+static ts_pid_t p_pids[MAX_PIDS];
 static sid_t **pp_sids = NULL;
 static int i_nb_sids = 0;
 
@@ -338,6 +338,8 @@ void demux_Close( void )
  *****************************************************************************/
 void demux_Run( block_t *p_ts )
 {
+    i_wallclock = mdate();
+    mrtgAnalyse( p_ts );
     SetDTS( p_ts );
 
     while ( p_ts != NULL )
@@ -441,33 +443,6 @@ static void demux_Handle( block_t *p_ts )
 
         if ( b_enable_emm && p_pids[i_pid].b_emm )
             SendEMM( p_ts );
-
-        /* PCR handling */
-        if ( ts_has_adaptation( p_ts->p_ts )
-              && ts_get_adaptation( p_ts->p_ts )
-              && tsaf_has_pcr( p_ts->p_ts ) )
-        {
-            mtime_t i_timestamp = tsaf_get_pcr( p_ts->p_ts );
-            int j;
-
-            for ( j = 0; j < i_nb_sids; j++ )
-            {
-                sid_t *p_sid = pp_sids[j];
-                if ( p_sid->i_sid && p_sid->p_current_pmt != NULL
-                      && pmt_get_pcrpid( p_sid->p_current_pmt ) == i_pid )
-                {
-                    for ( i = 0; i < i_nb_outputs; i++ )
-                    {
-                        output_t *p_output = pp_outputs[i];
-                        if ( p_output->config.i_sid == p_sid->i_sid )
-                        {
-                            p_output->i_ref_timestamp = i_timestamp;
-                            p_output->i_ref_wallclock = p_ts->i_dts;
-                        }
-                    }
-                }
-            }
-        }
     }
 
     p_pids[i_pid].i_last_cc = i_cc;

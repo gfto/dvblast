@@ -38,6 +38,8 @@
 #include <getopt.h>
 #include <errno.h>
 
+#include <ev.h>
+
 #include "dvblast.h"
 
 #ifdef HAVE_ICONV
@@ -52,12 +54,12 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
-mtime_t i_wallclock = 0;
+struct ev_loop *event_loop;
 output_t **pp_outputs = NULL;
 int i_nb_outputs = 0;
 output_t output_dup;
 bool b_passthrough = false;
-static char *psz_conf_file = NULL;
+static const char *psz_conf_file = NULL;
 char *psz_srv_socket = NULL;
 static int i_priority = -1;
 int i_adapter = 0;
@@ -82,7 +84,6 @@ int i_guard = -1;
 int i_transmission = -1;
 int i_hierarchy = -1;
 mtime_t i_frontend_timeout_duration = DEFAULT_FRONTEND_TIMEOUT;
-mtime_t i_quit_timeout = 0;
 mtime_t i_quit_timeout_duration = 0;
 int b_budget_mode = 0;
 int b_any_type = 0;
@@ -100,8 +101,6 @@ print_type_t i_print_type = PRINT_TEXT;
 bool b_print_enabled = false;
 FILE *print_fh;
 
-volatile sig_atomic_t b_conf_reload = 0;
-volatile sig_atomic_t b_exit_now = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
 char *psz_syslog_ident = NULL;
@@ -125,7 +124,6 @@ bool b_do_remap = false;
 uint16_t pi_newpids[ N_MAP_PIDS ];  /* pmt, audio, video, spu */
 
 void (*pf_Open)( void ) = NULL;
-block_t * (*pf_Read)( mtime_t i_poll_timeout ) = NULL;
 void (*pf_Reset)( void ) = NULL;
 int (*pf_SetFilter)( uint16_t i_pid ) = NULL;
 void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid ) = NULL;
@@ -340,21 +338,21 @@ static void config_Print( output_config_t *p_config )
              p_config->i_sid, p_config->i_nb_pids );
 }
 
-static void config_ReadFile( char *psz_file )
+void config_ReadFile(void)
 {
     FILE *p_file;
     char psz_line[2048];
     int i;
 
-    if ( psz_file == NULL )
+    if ( psz_conf_file == NULL )
     {
         msg_Err( NULL, "no config file" );
         return;
     }
 
-    if ( (p_file = fopen( psz_file, "r" )) == NULL )
+    if ( (p_file = fopen( psz_conf_file, "r" )) == NULL )
     {
-        msg_Err( NULL, "can't fopen config file %s", psz_file );
+        msg_Err( NULL, "can't fopen config file %s", psz_conf_file );
         return;
     }
 
@@ -461,12 +459,39 @@ static void config_ReadFile( char *psz_file )
 /*****************************************************************************
  * Signal Handler
  *****************************************************************************/
-static void SigHandler( int i_signal )
+static void signal_watcher_init(struct ev_signal *w, struct ev_loop *loop,
+                    void (*cb)(struct ev_loop*, struct ev_signal*, int),
+                    int signum)
 {
-    if ( i_signal == SIGHUP )
-        b_conf_reload = 1;
-    if ( i_signal == SIGINT )
-        b_exit_now = 1;
+    ev_signal_init(w, cb, signum);
+    ev_signal_start(loop, w);
+    ev_unref(loop);
+}
+
+static void sighandler(struct ev_loop *loop, struct ev_signal *w, int revents)
+{
+    switch (w->signum)
+    {
+        case SIGINT:
+        case SIGTERM:
+        default:
+            msg_Info( NULL, "Shutdown was requested." );
+            ev_break(loop, EVBREAK_ALL);
+            break;
+
+        case SIGHUP:
+            msg_Info( NULL, "Configuration reload was requested." );
+            config_ReadFile();
+            break;
+    }
+}
+
+/*****************************************************************************
+ * Quit timeout
+ *****************************************************************************/
+static void quit_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+    ev_break(loop, EVBREAK_ALL);
 }
 
 /*****************************************************************************
@@ -575,8 +600,8 @@ void usage()
     msg_Raw( NULL, "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
-    msg_Raw( NULL, "  -V --version          only display the version" );
     msg_Raw( NULL, "  -Z --mrtg-file <file> Log input packets and errors into mrtg-file" );
+    msg_Raw( NULL, "  -V --version          only display the version" );
     exit(1);
 }
 
@@ -586,13 +611,14 @@ int main( int i_argc, char **pp_argv )
     char *p_network_name_tmp = NULL;
     size_t i_network_name_tmp_size;
     char *psz_dup_config = NULL;
-    mtime_t i_poll_timeout = MAX_POLL_TIMEOUT;
     struct sched_param param;
     int i_error;
     int c;
-    struct sigaction sa;
-    sigset_t set;
     int b_enable_syslog = 0;
+    struct ev_signal sigint_watcher, sigterm_watcher, sighup_watcher;
+    struct ev_timer quit_watcher;
+
+    event_loop = EV_DEFAULT;
     print_fh = stdout;
 
     if ( i_argc == 1 )
@@ -745,7 +771,6 @@ int main( int i_argc, char **pp_argv )
                 usage();
 #ifdef HAVE_DVB_SUPPORT
             pf_Open = dvb_Open;
-            pf_Read = dvb_Read;
             pf_Reset = dvb_Reset;
             pf_SetFilter = dvb_SetFilter;
             pf_UnsetFilter = dvb_UnsetFilter;
@@ -857,7 +882,6 @@ int main( int i_argc, char **pp_argv )
             if ( pf_Open != NULL )
                 usage();
             pf_Open = udp_Open;
-            pf_Read = udp_Read;
             pf_Reset = udp_Reset;
             pf_SetFilter = udp_SetFilter;
             pf_UnsetFilter = udp_UnsetFilter;
@@ -872,7 +896,6 @@ int main( int i_argc, char **pp_argv )
 #ifdef HAVE_ASI_DELTACAST_SUPPORT
                 i_asi_adapter = strtol( optarg+10, NULL, 0 );
                 pf_Open = asi_deltacast_Open;
-                pf_Read = asi_deltacast_Read;
                 pf_Reset = asi_deltacast_Reset;
                 pf_SetFilter = asi_deltacast_SetFilter;
                 pf_UnsetFilter = asi_deltacast_UnsetFilter;
@@ -885,7 +908,6 @@ int main( int i_argc, char **pp_argv )
             {
                 i_asi_adapter = strtol( optarg, NULL, 0 );
                 pf_Open = asi_Open;
-                pf_Read = asi_Read;
                 pf_Reset = asi_Reset;
                 pf_SetFilter = asi_SetFilter;
                 pf_UnsetFilter = asi_UnsetFilter;
@@ -1106,15 +1128,9 @@ int main( int i_argc, char **pp_argv )
     free( p_network_name_tmp );
 
     /* Set signal handlers */
-    memset( &sa, 0, sizeof(struct sigaction) );
-    sa.sa_handler = SigHandler;
-    sigfillset( &set );
-
-    if ( sigaction( SIGHUP, &sa, NULL ) == -1 || sigaction( SIGINT, &sa, NULL ) == -1 )
-    {
-        msg_Err( NULL, "couldn't set signal handler: %s", strerror(errno) );
-        exit(EXIT_FAILURE);
-    }
+    signal_watcher_init(&sigint_watcher, event_loop, sighandler, SIGINT);
+    signal_watcher_init(&sigterm_watcher, event_loop, sighandler, SIGTERM);
+    signal_watcher_init(&sighup_watcher, event_loop, sighandler, SIGHUP);
 
     srand( time(NULL) * getpid() );
 
@@ -1135,60 +1151,40 @@ int main( int i_argc, char **pp_argv )
         }
     }
 
-    config_ReadFile( psz_conf_file );
+    config_ReadFile();
 
     if ( psz_srv_socket != NULL )
         comm_Open();
 
-    for ( ; ; )
+    if ( i_quit_timeout_duration )
     {
-        block_t *p_ts;
-
-        if ( b_exit_now )
-        {
-            msg_Info( NULL, "Shutdown was requested." );
-            break;
-        }
-
-        if ( b_conf_reload )
-        {
-            b_conf_reload = 0;
-            msg_Info( NULL, "Configuration reload was requested." );
-            config_ReadFile( psz_conf_file );
-        }
-
-        if ( i_quit_timeout && i_quit_timeout <= i_wallclock )
-        {
-            switch (i_print_type)
-            {
-            case PRINT_XML:
-                fprintf(print_fh, "</TS>\n");
-                break;
-            default:
-                break;
-            }
-            exit(EXIT_SUCCESS);
-        }
-
-        p_ts = pf_Read( i_poll_timeout );
-        if ( p_ts != NULL )
-        {
-            mrtgAnalyse(p_ts);
-            demux_Run( p_ts );
-        }
-        i_poll_timeout = output_Send();
+        ev_timer_init(&quit_watcher, quit_cb,
+                      i_quit_timeout_duration / 1000000., 0);
+        ev_timer_start(event_loop, &quit_watcher);
     }
+
+    outputs_Init();
+
+    ev_run(event_loop, 0);
 
     mrtgClose();
     outputs_Close( i_nb_outputs );
     demux_Close();
     free( p_network_name );
 
+    switch (i_print_type)
+    {
+    case PRINT_XML:
+        fprintf(print_fh, "</TS>\n");
+        break;
+    default:
+        break;
+    }
+
     if ( b_enable_syslog )
         msg_Disconnect();
 
-    if ( psz_srv_socket && i_comm_fd > -1 )
-        unlink( psz_srv_socket );
+    comm_Close();
 
     return EXIT_SUCCESS;
 }

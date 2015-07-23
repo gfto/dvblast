@@ -2,7 +2,7 @@
  * en50221.c : implementation of the transport, session and applications
  * layers of EN 50 221
  *****************************************************************************
- * Copyright (C) 2004-2005, 2010 VideoLAN
+ * Copyright (C) 2004-2005, 2010, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  * Based on code from libdvbci Copyright (C) 2000 Klaus Schmidinger
@@ -43,6 +43,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <time.h>
+#include <ev.h>
 
 /* DVB Card Drivers */
 #include <linux/dvb/version.h>
@@ -77,6 +78,7 @@
 #define CAM_INIT_TIMEOUT 15000000 /* 15 s */
 #undef HLCI_WAIT_CAM_READY
 #define CAPMT_WAIT 100 /* ms */
+#define CA_POLL_PERIOD 100000 /* 100 ms */
 
 typedef struct en50221_msg_t
 {
@@ -111,8 +113,8 @@ typedef struct ci_slot_t
     en50221_msg_t **pp_send_last;
     uint8_t *p;
 
-    /* InitSlot callback, if not 0 */
-    mtime_t i_init_timeout;
+    /* InitSlot timer */
+    struct ev_timer init_watcher;
 
     /* SPDUSend callback, if p_spdu is not NULL */
     /* SessionOpen callback, if not 0 */
@@ -122,6 +124,8 @@ typedef struct ci_slot_t
 int i_ca_handle = 0;
 int i_ca_type = -1;
 
+static struct ev_io cam_watcher;
+static struct ev_timer slot_watcher;
 static int i_nb_slots = 0;
 static ci_slot_t p_slots[MAX_CI_SLOTS];
 static en50221_session_t p_sessions[MAX_SESSIONS];
@@ -137,6 +141,9 @@ static void ResourceManagerOpen( access_t * p_access, int i_session_id );
 static void ApplicationInformationOpen( access_t * p_access, int i_session_id );
 static void ConditionalAccessOpen( access_t * p_access, int i_session_id );
 static void DateTimeOpen( access_t * p_access, int i_session_id );
+static void ResetSlotCb(struct ev_loop *loop, struct ev_timer *w, int revents);
+static void en50221_Read(struct ev_loop *loop, struct ev_io *w, int revents);
+static void en50221_Poll(struct ev_loop *loop, struct ev_timer *w, int revents);
 static void MMIOpen( access_t * p_access, int i_session_id );
 
 /*****************************************************************************
@@ -388,7 +395,7 @@ static int TPDURecv( access_t * p_access )
     {
     case T_CTC_REPLY:
         p_slot->b_active = true;
-        p_slot->i_init_timeout = 0;
+        ev_timer_stop(event_loop, &p_slot->init_watcher);
         msg_Dbg( p_access, "CI slot %d is active", i_slot );
         break;
 
@@ -1413,8 +1420,9 @@ static void ConditionalAccessOpen( access_t * p_access, int i_session_id )
 
 typedef struct
 {
+    int i_session_id;
     int i_interval;
-    mtime_t i_last;
+    struct ev_timer watcher;
 } date_time_t;
 
 /*****************************************************************************
@@ -1451,8 +1459,14 @@ static void DateTimeSend( access_t * p_access, int i_session_id )
 
         APDUSend( p_access, i_session_id, AOT_DATE_TIME, p_response, 7 );
 
-        p_date->i_last = i_wallclock;
+        ev_timer_again(event_loop, &p_date->watcher);
     }
+}
+
+static void _DateTimeSend(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+    date_time_t *p_date = container_of(w, date_time_t, watcher);
+    DateTimeSend( NULL, p_date->i_session_id );
 }
 
 /*****************************************************************************
@@ -1482,6 +1496,9 @@ static void DateTimeHandle( access_t * p_access, int i_session_id,
         else
             p_date->i_interval = 0;
 
+        ev_timer_stop(event_loop, &p_date->watcher);
+        ev_timer_set(&p_date->watcher, p_date->i_interval,
+                     p_date->i_interval);
         DateTimeSend( p_access, i_session_id );
         break;
     }
@@ -1491,28 +1508,17 @@ static void DateTimeHandle( access_t * p_access, int i_session_id,
 }
 
 /*****************************************************************************
- * DateTimeManage
- *****************************************************************************/
-static void DateTimeManage( access_t * p_access, int i_session_id )
-{
-    date_time_t *p_date =
-        (date_time_t *)p_sessions[i_session_id - 1].p_sys;
-
-    if ( p_date->i_interval
-          && i_wallclock > p_date->i_last + (mtime_t)p_date->i_interval * 1000000 )
-    {
-        DateTimeSend( p_access, i_session_id );
-    }
-}
-
-/*****************************************************************************
  * DateTimeClose
  *****************************************************************************/
 static void DateTimeClose( access_t * p_access, int i_session_id )
 {
+    date_time_t *p_date =
+        (date_time_t *)p_sessions[i_session_id - 1].p_sys;
+    ev_timer_stop(event_loop, &p_date->watcher);
+
     msg_Dbg( p_access, "closing DateTime session (%d)", i_session_id );
 
-    free( p_sessions[i_session_id - 1].p_sys );
+    free( p_date );
 }
 
 /*****************************************************************************
@@ -1523,10 +1529,15 @@ static void DateTimeOpen( access_t * p_access, int i_session_id )
     msg_Dbg( p_access, "opening DateTime session (%d)", i_session_id );
 
     p_sessions[i_session_id - 1].pf_handle = DateTimeHandle;
-    p_sessions[i_session_id - 1].pf_manage = DateTimeManage;
+    p_sessions[i_session_id - 1].pf_manage = NULL;
     p_sessions[i_session_id - 1].pf_close = DateTimeClose;
     p_sessions[i_session_id - 1].p_sys = malloc(sizeof(date_time_t));
     memset( p_sessions[i_session_id - 1].p_sys, 0, sizeof(date_time_t) );
+
+    date_time_t *p_date =
+        (date_time_t *)p_sessions[i_session_id - 1].p_sys;
+    p_date->i_session_id = i_session_id;
+    ev_timer_init(&p_date->watcher, _DateTimeSend, 0, 0);
 
     DateTimeSend( p_access, i_session_id );
 }
@@ -1897,7 +1908,9 @@ static void ResetSlot( int i_slot )
     if ( ioctl( i_ca_handle, CA_RESET, 1 << i_slot ) != 0 )
         msg_Err( NULL, "en50221_Poll: couldn't reset slot %d", i_slot );
     p_slot->b_active = false;
-    p_slot->i_init_timeout = mdate() + CAM_INIT_TIMEOUT;
+    ev_timer_init(&p_slot->init_watcher, ResetSlotCb,
+                  CAM_INIT_TIMEOUT / 1000000., 0);
+    ev_timer_start(event_loop, &p_slot->init_watcher);
     p_slot->b_expect_answer = false;
     p_slot->b_mmi_expected = false;
     p_slot->b_mmi_undisplayed = false;
@@ -1929,6 +1942,28 @@ static void ResetSlot( int i_slot )
             p_sessions[i_session_id - 1].i_resource_id = 0;
         }
     }
+}
+
+static void ResetSlotCb(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+    ci_slot_t *p_slot = container_of(w, ci_slot_t, init_watcher);
+    int i_slot = p_slot - &p_slots[0];
+
+    msg_Warn( NULL, "no answer from CAM, resetting slot %d",
+              i_slot );
+    switch (i_print_type) {
+    case PRINT_XML:
+        fprintf(print_fh,
+                "<EVENT type=\"reset\" cause=\"cam_mute\" />\n");
+        break;
+    case PRINT_TEXT:
+       fprintf(print_fh, "reset cause: cam_mute\n");
+       break;
+    default:
+       break;
+    }
+
+    ResetSlot( i_slot );
 }
 
 
@@ -2009,6 +2044,16 @@ void en50221_Init( void )
 
     i_nb_slots = caps.slot_num;
     memset( p_sessions, 0, sizeof(en50221_session_t) * MAX_SESSIONS );
+
+    if( i_ca_type & CA_CI_LINK )
+    {
+        ev_io_init(&cam_watcher, en50221_Read, i_ca_handle, EV_READ);
+        ev_io_start(event_loop, &cam_watcher);
+
+        ev_timer_init(&slot_watcher, en50221_Poll, CA_POLL_PERIOD / 1000000.,
+                      CA_POLL_PERIOD / 1000000.);
+        ev_timer_start(event_loop, &slot_watcher);
+    }
 
     en50221_Reset();
 }
@@ -2112,15 +2157,17 @@ void en50221_Reset( void )
 /*****************************************************************************
  * en50221_Read : Read the CAM for a TPDU
  *****************************************************************************/
-void en50221_Read( void )
+static void en50221_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 {
     TPDURecv( NULL );
+
+    ev_timer_again(event_loop, &slot_watcher);
 }
 
 /*****************************************************************************
  * en50221_Poll : Send a poll TPDU to the CAM
  *****************************************************************************/
-void en50221_Poll( void )
+static void en50221_Poll(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
     int i_slot;
     int i_session_id;
@@ -2147,31 +2194,11 @@ void en50221_Poll( void )
                          i_slot );
                 ResetSlot( i_slot );
             }
-
-            continue;
         }
         else if ( !p_slot->b_active )
         {
             if ( !p_slot->b_expect_answer )
                 InitSlot( NULL, i_slot );
-            else if ( p_slot->i_init_timeout < i_wallclock )
-            {
-                msg_Warn( NULL, "no answer from CAM, resetting slot %d",
-                          i_slot );
-                switch (i_print_type) {
-                case PRINT_XML:
-                    fprintf(print_fh,
-                            "<EVENT type=\"reset\" cause=\"cam_mute\" />\n");
-                    break;
-                case PRINT_TEXT:
-                   fprintf(print_fh, "reset cause: cam_mute\n");
-                   break;
-                default:
-                   break;
-                }
-                ResetSlot( i_slot );
-                continue;
-            }
         }
     }
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
  * output.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2010 VideoLAN
+ * Copyright (C) 2004, 2008-2010, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -34,6 +34,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <errno.h>
+#include <ev.h>
 
 #include "dvblast.h"
 
@@ -41,8 +42,11 @@
 #include <bitstream/ietf/rtp.h>
 
 /*****************************************************************************
- * Local prototypes
+ * Local declarations
  *****************************************************************************/
+static struct ev_timer output_watcher;
+static mtime_t i_next_send = INT64_MAX;
+
 struct packet_t
 {
     struct packet_t *p_next;
@@ -346,13 +350,6 @@ static void output_Flush( output_t *p_output )
         rtp_set_hdr( p_rtp_hdr );
         rtp_set_type( p_rtp_hdr, RTP_TYPE_TS );
         rtp_set_seqnum( p_rtp_hdr, p_output->i_seqnum++ );
-        /* Older RTP timestamp calculation */
-        /*
-        rtp_set_timestamp( p_rtp_hdr,
-                           p_output->i_ref_timestamp
-                            + (p_packet->i_dts - p_output->i_ref_wallclock)
-                               * 9 / 100 );
-        */
         /* New timestamp based only on local time when sent */
         /* 90 kHz clock = 90000 counts per second */
         rtp_set_timestamp( p_rtp_hdr, i_wallclock * 9 / 100);
@@ -468,61 +465,72 @@ void output_Put( output_t *p_output, block_t *p_block )
 
     p_packet->pp_blocks[p_packet->i_depth] = p_block;
     p_packet->i_depth++;
+
+    if (i_next_send > p_packet->i_dts + p_output->config.i_output_latency)
+    {
+        i_next_send = p_packet->i_dts + p_output->config.i_output_latency;
+        ev_timer_stop(event_loop, &output_watcher);
+        ev_timer_set(&output_watcher, (i_next_send - i_wallclock) / 1000000., 0);
+        ev_timer_start(event_loop, &output_watcher);
+    }
 }
 
 /*****************************************************************************
- * output_Send : called from main to flush the queues when needed
+ * outputs_Send :
  *****************************************************************************/
-mtime_t output_Send( void )
+static void outputs_Send(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
-    mtime_t i_earliest_dts = -1;
-    mtime_t i_poll_timeout;
-    int i;
+    i_wallclock = mdate();
 
-    if ( output_dup.config.i_config & OUTPUT_VALID )
+    do
     {
-        while ( output_dup.p_packets != NULL
-                 && output_dup.p_packets->i_dts
-                     + output_dup.config.i_output_latency <= i_wallclock )
-            output_Flush( &output_dup );
+        int i;
+        i_next_send = INT64_MAX;
 
-        if ( output_dup.p_packets != NULL )
-            i_earliest_dts = output_dup.p_packets->i_dts;
-    }
+        if ( output_dup.config.i_config & OUTPUT_VALID )
+        {
+            while ( output_dup.p_packets != NULL
+                     && output_dup.p_packets->i_dts
+                         + output_dup.config.i_output_latency <= i_wallclock )
+                output_Flush( &output_dup );
 
-    for ( i = 0; i < i_nb_outputs; i++ )
-    {
-        output_t *p_output = pp_outputs[i];
-        if ( !( p_output->config.i_config & OUTPUT_VALID ) )
-            continue;
+            if ( output_dup.p_packets != NULL )
+                i_next_send = output_dup.p_packets->i_dts;
+        }
 
-        while ( p_output->p_packets != NULL
-                 && p_output->p_packets->i_dts
-                     + p_output->config.i_output_latency <= i_wallclock )
-            output_Flush( p_output );
+        for ( i = 0; i < i_nb_outputs; i++ )
+        {
+            output_t *p_output = pp_outputs[i];
+            if ( !( p_output->config.i_config & OUTPUT_VALID ) )
+                continue;
 
-        if ( p_output->p_packets != NULL
-              && (p_output->p_packets->i_dts
-                   + p_output->config.i_output_latency < i_earliest_dts
-                   || i_earliest_dts == -1) )
-            i_earliest_dts = p_output->p_packets->i_dts
-                              + p_output->config.i_output_latency;
-    }
+            while ( p_output->p_packets != NULL
+                     && p_output->p_packets->i_dts
+                         + p_output->config.i_output_latency <= i_wallclock )
+                output_Flush( p_output );
 
-    /* Calculate the maximum time to wait before sending the next packet */
-    if ( i_earliest_dts == -1 ) {
-        return (MAX_POLL_TIMEOUT);
-    } else {
-        i_poll_timeout = i_earliest_dts - i_wallclock;
-        if (i_poll_timeout > MAX_POLL_TIMEOUT) {
-            return (MAX_POLL_TIMEOUT);
-        } else if (i_poll_timeout < MIN_POLL_TIMEOUT) {
-            return (MIN_POLL_TIMEOUT);
-        } else {
-            return (i_poll_timeout);
+            if ( p_output->p_packets != NULL
+                  && (p_output->p_packets->i_dts
+                       + p_output->config.i_output_latency < i_next_send) )
+                i_next_send = p_output->p_packets->i_dts
+                                  + p_output->config.i_output_latency;
         }
     }
+    while (i_next_send <= i_wallclock);
 
+    if (i_next_send < INT64_MAX)
+    {
+        ev_timer_set(&output_watcher, (i_next_send - i_wallclock) / 1000000., 0);
+        ev_timer_start(loop, &output_watcher);
+    }
+}
+
+/*****************************************************************************
+ * outputs_Init :
+ *****************************************************************************/
+void outputs_Init( void )
+{
+    ev_timer_init(&output_watcher, outputs_Send, 0, 0);
 }
 
 /*****************************************************************************

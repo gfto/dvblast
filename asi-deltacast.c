@@ -1,7 +1,7 @@
 /*****************************************************************************
  * asi-deltacast.c: support for Deltacast ASI cards
  *****************************************************************************
- * Copyright (C) 2004, 2009 VideoLAN
+ * Copyright (C) 2004, 2009, 2015 VideoLAN
  *
  * Authors: Simon Lockhart <simon@slimey.org>
  *
@@ -40,6 +40,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#include <ev.h>
+
 #include <bitstream/common.h>
 
 #include <StreamMaster.h>
@@ -52,8 +54,12 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
+#define ASI_DELTACAST_PERIOD 1000 /* ms */
+#define ASI_DELTACAST_LOCK_TIMEOUT 5000000 /* 5 s */
 
 static HANDLE h_board, h_channel;
+static struct ev_timer asi_watcher, mute_watcher;
+static bool b_sync = false;
 
 static UCHAR *p_asibuf = NULL;
 static ULONG i_asibuf_len;
@@ -135,33 +141,29 @@ void asi_deltacast_Open( void )
                  (i_asi_adapter % 100), (unsigned long) Dc_GetLastError(NULL) );
         exit(EXIT_FAILURE);
     }
+
+    ev_timer_init(&asi_watcher, asi_deltacast_Read,
+                  ASI_DELTACAST_PERIOD / 1000000.,
+                  ASI_DELTACAST_PERIOD / 1000000.);
+    ev_timer_start(event_loop, &asi_watcher);
+
+    ev_timer_init(&mute_watcher, asi_deltacast_MuteCb,
+                  ASI_DELTACAST_LOCK_TIMEOUT / 1000000.,
+                  ASI_DELTACAST_LOCK_TIMEOUT / 1000000.);
 }
 
 /*****************************************************************************
- * asi_deltacast_Read : read packets from the device
+ * ASI deltacast events
  *****************************************************************************/
-block_t *asi_deltacast_Read( mtime_t i_poll_timeout )
+static void asi_deltacast_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 {
     BOOL res;
     block_t *p_ts, **pp_current = &p_ts;
     int i;
     ULONG Err;
-    struct pollfd pfd[2];
-    int i_ret, i_nb_fd = 1;
-
-    if (i_comm_fd != -1)
-    {
-        pfd[0].fd = i_comm_fd;
-        pfd[0].events = POLLIN;
-
-    i_ret = poll(pfd, i_nb_fd, 0);
-
-    if (i_ret > 0 && pfd[0].revents)
-        comm_Read();
-    }
 
     res = Asi_GetInputBuffer(h_channel, &p_asibuf, &i_asibuf_len,
-          i_poll_timeout);
+          ASI_DELTACAST_PERIOD);
     if (!res)
     {
         Err = Dc_GetLastError(NULL) & ~DC_ERRORCODE_MASK;
@@ -170,10 +172,27 @@ block_t *asi_deltacast_Read( mtime_t i_poll_timeout )
         {
           msg_Warn( NULL, "asi_deltacast_Read(): GetInputBuffer failed: 0x%08X!", Err);
         }
-        return NULL;
+        return;
     }
 
-    i_wallclock = mdate();
+    if ( !b_sync )
+    {
+        msg_Info( NULL, "frontend has acquired lock" );
+        switch (i_print_type) {
+        case PRINT_XML:
+            fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\"/>\n");
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "lock status: 1\n");
+            break;
+        default:
+            break;
+        }
+
+        b_sync = true;
+    }
+
+    ev_timer_again(loop, &mute_watcher);
 
     for (i = 0; i < i_asibuf_len / TS_SIZE; i++)
     {
@@ -186,7 +205,25 @@ block_t *asi_deltacast_Read( mtime_t i_poll_timeout )
     res = Asi_ReleaseInputBuffer(h_channel);
 
 //    msg_Warn( NULL, "asi_deltacast_Read(): returning %d blocks", i_asibuf_len / TS_SIZE );
-    return p_ts;
+
+    demux_Run( p_ts );
+}
+
+static void asi_deltacast_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+    msg_Warn( NULL, "frontend has lost lock" );
+    ev_timer_stop(loop, w);
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
+        break;
+    case PRINT_TEXT:
+        fprintf(print_fh, "lock status: 0\n" );
+        break;
+    default:
+        break;
+    }
 }
 
 /*****************************************************************************

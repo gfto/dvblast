@@ -1,7 +1,7 @@
 /*****************************************************************************
- * comm.c: Handles the communication socket (linux-dvb only)
+ * comm.c: Handles the communication socket
  *****************************************************************************
- * Copyright (C) 2008 VideoLAN
+ * Copyright (C) 2008, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
@@ -26,6 +26,7 @@
 #include <arpa/inet.h>
 #include <sys/un.h>
 #include <errno.h>
+#include <ev.h>
 
 #include "dvblast.h"
 #include "en50221.h"
@@ -34,7 +35,13 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
-int i_comm_fd = -1;
+static int i_comm_fd = -1;
+static struct ev_io comm_watcher;
+
+/*****************************************************************************
+ * Local prototypes
+ *****************************************************************************/
+static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents);
 
 /*****************************************************************************
  * comm_Open
@@ -67,12 +74,15 @@ void comm_Open( void )
         i_comm_fd = -1;
         return;
     }
+
+    ev_io_init(&comm_watcher, comm_Read, i_comm_fd, EV_READ);
+    ev_io_start(event_loop, &comm_watcher);
 }
 
 /*****************************************************************************
  * comm_Read
  *****************************************************************************/
-void comm_Read( void )
+static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 {
     struct sockaddr_un sun_client;
     socklen_t sun_length = sizeof(sun_client);
@@ -127,7 +137,7 @@ void comm_Read( void )
     switch ( i_command )
     {
     case CMD_RELOAD:
-        b_conf_reload = 1;
+        config_ReadFile();
         i_answer = RET_OK;
         i_answer_size = 0;
         break;
@@ -170,7 +180,7 @@ void comm_Read( void )
 #endif
 
     case CMD_SHUTDOWN:
-        b_exit_now = 1;
+        ev_break(loop, EVBREAK_ALL);
         i_answer = RET_OK;
         i_answer_size = 0;
         break;
@@ -300,4 +310,17 @@ void comm_Read( void )
         i_to_send -= i_sent;
     } while ( i_to_send > 0 );
 #undef min
+}
+
+/*****************************************************************************
+ * comm_Close
+ *****************************************************************************/
+void comm_Close( void )
+{
+    if (i_comm_fd > -1)
+    {
+        ev_io_stop(event_loop, &comm_watcher);
+        close(i_comm_fd);
+        unlink(psz_srv_socket);
+    }
 }

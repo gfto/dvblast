@@ -1,7 +1,7 @@
 /*****************************************************************************
  * udp.c: UDP input for DVBlast
  *****************************************************************************
- * Copyright (C) 2009 VideoLAN
+ * Copyright (C) 2009, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
@@ -38,6 +38,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#include <ev.h>
+
 #include <bitstream/common.h>
 #include <bitstream/ietf/rtp.h>
 
@@ -49,11 +51,19 @@
 #define UDP_LOCK_TIMEOUT 5000000 /* 5 s */
 
 static int i_handle;
+static struct ev_io udp_watcher;
+static struct ev_timer mute_watcher;
 static bool b_udp = false;
 static int i_block_cnt;
 static uint8_t pi_ssrc[4] = { 0, 0, 0, 0 };
 static uint16_t i_seqnum = 0;
-static mtime_t i_last_packet = 0;
+static bool b_sync = false;
+
+/*****************************************************************************
+ * Local prototypes
+ *****************************************************************************/
+static void udp_Read(struct ev_loop *loop, struct ev_io *w, int revents);
+static void udp_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents);
 
 /*****************************************************************************
  * udp_Open
@@ -260,46 +270,94 @@ void udp_Open( void )
     free( psz_save );
 
     msg_Dbg( NULL, "binding socket to %s", psz_udp_src );
+
+    ev_io_init(&udp_watcher, udp_Read, i_handle, EV_READ);
+    ev_io_start(event_loop, &udp_watcher);
+
+    ev_timer_init(&mute_watcher, udp_MuteCb,
+                  UDP_LOCK_TIMEOUT / 1000000., UDP_LOCK_TIMEOUT / 1000000.);
 }
 
 /*****************************************************************************
- * udp_Read
+ * UDP events
  *****************************************************************************/
-block_t *udp_Read( mtime_t i_poll_timeout )
+static void udp_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-    struct pollfd pfd[2];
-    int i_ret, i_nb_fd = 1;
+    struct iovec p_iov[i_block_cnt + 1];
+    block_t *p_ts, **pp_current = &p_ts;
+    int i_iov, i_block;
+    ssize_t i_len;
+    uint8_t p_rtp_hdr[RTP_HEADER_SIZE];
 
-    pfd[0].fd = i_handle;
-    pfd[0].events = POLLIN;
-    if ( i_comm_fd != -1 )
+    if ( !b_udp )
     {
-        pfd[1].fd = i_comm_fd;
-        pfd[1].events = POLLIN;
-        i_nb_fd++;
+        /* FIXME : this is wrong if RTP header > 12 bytes */
+        p_iov[0].iov_base = p_rtp_hdr;
+        p_iov[0].iov_len = RTP_HEADER_SIZE;
+        i_iov = 1;
+    }
+    else
+        i_iov = 0;
+
+    for ( i_block = 0; i_block < i_block_cnt; i_block++ )
+    {
+        *pp_current = block_New();
+        p_iov[i_iov].iov_base = (*pp_current)->p_ts;
+        p_iov[i_iov].iov_len = TS_SIZE;
+        pp_current = &(*pp_current)->p_next;
+        i_iov++;
+    }
+    pp_current = &p_ts;
+
+    if ( (i_len = readv( i_handle, p_iov, i_iov )) < 0 )
+    {
+        msg_Err( NULL, "couldn't read from network (%s)", strerror(errno) );
+        goto err;
     }
 
-    i_ret = poll( pfd, i_nb_fd, (i_poll_timeout + 999) / 1000 );
-
-    i_wallclock = mdate();
-
-    if ( i_ret < 0 )
+    if ( !b_udp )
     {
-        if( errno != EINTR )
-            msg_Err( NULL, "couldn't poll from socket (%s)",
-                     strerror(errno) );
-        return NULL;
+        uint8_t pi_new_ssrc[4];
+
+        if ( !rtp_check_hdr(p_rtp_hdr) )
+            msg_Warn( NULL, "invalid RTP packet received" );
+        if ( rtp_get_type(p_rtp_hdr) != RTP_TYPE_TS )
+            msg_Warn( NULL, "non-TS RTP packet received" );
+        rtp_get_ssrc(p_rtp_hdr, pi_new_ssrc);
+        if ( !memcmp( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) ) )
+        {
+            if ( rtp_get_seqnum(p_rtp_hdr) != i_seqnum )
+                msg_Warn( NULL, "RTP discontinuity" );
+        }
+        else
+        {
+            struct in_addr addr;
+            memcpy( &addr.s_addr, pi_new_ssrc, 4 * sizeof(uint8_t) );
+            msg_Dbg( NULL, "new RTP source: %s", inet_ntoa( addr ) );
+            memcpy( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) );
+            switch (i_print_type) {
+            case PRINT_XML:
+                fprintf(print_fh,
+                        "<STATUS type=\"source\" source=\"%s\"/>\n",
+                        inet_ntoa( addr ));
+                break;
+            case PRINT_TEXT:
+                fprintf(print_fh, "source: %s\n", inet_ntoa( addr ) );
+                break;
+            default:
+                break;
+            }
+        }
+        i_seqnum = rtp_get_seqnum(p_rtp_hdr) + 1;
+
+        i_len -= RTP_HEADER_SIZE;
     }
 
-    if ( pfd[0].revents )
-    {
-        struct iovec p_iov[i_block_cnt + 1];
-        block_t *p_ts, **pp_current = &p_ts;
-        int i_iov, i_block;
-        ssize_t i_len;
-        uint8_t p_rtp_hdr[RTP_HEADER_SIZE];
+    i_len /= TS_SIZE;
 
-        if ( !i_last_packet )
+    if ( i_len )
+    {
+        if ( !b_sync )
         {
             msg_Info( NULL, "frontend has acquired lock" );
             switch (i_print_type) {
@@ -312,108 +370,41 @@ block_t *udp_Read( mtime_t i_poll_timeout )
             default:
                 break;
             }
-        }
-        i_last_packet = i_wallclock;
 
-        if ( !b_udp )
-        {
-            /* FIXME : this is wrong if RTP header > 12 bytes */
-            p_iov[0].iov_base = p_rtp_hdr;
-            p_iov[0].iov_len = RTP_HEADER_SIZE;
-            i_iov = 1;
-        }
-        else
-            i_iov = 0;
-
-        for ( i_block = 0; i_block < i_block_cnt; i_block++ )
-        {
-            *pp_current = block_New();
-            p_iov[i_iov].iov_base = (*pp_current)->p_ts;
-            p_iov[i_iov].iov_len = TS_SIZE;
-            pp_current = &(*pp_current)->p_next;
-            i_iov++;
-        }
-        pp_current = &p_ts;
-
-        if ( (i_len = readv( i_handle, p_iov, i_iov )) < 0 )
-        {
-            msg_Err( NULL, "couldn't read from network (%s)", strerror(errno) );
-            goto err;
+            b_sync = true;
         }
 
-        if ( !b_udp )
-        {
-            uint8_t pi_new_ssrc[4];
-
-            if ( !rtp_check_hdr(p_rtp_hdr) )
-                msg_Warn( NULL, "invalid RTP packet received" );
-            if ( rtp_get_type(p_rtp_hdr) != RTP_TYPE_TS )
-                msg_Warn( NULL, "non-TS RTP packet received" );
-            rtp_get_ssrc(p_rtp_hdr, pi_new_ssrc);
-            if ( !memcmp( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) ) )
-            {
-                if ( rtp_get_seqnum(p_rtp_hdr) != i_seqnum )
-                    msg_Warn( NULL, "RTP discontinuity" );
-            }
-            else
-            {
-                struct in_addr addr;
-                memcpy( &addr.s_addr, pi_new_ssrc, 4 * sizeof(uint8_t) );
-                msg_Dbg( NULL, "new RTP source: %s", inet_ntoa( addr ) );
-                memcpy( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) );
-                switch (i_print_type) {
-                case PRINT_XML:
-                    fprintf(print_fh,
-                            "<STATUS type=\"source\" source=\"%s\"/>\n",
-                            inet_ntoa( addr ));
-                    break;
-                case PRINT_TEXT:
-                    fprintf(print_fh, "source: %s\n", inet_ntoa( addr ) );
-                    break;
-                default:
-                    break;
-                }
-            }
-            i_seqnum = rtp_get_seqnum(p_rtp_hdr) + 1;
-
-            i_len -= RTP_HEADER_SIZE;
-        }
-
-        i_len /= TS_SIZE;
-
-        while ( i_len && *pp_current )
-        {
-            pp_current = &(*pp_current)->p_next;
-            i_len--;
-        }
-
-        i_wallclock = mdate();
-err:
-        block_DeleteChain( *pp_current );
-        *pp_current = NULL;
-
-        return p_ts;
+        ev_timer_again(loop, &mute_watcher);
     }
-    else if ( i_last_packet && i_last_packet + UDP_LOCK_TIMEOUT < i_wallclock )
+
+    while ( i_len && *pp_current )
     {
-        msg_Dbg( NULL, "frontend has lost lock" );
-        switch (i_print_type) {
-        case PRINT_XML:
-            fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
-            break;
-        case PRINT_TEXT:
-            fprintf(print_fh, "lock status: 0\n" );
-            break;
-        default:
-            break;
-        }
-        i_last_packet = 0;
+        pp_current = &(*pp_current)->p_next;
+        i_len--;
     }
 
-    if ( i_comm_fd != -1 && pfd[1].revents )
-        comm_Read();
+err:
+    block_DeleteChain( *pp_current );
+    *pp_current = NULL;
 
-    return NULL;
+    demux_Run( p_ts );
+}
+
+static void udp_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+    msg_Warn( NULL, "frontend has lost lock" );
+    ev_timer_stop(loop, w);
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
+        break;
+    case PRINT_TEXT:
+        fprintf(print_fh, "lock status: 0\n" );
+        break;
+    default:
+        break;
+    }
 }
 
 /* From now on these are just stubs */

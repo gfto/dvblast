@@ -28,6 +28,12 @@
 
 #include "config.h"
 
+#ifndef container_of
+#   define container_of(ptr, type, member) ({                               \
+        const typeof( ((type *)0)->member ) *_mptr = (ptr);                 \
+        (type *)( (char *)_mptr - offsetof(type,member) );})
+#endif
+
 /* Defines for pid mapping */
 #define N_MAP_PIDS                 4
 /* Offsets in the command line args for the pid mapping */
@@ -148,8 +154,6 @@ typedef struct output_t
     int i_handle;
     packet_t *p_packets, *p_last_packet;
     uint16_t i_seqnum;
-    mtime_t i_ref_timestamp;
-    mtime_t i_ref_wallclock;
 
     /* demux */
     int i_nb_errors;
@@ -187,6 +191,7 @@ typedef struct ts_pid_info {
        3 = Scrambled with odd key */
 } ts_pid_info_t;
 
+extern struct ev_loop *event_loop;
 extern int i_syslog;
 extern int i_verbose;
 extern output_t **pp_outputs;
@@ -194,7 +199,6 @@ extern int i_nb_outputs;
 extern output_t output_dup;
 extern bool b_passthrough;
 extern char *psz_srv_socket;
-extern int i_comm_fd;
 extern int i_adapter;
 extern int i_fenum;
 extern int i_canum;
@@ -218,7 +222,6 @@ extern int i_guard;
 extern int i_transmission;
 extern int i_hierarchy;
 extern mtime_t i_frontend_timeout_duration;
-extern mtime_t i_quit_timeout;
 extern mtime_t i_quit_timeout_duration;
 extern int b_budget_mode;
 extern int b_any_type;
@@ -227,10 +230,9 @@ extern int b_random_tsid;
 extern uint16_t i_network_id;
 extern uint8_t *p_network_name;
 extern size_t i_network_name_size;
+extern bool b_enable_emm;
+extern bool b_enable_ecm;
 extern mtime_t i_wallclock;
-extern volatile int b_conf_reload;
-extern volatile int b_exit_now;
-extern int i_comm_fd;
 extern char *psz_udp_src;
 extern int i_asi_adapter;
 extern const char *psz_native_charset;
@@ -245,7 +247,6 @@ extern uint16_t pi_newpids[N_MAP_PIDS];
 extern void init_pid_mapping( output_t * );
 
 extern void (*pf_Open)( void );
-extern block_t * (*pf_Read)( mtime_t i_poll_timeout );
 extern void (*pf_Reset)( void );
 extern int (*pf_SetFilter)( uint16_t i_pid );
 extern void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid );
@@ -278,6 +279,7 @@ void hexDump( uint8_t *p_data, uint32_t i_len );
 struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
                                    uint16_t i_default_port );
 char *config_stropt( char *psz_string );
+void config_ReadFile(void);
 
 uint8_t *psi_pack_section( uint8_t *p_sections, unsigned int *pi_size );
 uint8_t *psi_pack_sections( uint8_t **pp_sections, unsigned int *pi_size );
@@ -285,26 +287,22 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size );
 
 void dvb_Open( void );
 void dvb_Reset( void );
-block_t * dvb_Read( mtime_t i_poll_timeout );
 int dvb_SetFilter( uint16_t i_pid );
 void dvb_UnsetFilter( int i_fd, uint16_t i_pid );
 uint8_t dvb_FrontendStatus( uint8_t *p_answer, ssize_t *pi_size );
 
 void udp_Open( void );
-block_t * udp_Read( mtime_t i_poll_timeout );
 void udp_Reset( void );
 int udp_SetFilter( uint16_t i_pid );
 void udp_UnsetFilter( int i_fd, uint16_t i_pid );
 
 void asi_Open( void );
-block_t * asi_Read( mtime_t i_poll_timeout );
 void asi_Reset( void );
 int asi_SetFilter( uint16_t i_pid );
 void asi_UnsetFilter( int i_fd, uint16_t i_pid );
 
 #ifdef HAVE_ASI_DELTACAST_SUPPORT
 void asi_deltacast_Open( void );
-block_t * asi_deltacast_Read( mtime_t i_poll_timeout );
 void asi_deltacast_Reset( void );
 int asi_deltacast_SetFilter( uint16_t i_pid );
 void asi_deltacast_UnsetFilter( int i_fd, uint16_t i_pid );
@@ -331,13 +329,13 @@ output_t *output_Create( const output_config_t *p_config );
 int output_Init( output_t *p_output, const output_config_t *p_config );
 void output_Close( output_t *p_output );
 void output_Put( output_t *p_output, block_t *p_block );
-mtime_t output_Send( void );
 output_t *output_Find( const output_config_t *p_config );
 void output_Change( output_t *p_output, const output_config_t *p_config );
+void outputs_Init( void );
 void outputs_Close( int i_num_outputs );
 
 void comm_Open( void );
-void comm_Read( void );
+void comm_Close( void );
 
 /*****************************************************************************
  * block_New

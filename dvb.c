@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvb.c: linux-dvb input for DVBlast
  *****************************************************************************
- * Copyright (C) 2008-2010 VideoLAN
+ * Copyright (C) 2008-2010, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
@@ -47,6 +47,8 @@
 #include <linux/dvb/frontend.h>
 #include <linux/dvb/ca.h>
 
+#include <ev.h>
+
 #if DVBAPI_VERSION < 508
   #define DTV_STREAM_ID        42
   #define FE_CAN_MULTISTREAM   0x4000000
@@ -64,24 +66,24 @@
  * Local declarations
  *****************************************************************************/
 #define DVR_READ_TIMEOUT 30000000 /* 30 s */
-#define CA_POLL_PERIOD 100000 /* 100 ms */
 #define MAX_READ_ONCE 50
 #define DVR_BUFFER_SIZE 40*188*1024 /* bytes */
 
 int i_dvr_buffer_size = DVR_BUFFER_SIZE;
 
 static int i_frontend, i_dvr;
+static struct ev_io frontend_watcher, dvr_watcher;
+static struct ev_timer lock_watcher, mute_watcher;
 static fe_status_t i_last_status;
-static mtime_t i_frontend_timeout;
-static mtime_t i_last_packet = 0;
-static mtime_t i_ca_next_event = 0;
 static block_t *p_freelist = NULL;
 
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-static block_t *DVRRead( void );
-static void FrontendPoll( void );
+static void DVRRead(struct ev_loop *loop, struct ev_io *w, int revents);
+static void DVRMuteCb(struct ev_loop *loop, struct ev_timer *w, int revents);
+static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents);
+static void FrontendLockCb(struct ev_loop *loop, struct ev_timer *w, int revents);
 static void FrontendSet( bool b_reset );
 
 /*****************************************************************************
@@ -92,8 +94,6 @@ void dvb_Open( void )
     char psz_tmp[128];
 
     msg_Dbg( NULL, "compiled with DVB API version %d.%d", DVB_API_VERSION, DVB_API_VERSION_MINOR );
-
-    i_wallclock = mdate();
 
     if ( i_frequency )
     {
@@ -127,8 +127,23 @@ void dvb_Open( void )
                  strerror(errno) );
     }
 
+    ev_io_init(&dvr_watcher, DVRRead, i_dvr, EV_READ);
+    ev_io_start(event_loop, &dvr_watcher);
+
+    if ( i_frontend != -1 )
+    {
+        ev_io_init(&frontend_watcher, FrontendRead, i_frontend, EV_READ);
+        ev_io_start(event_loop, &frontend_watcher);
+    }
+
+    ev_timer_init(&lock_watcher, FrontendLockCb,
+                  i_frontend_timeout_duration / 1000000.,
+                  i_frontend_timeout_duration / 1000000.);
+    ev_timer_init(&mute_watcher, DVRMuteCb,
+                  DVR_READ_TIMEOUT / 1000000.,
+                  DVR_READ_TIMEOUT / 1000000.);
+
     en50221_Init();
-    i_ca_next_event = mdate() + CA_POLL_PERIOD;
 }
 
 /*****************************************************************************
@@ -141,130 +156,9 @@ void dvb_Reset( void )
 }
 
 /*****************************************************************************
- * dvb_Read
+ * DVR events
  *****************************************************************************/
-block_t *dvb_Read( mtime_t i_poll_timeout )
-{
-    struct pollfd ufds[4];
-    int i_ret, i_nb_fd = 1;
-    block_t *p_blocks = NULL;
-
-    memset( ufds, 0, sizeof(ufds) );
-    ufds[0].fd = i_dvr;
-    ufds[0].events = POLLIN;
-    if ( i_frontend != -1 )
-    {
-        ufds[1].fd = i_frontend;
-        ufds[1].events = POLLERR | POLLPRI;
-        i_nb_fd++;
-    }
-    if ( i_comm_fd != -1 )
-    {
-        ufds[i_nb_fd].fd = i_comm_fd;
-        ufds[i_nb_fd].events = POLLIN;
-        i_nb_fd++;
-    }
-    if ( i_ca_handle && i_ca_type == CA_CI_LINK )
-    {
-        ufds[i_nb_fd].fd = i_ca_handle;
-        ufds[i_nb_fd].events = POLLIN;
-        i_nb_fd++;
-    }
-
-    i_ret = poll( ufds, i_nb_fd, (i_poll_timeout + 999) / 1000 );
-
-    i_wallclock = mdate();
-
-    if ( i_ret < 0 )
-    {
-        if( errno != EINTR )
-            msg_Err( NULL, "poll error: %s", strerror(errno) );
-        return NULL;
-    }
-
-    if ( ufds[1].revents )
-        FrontendPoll();
-
-    if ( ufds[0].revents )
-    {
-        p_blocks = DVRRead();
-        i_wallclock = mdate();
-    }
-
-    if ( p_blocks != NULL )
-        i_last_packet = i_wallclock;
-    else if ( !i_frontend_timeout
-                && i_wallclock > i_last_packet + DVR_READ_TIMEOUT )
-    {
-        msg_Warn( NULL, "no DVR output, resetting" );
-        switch (i_print_type) {
-        case PRINT_XML:
-            fprintf(print_fh, "<EVENT type=\"reset\" cause=\"dvr\" />\n");
-            break;
-        case PRINT_TEXT:
-            fprintf(print_fh, "reset cause: dvr\n");
-            break;
-        default:
-            break;
-        }
-        if ( i_frequency )
-            FrontendSet(false);
-        en50221_Reset();
-    }
-
-    if ( i_ca_handle && i_ca_type == CA_CI_LINK )
-    {
-        if ( ufds[i_nb_fd - 1].revents )
-        {
-            en50221_Read();
-            i_ca_next_event = i_wallclock + CA_POLL_PERIOD;
-        }
-        else if ( i_wallclock > i_ca_next_event )
-        {
-            en50221_Poll();
-            i_ca_next_event = i_wallclock + CA_POLL_PERIOD;
-        }
-    }
-
-    if ( i_frontend_timeout && i_wallclock > i_frontend_timeout )
-    {
-        if ( i_quit_timeout_duration )
-        {
-            msg_Err( NULL, "no lock" );
-            switch (i_print_type) {
-            case PRINT_XML:
-                fprintf(print_fh, "</TS>\n");
-                break;
-            default:
-                break;
-            }
-            exit(EXIT_STATUS_FRONTEND_TIMEOUT);
-        }
-        msg_Warn( NULL, "no lock, tuning again" );
-        switch (i_print_type) {
-        case PRINT_XML:
-            fprintf(print_fh, "<EVENT type=\"reset\" cause=\"nolock\" />\n");
-            break;
-        case PRINT_TEXT:
-            fprintf(print_fh, "reset cause: nolock\n");
-            break;
-        default:
-            break;
-        }
-        if ( i_frequency )
-            FrontendSet(false);
-    }
-
-    if ( i_comm_fd != -1 && ufds[2].revents )
-        comm_Read();
-
-    return p_blocks;
-}
-
-/*****************************************************************************
- * DVRRead
- *****************************************************************************/
-static block_t *DVRRead( void )
+static void DVRRead(struct ev_loop *loop, struct ev_io *w, int revents)
 {
     int i, i_len;
     block_t *p_ts = p_freelist, **pp_current = &p_ts;
@@ -286,6 +180,9 @@ static block_t *DVRRead( void )
     }
     i_len /= TS_SIZE;
 
+    if ( i_len )
+        ev_timer_again(loop, &mute_watcher);
+
     pp_current = &p_ts;
     while ( i_len && *pp_current )
     {
@@ -296,7 +193,27 @@ static block_t *DVRRead( void )
     p_freelist = *pp_current;
     *pp_current = NULL;
 
-    return p_ts;
+    demux_Run( p_ts );
+}
+
+static void DVRMuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+    msg_Warn( NULL, "no DVR output, resetting" );
+    ev_timer_stop(loop, w);
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        fprintf(print_fh, "<EVENT type=\"reset\" cause=\"dvr\" />\n");
+        break;
+    case PRINT_TEXT:
+        fprintf(print_fh, "reset cause: dvr\n");
+        break;
+    default:
+        break;
+    }
+    if ( i_frequency )
+        FrontendSet(false);
+    en50221_Reset();
 }
 
 
@@ -359,9 +276,9 @@ void dvb_UnsetFilter( int i_fd, uint16_t i_pid )
  */
 
 /*****************************************************************************
- * FrontendPoll : Poll for frontend events
+ * Frontend events
  *****************************************************************************/
-static void FrontendPoll( void )
+static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
 {
     struct dvb_frontend_event event;
     fe_status_t i_status, i_diff;
@@ -425,11 +342,9 @@ static void FrontendPoll( void )
                 default:
                     break;
                 }
-                i_frontend_timeout = 0;
-                i_last_packet = i_wallclock;
 
-                if ( i_quit_timeout_duration && !i_quit_timeout )
-                    i_quit_timeout = i_wallclock + i_quit_timeout_duration;
+                ev_timer_stop(loop, &lock_watcher);
+                ev_timer_again(loop, &mute_watcher);
 
                 /* Read some statistics */
                 if( ioctl( i_frontend, FE_READ_BER, &i_value ) >= 0 )
@@ -452,7 +367,12 @@ static void FrontendPoll( void )
                 default:
                     break;
                 }
-                i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
+
+                if (i_frontend_timeout_duration)
+                {
+                    ev_timer_stop(event_loop, &lock_watcher);
+                    ev_timer_again(loop, &mute_watcher);
+                }
             }
 
             IF_UP( FE_REINIT )
@@ -465,6 +385,32 @@ static void FrontendPoll( void )
         }
 #undef IF_UP
     }
+}
+
+static void FrontendLockCb(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+    if ( i_quit_timeout_duration )
+    {
+        msg_Err( NULL, "no lock" );
+        ev_break(loop, EVBREAK_ALL);
+        return;
+    }
+
+    msg_Warn( NULL, "no lock, tuning again" );
+    ev_timer_stop(loop, w);
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        fprintf(print_fh, "<EVENT type=\"reset\" cause=\"nolock\" />\n");
+        break;
+    case PRINT_TEXT:
+        fprintf(print_fh, "reset cause: nolock\n");
+        break;
+    default:
+        break;
+    }
+    if ( i_frequency )
+        FrontendSet(false);
 }
 
 static int FrontendDoDiseqc(void)
@@ -1253,7 +1199,9 @@ static void FrontendSet( bool b_init )
     }
 
     i_last_status = 0;
-    i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
+
+    if (i_frontend_timeout_duration)
+        ev_timer_again(event_loop, &lock_watcher);
 }
 
 #else /* !S2API */
@@ -1350,7 +1298,9 @@ static void FrontendSet( bool b_init )
     }
 
     i_last_status = 0;
-    i_frontend_timeout = i_wallclock + i_frontend_timeout_duration;
+
+    if (i_frontend_timeout_duration)
+        ev_timer_again(event_loop, &lock_watcher);
 }
 
 #endif /* S2API */

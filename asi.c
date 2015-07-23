@@ -1,7 +1,7 @@
 /*****************************************************************************
  * asi.c: support for Computer Modules ASI cards
  *****************************************************************************
- * Copyright (C) 2004, 2009 VideoLAN
+ * Copyright (C) 2004, 2009, 2015 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
@@ -40,6 +40,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#include <ev.h>
+
 #include <bitstream/common.h>
 
 #include "asi.h"
@@ -63,9 +65,17 @@
 #define ASI_LOCK_TIMEOUT 5000000 /* 5 s */
 
 static int i_handle;
+static struct ev_io asi_watcher;
+static struct ev_timer mute_watcher;
 static int i_bufsize;
 static uint8_t p_pid_filter[8192 / 8];
-static mtime_t i_last_packet = 0;
+static bool b_sync = false;
+
+/*****************************************************************************
+ * Local prototypes
+ *****************************************************************************/
+static void asi_Read(struct ev_loop *loop, struct ev_io *w, int revents);
+static void asi_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents);
 
 /*****************************************************************************
  * Local helpers
@@ -169,130 +179,109 @@ void asi_Open( void )
     }
 
     fsync( i_handle );
+
+    ev_io_init(&asi_watcher, asi_Read, i_handle, EV_READ);
+    ev_io_start(event_loop, &asi_watcher);
+
+    ev_timer_init(&mute_watcher, asi_MuteCb,
+                  ASI_LOCK_TIMEOUT / 1000000., ASI_LOCK_TIMEOUT / 1000000.);
 }
 
 /*****************************************************************************
- * asi_Read : read packets from the device
+ * ASI events
  *****************************************************************************/
-block_t *asi_Read( mtime_t i_poll_timeout )
+static void asi_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-    struct pollfd pfd[2];
-    int i_ret, i_nb_fd = 1;
+    unsigned int i_val;
 
-    pfd[0].fd = i_handle;
-    pfd[0].events = POLLIN;
-    if ( i_comm_fd != -1 )
+    if ( ioctl(i_handle, ASI_IOC_RXGETEVENTS, &i_val) == 0 )
     {
-        pfd[1].fd = i_comm_fd;
-        pfd[1].events = POLLIN;
-        i_nb_fd++;
+        if ( i_val & ASI_EVENT_RX_BUFFER )
+            msg_Warn( NULL, "driver receive buffer queue overrun" );
+        if ( i_val & ASI_EVENT_RX_FIFO )
+            msg_Warn( NULL, "onboard receive FIFO overrun" );
+        if ( i_val & ASI_EVENT_RX_CARRIER )
+            msg_Warn( NULL, "carrier status change" );
+        if ( i_val & ASI_EVENT_RX_LOS )
+            msg_Warn( NULL, "loss of packet synchronization" );
+        if ( i_val & ASI_EVENT_RX_AOS )
+            msg_Warn( NULL, "acquisition of packet synchronization" );
+        if ( i_val & ASI_EVENT_RX_DATA )
+            msg_Warn( NULL, "receive data status change" );
     }
 
-    i_ret = poll( pfd, i_nb_fd, (i_poll_timeout + 999) / 1000 );
+    struct iovec p_iov[i_bufsize / TS_SIZE];
+    block_t *p_ts, **pp_current = &p_ts;
+    int i, i_len;
 
-    i_wallclock = mdate();
-
-    if ( i_ret < 0 )
+    for ( i = 0; i < i_bufsize / TS_SIZE; i++ )
     {
-        if( errno != EINTR )
-            msg_Err( NULL, "couldn't poll from device " ASI_DEVICE " (%s)",
-                     i_asi_adapter, strerror(errno) );
-        return NULL;
+        *pp_current = block_New();
+        p_iov[i].iov_base = (*pp_current)->p_ts;
+        p_iov[i].iov_len = TS_SIZE;
+        pp_current = &(*pp_current)->p_next;
     }
 
-    if ( (pfd[0].revents & POLLPRI) )
+    if ( (i_len = readv(i_handle, p_iov, i_bufsize / TS_SIZE)) < 0 )
     {
-        unsigned int i_val;
+        msg_Err( NULL, "couldn't read from device " ASI_DEVICE " (%s)",
+                 i_asi_adapter, strerror(errno) );
+        i_len = 0;
+    }
+    i_len /= TS_SIZE;
 
-        if ( ioctl(i_handle, ASI_IOC_RXGETEVENTS, &i_val) < 0 )
-            msg_Err( NULL, "couldn't RXGETEVENTS (%s)", strerror(errno) );
-        else
+    if ( i_len )
+    {
+        if ( !b_sync )
         {
-            if ( i_val & ASI_EVENT_RX_BUFFER )
-                msg_Warn( NULL, "driver receive buffer queue overrun" );
-            if ( i_val & ASI_EVENT_RX_FIFO )
-                msg_Warn( NULL, "onboard receive FIFO overrun" );
-            if ( i_val & ASI_EVENT_RX_CARRIER )
-                msg_Warn( NULL, "carrier status change" );
-            if ( i_val & ASI_EVENT_RX_LOS )
-                msg_Warn( NULL, "loss of packet synchronization" );
-            if ( i_val & ASI_EVENT_RX_AOS )
-                msg_Warn( NULL, "acquisition of packet synchronization" );
-            if ( i_val & ASI_EVENT_RX_DATA )
-                msg_Warn( NULL, "receive data status change" );
-        }
-    }
-
-    if ( (pfd[0].revents & POLLIN) )
-    {
-        struct iovec p_iov[i_bufsize / TS_SIZE];
-        block_t *p_ts, **pp_current = &p_ts;
-        int i, i_len;
-
-        if ( !i_last_packet )
-        {
+            msg_Info( NULL, "frontend has acquired lock" );
             switch (i_print_type) {
             case PRINT_XML:
                 fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\"/>\n");
                 break;
             case PRINT_TEXT:
-                fprintf(print_fh, "frontend has acquired lock\n");
+                fprintf(print_fh, "lock status: 1\n");
                 break;
             default:
                 break;
             }
-        }
-        i_last_packet = i_wallclock;
 
-        for ( i = 0; i < i_bufsize / TS_SIZE; i++ )
-        {
-            *pp_current = block_New();
-            p_iov[i].iov_base = (*pp_current)->p_ts;
-            p_iov[i].iov_len = TS_SIZE;
-            pp_current = &(*pp_current)->p_next;
+            b_sync = true;
         }
 
-        if ( (i_len = readv(i_handle, p_iov, i_bufsize / TS_SIZE)) < 0 )
-        {
-            msg_Err( NULL, "couldn't read from device " ASI_DEVICE " (%s)",
-                     i_asi_adapter, strerror(errno) );
-            i_len = 0;
-        }
-        i_len /= TS_SIZE;
-
-        pp_current = &p_ts;
-        while ( i_len && *pp_current )
-        {
-            pp_current = &(*pp_current)->p_next;
-            i_len--;
-        }
-
-        if ( *pp_current )
-            msg_Dbg( NULL, "partial buffer received" );
-        block_DeleteChain( *pp_current );
-        *pp_current = NULL;
-
-        return p_ts;
+        ev_timer_again(loop, &mute_watcher);
     }
-    else if ( i_last_packet && i_last_packet + ASI_LOCK_TIMEOUT < i_wallclock )
+
+    pp_current = &p_ts;
+    while ( i_len && *pp_current )
     {
-        switch (i_print_type) {
-        case PRINT_XML:
-            fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
-            break;
-        case PRINT_TEXT:
-            fprintf(print_fh, "frontend has lost lock\n");
-            break;
-        default:
-            break;
-        }
-        i_last_packet = 0;
+        pp_current = &(*pp_current)->p_next;
+        i_len--;
     }
 
-    if ( i_comm_fd != -1 && pfd[1].revents )
-        comm_Read();
+    if ( *pp_current )
+        msg_Dbg( NULL, "partial buffer received" );
+    block_DeleteChain( *pp_current );
+    *pp_current = NULL;
 
-    return NULL;
+    demux_Run( p_ts );
+}
+
+static void asi_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+    msg_Warn( NULL, "frontend has lost lock" );
+    ev_timer_stop(loop, w);
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
+        break;
+    case PRINT_TEXT:
+        fprintf(print_fh, "lock status: 0\n" );
+        break;
+    default:
+        break;
+    }
 }
 
 /*****************************************************************************
