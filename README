@@ -207,8 +207,18 @@ included PAT and PMT may contain ghost programs or ESes.
 All four PIDs are required!
 
 Note that the CAM will not be programmed in that case (unless it has
-been programmed by another line of the config file). The file is read
-from the command-line :
+been programmed by another line of the config file).
+
+5. Pass-through
+
+239.255.0.1:1234	1	*	
+
+The entire received stream will be passed through the output. Please bear in
+mind that when reading from a DVB adapter, hardware PID filtering is used by
+default, so not all packets will be output unless you specify the -u option.
+
+
+The file is read from the command-line :
 
 dvblast -c /tmp/dvblast.conf
 

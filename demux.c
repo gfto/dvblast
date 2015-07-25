@@ -508,6 +508,17 @@ static void demux_Handle( block_t *p_ts )
         }
     }
 
+    for ( i = 0; i < i_nb_outputs; i++ )
+    {
+        output_t *p_output = pp_outputs[i];
+
+        if ( !(p_output->config.i_config & OUTPUT_VALID) ||
+             !p_output->config.b_passthrough )
+            continue;
+
+        output_Put( p_output, p_ts );
+    }
+
     if ( output_dup.config.i_config & OUTPUT_VALID )
         output_Put( &output_dup, p_ts );
 
@@ -581,7 +592,8 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
         b_tsid_change = true;
     }
 
-    if ( !b_sid_change && p_config->i_nb_pids == p_output->config.i_nb_pids &&
+    if ( p_config->b_passthrough == p_output->config.b_passthrough &&
+         !b_sid_change && p_config->i_nb_pids == p_output->config.i_nb_pids &&
          (!p_config->i_nb_pids ||
           !memcmp( p_output->config.pi_pids, p_config->pi_pids,
                    p_config->i_nb_pids * sizeof(uint16_t) )) )
@@ -663,6 +675,7 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
             en50221_UpdatePMT( p_sid->p_current_pmt );
     }
 
+    p_output->config.b_passthrough = p_config->b_passthrough;
     p_output->config.i_sid = i_sid;
     free( p_output->config.pi_pids );
     p_output->config.pi_pids = malloc( sizeof(uint16_t) * i_nb_pids );
@@ -1008,7 +1021,8 @@ static void SendPAT( mtime_t i_dts )
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( !(p_output->config.i_config & OUTPUT_VALID) )
+        if ( !(p_output->config.i_config & OUTPUT_VALID) ||
+             p_output->config.b_passthrough )
             continue;
 
         if ( p_output->p_pat_section == NULL &&
@@ -1077,6 +1091,7 @@ static void SendNIT( mtime_t i_dts )
         output_t *p_output = pp_outputs[i];
 
         if ( (p_output->config.i_config & OUTPUT_VALID)
+               && !p_output->config.b_passthrough
                && (p_output->config.i_config & OUTPUT_DVB)
                && p_output->p_nit_section != NULL )
             OutputPSISection( p_output, p_output->p_nit_section, NIT_PID,
@@ -1096,6 +1111,7 @@ static void SendSDT( mtime_t i_dts )
         output_t *p_output = pp_outputs[i];
 
         if ( (p_output->config.i_config & OUTPUT_VALID)
+               && !p_output->config.b_passthrough
                && (p_output->config.i_config & OUTPUT_DVB)
                && p_output->p_sdt_section != NULL )
             OutputPSISection( p_output, p_output->p_sdt_section, SDT_PID,
@@ -1118,6 +1134,7 @@ static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
         output_t *p_output = pp_outputs[i];
 
         if ( (p_output->config.i_config & OUTPUT_VALID)
+               && !p_output->config.b_passthrough
                && (p_output->config.i_config & OUTPUT_DVB)
                && (!b_epg || (p_output->config.i_config & OUTPUT_EPG))
                && p_output->config.i_sid == p_sid->i_sid )
@@ -1165,6 +1182,7 @@ static void SendTDT( block_t *p_ts )
         output_t *p_output = pp_outputs[i];
 
         if ( (p_output->config.i_config & OUTPUT_VALID)
+               && !p_output->config.b_passthrough
                && (p_output->config.i_config & OUTPUT_DVB)
                && p_output->p_sdt_section != NULL )
             output_Put( p_output, p_ts );
@@ -1181,7 +1199,8 @@ static void SendEMM( block_t *p_ts )
     {
         output_t *p_output = pp_outputs[i];
 
-        if ( (p_output->config.i_config & OUTPUT_VALID) )
+        if ( (p_output->config.i_config & OUTPUT_VALID)
+               && !p_output->config.b_passthrough )
             output_Put( p_output, p_ts );
     }
 }

@@ -140,6 +140,7 @@ typedef struct output_config_t
     uint16_t *pi_pids;
     int i_nb_pids;
     uint16_t i_new_sid;
+    bool b_passthrough;
 
     /* for pidmap from config file */
     bool b_do_remap;

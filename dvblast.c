@@ -147,6 +147,7 @@ void config_Init( output_config_t *p_config )
     p_config->i_srcport = 0;
 
     p_config->pi_pids = NULL;
+    p_config->b_passthrough = false;
     p_config->b_do_remap = false;
     unsigned int i;
     for ( i = 0; i < N_MAP_PIDS; i++ ) {
@@ -324,6 +325,13 @@ end:
 
 static void config_Print( output_config_t *p_config )
 {
+    if ( p_config->b_passthrough )
+    {
+        msg_Dbg( NULL, "conf: %s config=0x%"PRIx64" sid=*",
+                 p_config->psz_displayname, p_config->i_config);
+        return;
+    }
+
     const char *psz_base = "conf: %s config=0x%"PRIx64" sid=%hu pids[%d]=";
     size_t i_len = strlen(psz_base) + 6 * p_config->i_nb_pids + 1;
     char psz_format[i_len];
@@ -396,21 +404,29 @@ void config_ReadFile(void)
             config_Free( &config );
             continue;
         }
-        config.i_sid = strtol(psz_token, NULL, 0);
 
-        psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
-        if ( psz_token != NULL )
+        if ( psz_token[0] == '*' )
         {
-            psz_parser = NULL;
-            for ( ; ; )
+            config.b_passthrough = true;
+        }
+        else
+        {
+            config.i_sid = strtol(psz_token, NULL, 0);
+
+            psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
+            if ( psz_token != NULL )
             {
-                psz_token = strtok_r( psz_token, ",", &psz_parser );
-                if ( psz_token == NULL )
-                    break;
-                config.pi_pids = realloc( config.pi_pids,
-                                 (config.i_nb_pids + 1) * sizeof(uint16_t) );
-                config.pi_pids[config.i_nb_pids++] = strtol(psz_token, NULL, 0);
-                psz_token = NULL;
+                psz_parser = NULL;
+                for ( ; ; )
+                {
+                    psz_token = strtok_r( psz_token, ",", &psz_parser );
+                    if ( psz_token == NULL )
+                        break;
+                    config.pi_pids = realloc( config.pi_pids,
+                                     (config.i_nb_pids + 1) * sizeof(uint16_t) );
+                    config.pi_pids[config.i_nb_pids++] = strtol(psz_token, NULL, 0);
+                    psz_token = NULL;
+                }
             }
         }
 
