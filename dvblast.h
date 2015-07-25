@@ -153,6 +153,8 @@ typedef struct output_t
     /* output */
     int i_handle;
     packet_t *p_packets, *p_last_packet;
+    packet_t *p_packet_lifo;
+    unsigned int i_packet_count;
     uint16_t i_seqnum;
 
     /* demux */
@@ -337,24 +339,9 @@ void outputs_Close( int i_num_outputs );
 void comm_Open( void );
 void comm_Close( void );
 
-/*****************************************************************************
- * block_New
- *****************************************************************************/
-static inline block_t *block_New( void )
-{
-    block_t *p_block = malloc(sizeof(block_t));
-    p_block->p_next = NULL;
-    p_block->i_refcount = 1;
-    return p_block;
-}
-
-/*****************************************************************************
- * block_Delete
- *****************************************************************************/
-static inline void block_Delete( block_t *p_block )
-{
-    free( p_block );
-}
+block_t *block_New( void );
+void block_Delete( block_t *p_block );
+void block_Vacuum( void );
 
 /*****************************************************************************
  * block_DeleteChain
@@ -364,7 +351,7 @@ static inline void block_DeleteChain( block_t *p_block )
     while ( p_block != NULL )
     {
         block_t *p_next = p_block->p_next;
-        free( p_block );
+        block_Delete( p_block );
         p_block = p_next;
     }
 }

@@ -43,11 +43,68 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
+#define MAX_BLOCKS 500
 #define MAX_MSG 1024
 #define VERB_DBG  4
 #define VERB_INFO 3
 #define VERB_WARN 2
 #define VERB_ERR 1
+
+static block_t *p_block_lifo = NULL;
+static unsigned int i_block_count = 0;
+
+/*****************************************************************************
+ * block_New
+ *****************************************************************************/
+block_t *block_New( void )
+{
+    block_t *p_block;
+
+    if (i_block_count)
+    {
+        p_block = p_block_lifo;
+        p_block_lifo = p_block->p_next;
+        i_block_count--;
+    }
+    else
+    {
+        p_block = malloc(sizeof(block_t));
+    }
+
+    p_block->p_next = NULL;
+    p_block->i_refcount = 1;
+    return p_block;
+}
+
+/*****************************************************************************
+ * block_Delete
+ *****************************************************************************/
+void block_Delete( block_t *p_block )
+{
+    if (i_block_count >= MAX_BLOCKS )
+    {
+        free( p_block );
+        return;
+    }
+
+    p_block->p_next = p_block_lifo;
+    p_block_lifo = p_block;
+    i_block_count++;
+}
+
+/*****************************************************************************
+ * block_Vacuum
+ *****************************************************************************/
+void block_Vacuum( void )
+{
+    while (i_block_count)
+    {
+        block_t *p_block = p_block_lifo;
+        p_block_lifo = p_block->p_next;
+        free(p_block);
+        i_block_count--;
+    }
+}
 
 /*****************************************************************************
  * msg_Connect

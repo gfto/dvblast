@@ -2,6 +2,7 @@
 Changes between 2.2 and 3.0:
 ----------------------------
   * Rewrite core to use libev event loop
+  * Optimize allocations with a buffer pool
   * Added support for building DVBlast on OS X
   * Added support for uncommitted diseqc switches
   * Fixed ECM pid selection

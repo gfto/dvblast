@@ -1185,6 +1185,7 @@ int main( int i_argc, char **pp_argv )
         msg_Disconnect();
 
     comm_Close();
+    block_Vacuum();
 
     return EXIT_SUCCESS;
 }

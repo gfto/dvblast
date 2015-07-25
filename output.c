@@ -44,6 +44,8 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
+#define MAX_PACKETS 100
+
 static struct ev_timer output_watcher;
 static mtime_t i_next_send = INT64_MAX;
 
@@ -52,9 +54,7 @@ struct packet_t
     struct packet_t *p_next;
     mtime_t i_dts;
     int i_depth;
-    block_t **pp_blocks;
-    /* PRIVATE - this MUST be at the end of the structure: */
-    block_t *p_blocks; /* actually an array of pointers */
+    block_t *pp_blocks[];
 };
 
 static uint8_t p_pad_ts[TS_SIZE] = {
@@ -121,6 +121,71 @@ static void RawFillHeaders(struct udprawpkt *dgram,
 }
 
 /*****************************************************************************
+ * output_BlockCount
+ *****************************************************************************/
+static int output_BlockCount( output_t *p_output )
+{
+    int i_mtu = p_output->config.i_mtu;
+    if ( !(p_output->config.i_config & OUTPUT_UDP) )
+        i_mtu -= RTP_HEADER_SIZE;
+    return i_mtu / TS_SIZE;
+}
+
+/*****************************************************************************
+ * output_PacketNew
+ *****************************************************************************/
+packet_t *output_PacketNew( output_t *p_output )
+{
+    packet_t *p_packet;
+
+    if (p_output->i_packet_count)
+    {
+        p_packet = p_output->p_packet_lifo;
+        p_output->p_packet_lifo = p_packet->p_next;
+        p_output->i_packet_count--;
+    }
+    else
+    {
+        p_packet = malloc(sizeof(packet_t) +
+                          output_BlockCount(p_output) * sizeof(block_t *) );
+    }
+
+    p_packet->i_depth = 0;
+    p_packet->p_next = NULL;
+    return p_packet;
+}
+
+/*****************************************************************************
+ * output_PacketDelete
+ *****************************************************************************/
+void output_PacketDelete( output_t *p_output, packet_t *p_packet )
+{
+    if (p_output->i_packet_count >= MAX_PACKETS )
+    {
+        free( p_packet );
+        return;
+    }
+
+    p_packet->p_next = p_output->p_packet_lifo;
+    p_output->p_packet_lifo = p_packet;
+    p_output->i_packet_count++;
+}
+
+/*****************************************************************************
+ * output_PacketVacuum
+ *****************************************************************************/
+void output_PacketVacuum( output_t *p_output )
+{
+    while (p_output->i_packet_count)
+    {
+        packet_t *p_packet = p_output->p_packet_lifo;
+        p_output->p_packet_lifo = p_packet->p_next;
+        free(p_packet);
+        p_output->i_packet_count--;
+    }
+}
+
+/*****************************************************************************
  * output_Create : create and insert the output_t structure
  *****************************************************************************/
 output_t *output_Create( const output_config_t *p_config )
@@ -175,6 +240,8 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
 
     /* Init run-time values */
     p_output->p_packets = p_output->p_last_packet = NULL;
+    p_output->p_packet_lifo = NULL;
+    p_output->i_packet_count = 0;
     p_output->i_seqnum = rand() & 0xffff;
     p_output->i_pat_cc = rand() & 0xf;
     p_output->i_pmt_cc = rand() & 0xf;
@@ -296,9 +363,10 @@ void output_Close( output_t *p_output )
                 block_Delete( p_packet->pp_blocks[i] );
         }
         p_output->p_packets = p_packet->p_next;
-        free( p_packet );
+        output_PacketDelete( p_output, p_packet );
         p_packet = p_output->p_packets;
     }
+    output_PacketVacuum( p_output );
 
     p_output->p_packets = p_output->p_last_packet = NULL;
     free( p_output->p_pat_section );
@@ -311,17 +379,6 @@ void output_Close( output_t *p_output )
     close( p_output->i_handle );
 
     config_Free( &p_output->config );
-}
-
-/*****************************************************************************
- * output_BlockCount
- *****************************************************************************/
-static int output_BlockCount( output_t *p_output )
-{
-    int i_mtu = p_output->config.i_mtu;
-    if ( !(p_output->config.i_config & OUTPUT_UDP) )
-        i_mtu -= RTP_HEADER_SIZE;
-    return i_mtu / TS_SIZE;
 }
 
 /*****************************************************************************
@@ -421,7 +478,7 @@ static void output_Flush( output_t *p_output )
         }
     }
     p_output->p_packets = p_packet->p_next;
-    free( p_packet );
+    output_PacketDelete( p_output, p_packet );
     if ( p_output->p_packets == NULL )
         p_output->p_last_packet = NULL;
 }
@@ -449,12 +506,7 @@ void output_Put( output_t *p_output, block_t *p_block )
     }
     else
     {
-        /* This isn't the cleanest allocation of the world. */
-        p_packet = malloc( sizeof(packet_t)
-                            + (i_block_cnt - 1) * sizeof(block_t *) );
-        p_packet->pp_blocks = &p_packet->p_blocks;
-        p_packet->i_depth = 0;
-        p_packet->p_next = NULL;
+        p_packet = output_PacketNew( p_output );
         p_packet->i_dts = p_block->i_dts;
         if ( p_output->p_last_packet != NULL )
             p_output->p_last_packet->p_next = p_packet;
@@ -626,12 +678,13 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
         p_output->config.i_config |= p_config->i_config & OUTPUT_UDP;
         p_output->config.i_mtu = p_config->i_mtu;
 
+        output_PacketVacuum( p_output );
+
         i_block_cnt = output_BlockCount( p_output );
         if ( p_packet != NULL && p_packet->i_depth < i_block_cnt )
         {
             p_packet = realloc( p_packet, sizeof(packet_t *)
-                                 + (i_block_cnt - 1) * sizeof(block_t *) );
-            p_packet->pp_blocks = &p_packet->p_blocks;
+                                 + i_block_cnt * sizeof(block_t *) );
             p_output->p_last_packet = p_packet;
         }
     }
