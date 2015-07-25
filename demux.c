@@ -33,6 +33,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <ev.h>
 
 #include "dvblast.h"
 #include "en50221.h"
@@ -76,6 +77,9 @@ typedef struct ts_pid_t
 
     output_t **pp_outputs;
     int i_nb_outputs;
+
+    int i_pes_status; /* pes + unscrambled */
+    struct ev_timer timeout_watcher;
 } ts_pid_t;
 
 typedef struct sid_t
@@ -100,9 +104,14 @@ static PSI_TABLE_DECLARE(pp_current_sdt_sections);
 static PSI_TABLE_DECLARE(pp_next_sdt_sections);
 static mtime_t i_last_dts = -1;
 static int i_demux_fd;
-static int i_nb_errors = 0;
+static uint64_t i_nb_packets = 0;
+static uint64_t i_nb_invalids = 0;
+static uint64_t i_nb_discontinuities = 0;
+static uint64_t i_nb_errors = 0;
+static int i_tuner_errors = 0;
 static mtime_t i_last_error = 0;
 static mtime_t i_last_reset = 0;
+static struct ev_timer print_watcher;
 
 #ifdef HAVE_ICONV
 static iconv_t iconv_handle = (iconv_t)-1;
@@ -245,6 +254,126 @@ static inline sid_t *FindSID( uint16_t i_sid )
 }
 
 /*****************************************************************************
+ * Print info
+ *****************************************************************************/
+static void PrintCb( struct ev_loop *loop, struct ev_timer *w, int revents )
+{
+    uint64_t i_bitrate = i_nb_packets * TS_SIZE * 8 * 1000000 / i_print_period;
+    switch (i_print_type)
+    {
+        case PRINT_XML:
+            fprintf(print_fh,
+                    "<STATUS type=\"bitrate\" status=\"%d\" value=\"%"PRIu64"\" />\n",
+                    i_bitrate ? 1 : 0, i_bitrate);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "bitrate: %"PRIu64"\n", i_bitrate);
+            break;
+        default:
+            break;
+    }
+    i_nb_packets = 0;
+
+    if ( i_nb_invalids )
+    {
+        switch (i_print_type)
+        {
+            case PRINT_XML:
+                fprintf(print_fh,
+                        "<ERROR type=\"invalid_ts\" number=\"%"PRIu64"\" />\n",
+                        i_nb_invalids);
+                break;
+            case PRINT_TEXT:
+                fprintf(print_fh, "invalids: %"PRIu64"\n", i_nb_invalids);
+                break;
+            default:
+                break;
+        }
+        i_nb_invalids = 0;
+    }
+
+    if ( i_nb_discontinuities )
+    {
+        switch (i_print_type)
+        {
+            case PRINT_XML:
+                fprintf(print_fh,
+                        "<ERROR type=\"invalid_discontinuity\" number=\"%"PRIu64"\" />\n",
+                        i_nb_discontinuities);
+                break;
+            case PRINT_TEXT:
+                fprintf(print_fh, "discontinuities: %"PRIu64"\n",
+                        i_nb_discontinuities);
+                break;
+            default:
+                break;
+        }
+        i_nb_discontinuities = 0;
+    }
+
+    if ( i_nb_errors )
+    {
+        switch (i_print_type)
+        {
+            case PRINT_XML:
+                fprintf(print_fh,
+                        "<ERROR type=\"transport_error\" number=\"%"PRIu64"\" />\n",
+                        i_nb_errors);
+                break;
+            case PRINT_TEXT:
+                fprintf(print_fh, "errors: %"PRIu64"\n", i_nb_errors);
+                break;
+            default:
+                break;
+        }
+        i_nb_errors = 0;
+    }
+}
+
+static void PrintESCb( struct ev_loop *loop, struct ev_timer *w, int revents )
+{
+    ts_pid_t *p_pid = container_of( w, ts_pid_t, timeout_watcher );
+    uint16_t i_pid = p_pid - p_pids;
+
+    switch (i_print_type)
+    {
+        case PRINT_XML:
+            fprintf(print_fh,
+                    "<STATUS type=\"pid\" pid=\"%"PRIu16"\" status=\"0\" />\n",
+                    i_pid);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "pid: %"PRIu16" down\n", i_pid);
+            break;
+        default:
+            break;
+    }
+
+    ev_timer_stop( loop, w );
+    p_pid->i_pes_status = -1;
+}
+
+static void PrintES( uint16_t i_pid )
+{
+    const ts_pid_t *p_pid = &p_pids[i_pid];
+
+    switch (i_print_type)
+    {
+        case PRINT_XML:
+            fprintf(print_fh,
+                    "<STATUS type=\"pid\" pid=\"%"PRIu16"\" status=\"1\" pes=\"%d\" />\n",
+                    i_pid, p_pid->i_pes_status == 1 ? 1 : 0);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "pid: %"PRIu16" up%s\n",
+                    i_pid, p_pid->i_pes_status == 1 ? " pes" : "");
+            break;
+        default:
+            break;
+    }
+}
+
+/*****************************************************************************
  * demux_Open
  *****************************************************************************/
 void demux_Open( void )
@@ -261,6 +390,7 @@ void demux_Open( void )
         p_pids[i].i_demux_fd = -1;
         psi_assemble_init( &p_pids[i].p_psi_buffer,
                            &p_pids[i].i_psi_buffer_used );
+        p_pids[i].i_pes_status = -1;
     }
 
     if ( b_budget_mode )
@@ -293,6 +423,13 @@ void demux_Open( void )
     SetPID(RST_PID);
 
     SetPID(TDT_PID);
+
+    if ( i_print_period )
+    {
+        ev_timer_init( &print_watcher, PrintCb,
+                       i_print_period / 1000000., i_print_period / 1000000. );
+        ev_timer_start( event_loop, &print_watcher );
+    }
 }
 
 /*****************************************************************************
@@ -313,6 +450,7 @@ void demux_Close( void )
 
     for ( i = 0; i < MAX_PIDS; i++ )
     {
+        ev_timer_stop( event_loop, &p_pids[i].timeout_watcher );
         free( p_pids[i].p_psi_buffer );
         free( p_pids[i].pp_outputs );
     }
@@ -331,6 +469,9 @@ void demux_Close( void )
         iconv_handle = (iconv_t)-1;
     }
 #endif
+
+    if ( i_print_period )
+        ev_timer_stop( event_loop, &print_watcher );
 }
 
 /*****************************************************************************
@@ -357,43 +498,48 @@ void demux_Run( block_t *p_ts )
 static void demux_Handle( block_t *p_ts )
 {
     uint16_t i_pid = ts_get_pid( p_ts->p_ts );
+    ts_pid_t *p_pid = &p_pids[i_pid];
     uint8_t i_cc = ts_get_cc( p_ts->p_ts );
     int i;
+
+    i_nb_packets++;
 
     if ( !ts_validate( p_ts->p_ts ) )
     {
         msg_Warn( NULL, "lost TS sync" );
         block_Delete( p_ts );
+        i_nb_invalids++;
         return;
     }
 
     if ( i_pid != PADDING_PID )
-        p_pids[i_pid].info.i_scrambling = ts_get_scrambling( p_ts->p_ts );
+        p_pid->info.i_scrambling = ts_get_scrambling( p_ts->p_ts );
 
-    p_pids[i_pid].info.i_last_packet_ts = i_wallclock;
-    p_pids[i_pid].info.i_packets++;
+    p_pid->info.i_last_packet_ts = i_wallclock;
+    p_pid->info.i_packets++;
 
-    p_pids[i_pid].i_packets_passed++;
+    p_pid->i_packets_passed++;
 
     /* Calculate bytes_per_sec */
-    if ( i_wallclock > p_pids[i_pid].i_bytes_ts + 1000000 ) {
-        p_pids[i_pid].info.i_bytes_per_sec = p_pids[i_pid].i_packets_passed * TS_SIZE;
-        p_pids[i_pid].i_packets_passed = 0;
-        p_pids[i_pid].i_bytes_ts = i_wallclock;
+    if ( i_wallclock > p_pid->i_bytes_ts + 1000000 ) {
+        p_pid->info.i_bytes_per_sec = p_pid->i_packets_passed * TS_SIZE;
+        p_pid->i_packets_passed = 0;
+        p_pid->i_bytes_ts = i_wallclock;
     }
 
-    if ( p_pids[i_pid].info.i_first_packet_ts == 0 )
-        p_pids[i_pid].info.i_first_packet_ts = i_wallclock;
+    if ( p_pid->info.i_first_packet_ts == 0 )
+        p_pid->info.i_first_packet_ts = i_wallclock;
 
-    if ( i_pid != PADDING_PID && p_pids[i_pid].i_last_cc != -1
-          && !ts_check_duplicate( i_cc, p_pids[i_pid].i_last_cc )
-          && ts_check_discontinuity( i_cc, p_pids[i_pid].i_last_cc ) )
+    if ( i_pid != PADDING_PID && p_pid->i_last_cc != -1
+          && !ts_check_duplicate( i_cc, p_pid->i_last_cc )
+          && ts_check_discontinuity( i_cc, p_pid->i_last_cc ) )
     {
-        unsigned int expected_cc = (p_pids[i_pid].i_last_cc + 1) & 0x0f;
+        unsigned int expected_cc = (p_pid->i_last_cc + 1) & 0x0f;
         uint16_t i_sid = 0;
         const char *pid_desc = get_pid_desc(i_pid, &i_sid);
 
-        p_pids[i_pid].info.i_cc_errors++;
+        p_pid->info.i_cc_errors++;
+        i_nb_discontinuities++;
 
         msg_Warn( NULL, "TS discontinuity on pid %4hu expected_cc %2u got %2u (%s, sid %d)",
                 i_pid, expected_cc, i_cc, pid_desc, i_sid );
@@ -404,20 +550,21 @@ static void demux_Handle( block_t *p_ts )
         uint16_t i_sid = 0;
         const char *pid_desc = get_pid_desc(i_pid, &i_sid);
 
-        p_pids[i_pid].info.i_transport_errors++;
+        p_pid->info.i_transport_errors++;
 
         msg_Warn( NULL, "transport_error_indicator on pid %hu (%s, sid %u)",
                    i_pid, pid_desc, i_sid );
 
         i_nb_errors++;
+        i_tuner_errors++;
         i_last_error = i_wallclock;
     }
     else if ( i_wallclock > i_last_error + WATCHDOG_WAIT )
-        i_nb_errors = 0;
+        i_tuner_errors = 0;
 
-    if ( i_nb_errors > MAX_ERRORS )
+    if ( i_tuner_errors > MAX_ERRORS )
     {
-        i_nb_errors = 0;
+        i_tuner_errors = 0;
         msg_Warn( NULL,
                  "too many transport errors, tuning again" );
         switch (i_print_type) {
@@ -433,24 +580,69 @@ static void demux_Handle( block_t *p_ts )
         pf_Reset();
     }
 
+    if ( i_es_timeout )
+    {
+        int i_pes_status = -1;
+        if ( ts_get_scrambling( p_ts->p_ts ) )
+            i_pes_status = 0;
+        else if ( ts_get_unitstart( p_ts->p_ts ) )
+        {
+            uint8_t *p_payload = ts_payload( p_ts->p_ts );
+            if ( p_payload + 3 < p_ts->p_ts + TS_SIZE )
+                i_pes_status = pes_validate( p_payload ) ? 1 : 0;
+        }
+
+        if ( i_pes_status != -1 )
+        {
+            if ( p_pid->i_pes_status == -1 )
+            {
+                p_pid->i_pes_status = i_pes_status;
+                PrintES( i_pid );
+
+                if ( i_pid != TDT_PID )
+                {
+                    ev_timer_init( &p_pid->timeout_watcher, PrintESCb,
+                                   i_es_timeout / 1000000.,
+                                   i_es_timeout / 1000000. );
+                    ev_timer_start( event_loop, &p_pid->timeout_watcher );
+                }
+                else
+                {
+                    ev_timer_init( &p_pid->timeout_watcher, PrintESCb, 30, 30 );
+                    ev_timer_start( event_loop, &p_pid->timeout_watcher );
+                }
+            }
+            else
+            {
+                if ( p_pid->i_pes_status != i_pes_status )
+                {
+                    p_pid->i_pes_status = i_pes_status;
+                    PrintES( i_pid );
+                }
+
+                ev_timer_again( event_loop, &p_pid->timeout_watcher );
+            }
+        }
+    }
+
     if ( !ts_get_transporterror( p_ts->p_ts ) )
     {
         /* PSI parsing */
         if ( i_pid == TDT_PID || i_pid == RST_PID )
             SendTDT( p_ts );
-        else if ( p_pids[i_pid].i_psi_refcount )
+        else if ( p_pid->i_psi_refcount )
             HandlePSIPacket( p_ts->p_ts, p_ts->i_dts );
 
-        if ( b_enable_emm && p_pids[i_pid].b_emm )
+        if ( b_enable_emm && p_pid->b_emm )
             SendEMM( p_ts );
     }
 
-    p_pids[i_pid].i_last_cc = i_cc;
+    p_pid->i_last_cc = i_cc;
 
     /* Output */
-    for ( i = 0; i < p_pids[i_pid].i_nb_outputs; i++ )
+    for ( i = 0; i < p_pid->i_nb_outputs; i++ )
     {
-        output_t *p_output = p_pids[i_pid].pp_outputs[i];
+        output_t *p_output = p_pid->pp_outputs[i];
         if ( p_output != NULL )
         {
             if ( i_ca_handle && (p_output->config.i_config & OUTPUT_WATCH) &&
@@ -459,7 +651,7 @@ static void demux_Handle( block_t *p_ts )
                 uint8_t *p_payload;
 
                 if ( ts_get_scrambling( p_ts->p_ts ) ||
-                     ( p_pids[i_pid].b_pes
+                     ( p_pid->b_pes
                         && (p_payload = ts_payload( p_ts->p_ts )) + 3
                              < p_ts->p_ts + TS_SIZE
                           && !pes_validate(p_payload) ) )

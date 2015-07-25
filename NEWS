@@ -13,6 +13,7 @@ Changes between 2.2 and 3.0:
   * Added support for multistream that appeared in Linux 3.6
   * Added support for Deltacast ASI cards
   * Added support for stream pass-through from the config file
+  * Added options to periodically print status of bitrate, errors and PIDs
 
 Changes between 2.1 and 2.2:
 ----------------------------

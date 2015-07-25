@@ -243,6 +243,8 @@ extern const char *psz_dvb_charset;
 extern enum print_type_t i_print_type;
 extern bool b_print_enabled;
 extern FILE *print_fh;
+extern mtime_t i_print_period;
+extern mtime_t i_es_timeout;
 
 /* pid mapping */
 extern bool b_do_remap;

@@ -100,6 +100,8 @@ const char *psz_provider_name = NULL;
 print_type_t i_print_type = PRINT_TEXT;
 bool b_print_enabled = false;
 FILE *print_fh;
+mtime_t i_print_period = 0;
+mtime_t i_es_timeout = 0;
 
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
@@ -541,7 +543,8 @@ void usage()
         "[-z] [-C [-e] [-M <network name>] [-N <network ID>]] [-T] [-j <system charset>] "
         "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] [-B <provider_name>] "
         "[-1 <mis_id>] [-2 <size>] [-5 <DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC>] -y <ca_dev_number> "
-        "[-J <DVB charset>] [-Q <quit timeout>] [-0 pid_mapping] [-x <text|xml>]" );
+        "[-J <DVB charset>] [-Q <quit timeout>] [-0 pid_mapping] [-x <text|xml>]"
+        "[-6 <print period>] [-7 <ES timeout>]" );
 
     msg_Raw( NULL, "Input:" );
 #ifdef HAVE_ASI_SUPPORT
@@ -615,6 +618,8 @@ void usage()
     msg_Raw( NULL, "  -x --print            print interesting events on stdout in a given format" );
     msg_Raw( NULL, "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
+    msg_Raw( NULL, "  -6 --print-period     periodicity at which we print bitrate and errors (in ms)" );
+    msg_Raw( NULL, "  -7 --es-timeout       time of inactivy before which a PID is reported down (in ms)" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
     msg_Raw( NULL, "  -Z --mrtg-file <file> Log input packets and errors into mrtg-file" );
     msg_Raw( NULL, "  -V --version          only display the version" );
@@ -641,7 +646,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: 46789
+     * The only short options left are: 489
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -696,6 +701,8 @@ int main( int i_argc, char **pp_argv )
         { "logger-ident",    required_argument, NULL, 'g' },
         { "print",           required_argument, NULL, 'x' },
         { "quit-timeout",    required_argument, NULL, 'Q' },
+        { "print-period",    required_argument, NULL, '6' },
+        { "es-timeout",      required_argument, NULL, '7' },
         { "quiet",           no_argument,       NULL, 'q' },
         { "help",            no_argument,       NULL, 'h' },
         { "version",         no_argument,       NULL, 'V' },
@@ -706,7 +713,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:3D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:1:2:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:3D:A:lg:zCWYeM:N:j:J:B:x:Q:6:7:hVZ:y:0:1:2:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -1001,6 +1008,14 @@ int main( int i_argc, char **pp_argv )
 
         case 'Q':
             i_quit_timeout_duration = strtoll( optarg, NULL, 0 ) * 1000;
+            break;
+
+        case '6':
+            i_print_period = strtoll( optarg, NULL, 0 ) * 1000;
+            break;
+
+        case '7':
+            i_es_timeout = strtoll( optarg, NULL, 0 ) * 1000;
             break;
 
         case 'V':

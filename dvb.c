@@ -73,7 +73,7 @@ int i_dvr_buffer_size = DVR_BUFFER_SIZE;
 
 static int i_frontend, i_dvr;
 static struct ev_io frontend_watcher, dvr_watcher;
-static struct ev_timer lock_watcher, mute_watcher;
+static struct ev_timer lock_watcher, mute_watcher, print_watcher;
 static fe_status_t i_last_status;
 static block_t *p_freelist = NULL;
 
@@ -276,6 +276,36 @@ void dvb_UnsetFilter( int i_fd, uint16_t i_pid )
  */
 
 /*****************************************************************************
+ * Print info
+ *****************************************************************************/
+static void PrintCb( struct ev_loop *loop, struct ev_timer *w, int revents )
+{
+    uint32_t i_ber = 0;
+    uint16_t i_strength = 0, i_snr = 0;
+    uint32_t i_uncorrected = 0;
+
+    ioctl(i_frontend, FE_READ_BER, &i_ber);
+    ioctl(i_frontend, FE_READ_SIGNAL_STRENGTH, &i_strength);
+    ioctl(i_frontend, FE_READ_SNR, &i_snr);
+    ioctl(i_frontend, FE_READ_UNCORRECTED_BLOCKS, &i_uncorrected);
+
+    switch (i_print_type)
+    {
+        case PRINT_XML:
+            fprintf(print_fh,
+                    "<STATUS type=\"frontend\" ber=\"%"PRIu32"\" strength=\"%"PRIu16"\" snr=\"%"PRIu16"\" uncorrected=\"%"PRIu32"\" />\n",
+                    i_ber, i_strength, i_snr, i_uncorrected);
+            break;
+        case PRINT_TEXT:
+            fprintf(print_fh, "frontend ber: %"PRIu32" strength: %"PRIu16" snr: %"PRIu16" uncorrected: %"PRIu32"\n",
+                    i_ber, i_strength, i_snr, i_uncorrected);
+            break;
+        default:
+            break;
+    }
+}
+
+/*****************************************************************************
  * Frontend events
  *****************************************************************************/
 static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
@@ -353,6 +383,14 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
                     msg_Dbg( NULL, "- Signal strength: %d", i_value );
                 if( ioctl( i_frontend, FE_READ_SNR, &i_value ) >= 0 )
                     msg_Dbg( NULL, "- SNR: %d", i_value );
+
+                if (i_print_period)
+                {
+                    ev_timer_init( &print_watcher, PrintCb,
+                                   i_print_period / 1000000.,
+                                   i_print_period / 1000000. );
+                    ev_timer_start( event_loop, &print_watcher );
+                }
             }
             else
             {
@@ -373,6 +411,9 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
                     ev_timer_stop(event_loop, &lock_watcher);
                     ev_timer_again(loop, &mute_watcher);
                 }
+
+                if (i_print_period)
+                    ev_timer_stop(event_loop, &print_watcher);
             }
 
             IF_UP( FE_REINIT )
