@@ -14,6 +14,8 @@ Changes between 2.2 and 3.0:
   * Added support for Deltacast ASI cards
   * Added support for stream pass-through from the config file
   * Added options to periodically print status of bitrate, errors and PIDs
+  * Added output options to set network ID and network name
+  * Switch default string charset to UTF-8
 
 Changes between 2.1 and 2.2:
 ----------------------------

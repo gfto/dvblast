@@ -89,14 +89,9 @@ int b_budget_mode = 0;
 int b_any_type = 0;
 int b_select_pmts = 0;
 int b_random_tsid = 0;
-uint16_t i_network_id = 0xffff;
-uint8_t *p_network_name;
-size_t i_network_name_size;
 char *psz_udp_src = NULL;
 int i_asi_adapter = 0;
 const char *psz_native_charset = "UTF-8";
-const char *psz_dvb_charset = "ISO-8859-1";
-const char *psz_provider_name = NULL;
 print_type_t i_print_type = PRINT_TEXT;
 bool b_print_enabled = false;
 FILE *print_fh;
@@ -118,6 +113,12 @@ static mtime_t i_latency_global = DEFAULT_OUTPUT_LATENCY;
 static mtime_t i_retention_global = DEFAULT_MAX_RETENTION;
 static int i_ttl_global = 64;
 
+static const char *psz_dvb_charset = "UTF-8";
+static iconv_t conf_iconv = (iconv_t)-1;
+static uint16_t i_network_id = 0xffff;
+static dvb_string_t network_name;
+static dvb_string_t provider_name;
+
 /* TPS Input log filename */
 char * psz_mrtg_file = NULL;
 
@@ -138,8 +139,10 @@ void config_Init( output_config_t *p_config )
     memset( p_config, 0, sizeof(output_config_t) );
 
     p_config->psz_displayname = NULL;
-    p_config->psz_service_name = NULL;
-    p_config->psz_service_provider = NULL;
+    p_config->i_network_id = i_network_id;
+    dvb_string_init(&p_config->network_name);
+    dvb_string_init(&p_config->service_name);
+    dvb_string_init(&p_config->provider_name);
     p_config->psz_srcaddr = NULL;
 
     p_config->i_family = AF_UNSPEC;
@@ -160,8 +163,9 @@ void config_Init( output_config_t *p_config )
 void config_Free( output_config_t *p_config )
 {
     free( p_config->psz_displayname );
-    free( p_config->psz_service_name );
-    free( p_config->psz_service_provider );
+    dvb_string_clean( &p_config->network_name );
+    dvb_string_clean( &p_config->service_name );
+    dvb_string_clean( &p_config->provider_name );
     free( p_config->pi_pids );
     free( p_config->psz_srcaddr );
 }
@@ -178,9 +182,11 @@ static void config_Defaults( output_config_t *p_config )
     p_config->i_tsid = -1;
     p_config->i_ttl = i_ttl_global;
     memcpy( p_config->pi_ssrc, pi_ssrc_global, 4 * sizeof(uint8_t) );
+    dvb_string_copy(&p_config->network_name, &network_name);
+    dvb_string_copy(&p_config->provider_name, &provider_name);
 }
 
-char *config_stropt( char *psz_string )
+char *config_stropt( const char *psz_string )
 {
     char *ret, *tmp;
     if ( !psz_string || strlen( psz_string ) == 0 )
@@ -198,7 +204,56 @@ char *config_stropt( char *psz_string )
     return ret;
 }
 
-bool config_ParseHost( output_config_t *p_config, char *psz_string )
+static char *config_striconv( const char *psz_string )
+{
+    char *psz_input = config_stropt(psz_string);
+
+    if ( !strcasecmp( psz_native_charset, psz_dvb_charset ) )
+        return psz_input;
+
+#ifdef HAVE_ICONV
+    if ( conf_iconv == (iconv_t)-1 )
+    {
+        conf_iconv = iconv_open( psz_dvb_charset, psz_native_charset );
+        if ( conf_iconv == (iconv_t)-1 )
+            return psz_input;
+    }
+
+    size_t i_input = strlen( psz_input );
+    size_t i_output = i_input * 6;
+    char *psz_output = malloc( i_output );
+    char *p = psz_output;
+    if ( iconv( conf_iconv, &psz_input, &i_input, &p, &i_output ) == -1 )
+    {
+        free( psz_output );
+        return psz_input;
+    }
+
+    free(psz_input);
+    return psz_output;
+#else
+    msg_Warn( NULL,
+              "unable to convert from %s to %s (iconv is not available)",
+              psz_native_charset, psz_dvb_charset );
+    return psz_input;
+#endif
+}
+
+static void config_strdvb( dvb_string_t *p_dvb_string, const char *psz_string )
+{
+    if (psz_string == NULL)
+    {
+        dvb_string_init(p_dvb_string);
+        return;
+    }
+
+    char *psz_iconv = config_striconv(psz_string);
+    dvb_string_clean(p_dvb_string);
+    p_dvb_string->p = dvb_string_set((uint8_t *)psz_iconv, strlen(psz_iconv),
+                                     psz_dvb_charset, &p_dvb_string->i);
+}
+
+static bool config_ParseHost( output_config_t *p_config, char *psz_string )
 {
     struct addrinfo *p_ai;
     int i_mtu;
@@ -255,15 +310,19 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
             p_config->i_mtu = strtol( ARG_OPTION("mtu="), NULL, 0 );
         else if ( IS_OPTION("ifindex=") )
             p_config->i_if_index_v6 = strtol( ARG_OPTION("ifindex="), NULL, 0 );
+        else if ( IS_OPTION("networkid=") )
+            p_config->i_network_id = strtol( ARG_OPTION("networkid="), NULL, 0 );
+        else if ( IS_OPTION("networkname=")  )
+        {
+            config_strdvb( &p_config->network_name, ARG_OPTION("networkname=") );
+        }
         else if ( IS_OPTION("srvname=")  )
         {
-            free( p_config->psz_service_name );
-            p_config->psz_service_name = config_stropt( ARG_OPTION("srvname=") );
+            config_strdvb( &p_config->service_name, ARG_OPTION("srvname=") );
         }
         else if ( IS_OPTION("srvprovider=") )
         {
-            free( p_config->psz_service_provider );
-            p_config->psz_service_provider = config_stropt( ARG_OPTION("srvprovider=") );
+            config_strdvb( &p_config->provider_name, ARG_OPTION("srvprovider=") );
         }
         else if ( IS_OPTION("srcaddr=") )
         {
@@ -306,9 +365,6 @@ bool config_ParseHost( output_config_t *p_config, char *psz_string )
 #undef IS_OPTION
 #undef ARG_OPTION
     }
-
-    if ( !p_config->psz_service_provider && psz_provider_name )
-        p_config->psz_service_provider = strdup( psz_provider_name );
 
 end:
     i_mtu = p_config->i_family == AF_INET6 ? DEFAULT_IPV6_MTU :
@@ -612,7 +668,7 @@ void usage()
     msg_Raw( NULL, "  -h --help             display this full help" );
     msg_Raw( NULL, "  -i --priority <RT priority>" );
     msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8)" );
-    msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default ISO-8859-1)" );
+    msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default UTF-8)" );
     msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
     msg_Raw( NULL, "  -g --logger-ident     program name that will be used in syslog messages" );
     msg_Raw( NULL, "  -x --print            print interesting events on stdout in a given format" );
@@ -629,8 +685,7 @@ void usage()
 int main( int i_argc, char **pp_argv )
 {
     const char *psz_network_name = "DVBlast - http://www.videolan.org/projects/dvblast.html";
-    char *p_network_name_tmp = NULL;
-    size_t i_network_name_tmp_size;
+    const char *psz_provider_name = NULL;
     char *psz_dup_config = NULL;
     struct sched_param param;
     int i_error;
@@ -1121,42 +1176,8 @@ int main( int i_argc, char **pp_argv )
         config_Free( &config );
     }
 
-    if ( strcasecmp( psz_native_charset, psz_dvb_charset ) )
-    {
-#ifdef HAVE_ICONV
-        iconv_t iconv_system = iconv_open( psz_dvb_charset,
-                                           psz_native_charset );
-        if ( iconv_system != (iconv_t)-1 )
-        {
-            size_t i = strlen( psz_network_name );
-            char *p, *psz_string;
-            i_network_name_tmp_size = i * 6;
-            p = psz_string = malloc(i_network_name_tmp_size);
-            if ( iconv( iconv_system, (char **)&psz_network_name, &i, &p,
-                        &i_network_name_tmp_size ) == -1 )
-                free( psz_string );
-            else
-            {
-                p_network_name_tmp = psz_string;
-                i_network_name_tmp_size = p - psz_string;
-            }
-            iconv_close( iconv_system );
-        }
-#else
-        msg_Warn( NULL,
-                  "unable to convert from %s to %s (iconv is not available)",
-                  psz_native_charset, psz_dvb_charset );
-#endif
-    }
-    if ( p_network_name_tmp == NULL )
-    {
-        p_network_name_tmp = strdup(psz_network_name);
-        i_network_name_tmp_size = strlen(psz_network_name);
-    }
-    p_network_name = dvb_string_set( (uint8_t *)p_network_name_tmp,
-                                     i_network_name_tmp_size, psz_dvb_charset,
-                                     &i_network_name_size );
-    free( p_network_name_tmp );
+    config_strdvb( &network_name, psz_network_name );
+    config_strdvb( &provider_name, psz_provider_name );
 
     /* Set signal handlers */
     signal_watcher_init(&sigint_watcher, event_loop, sighandler, SIGINT);
@@ -1201,7 +1222,10 @@ int main( int i_argc, char **pp_argv )
     mrtgClose();
     outputs_Close( i_nb_outputs );
     demux_Close();
-    free( p_network_name );
+    dvb_string_clean( &network_name );
+    dvb_string_clean( &provider_name );
+    if ( conf_iconv != (iconv_t)-1 )
+        iconv_close( conf_iconv );
 
     switch (i_print_type)
     {

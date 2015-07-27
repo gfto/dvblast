@@ -111,6 +111,12 @@ typedef struct block_t
 
 typedef struct packet_t packet_t;
 
+typedef struct dvb_string_t
+{
+    uint8_t *p;
+    size_t i;
+} dvb_string_t;
+
 typedef struct output_config_t
 {
     /* identity */
@@ -124,8 +130,10 @@ typedef struct output_config_t
     uint64_t i_config;
 
     /* output config */
-    char *psz_service_name;
-    char *psz_service_provider;
+    uint16_t i_network_id;
+    dvb_string_t network_name;
+    dvb_string_t service_name;
+    dvb_string_t provider_name;
     uint8_t pi_ssrc[4];
     mtime_t i_output_latency, i_max_retention;
     int i_ttl;
@@ -230,16 +238,12 @@ extern int b_budget_mode;
 extern int b_any_type;
 extern int b_select_pmts;
 extern int b_random_tsid;
-extern uint16_t i_network_id;
-extern uint8_t *p_network_name;
-extern size_t i_network_name_size;
 extern bool b_enable_emm;
 extern bool b_enable_ecm;
 extern mtime_t i_wallclock;
 extern char *psz_udp_src;
 extern int i_asi_adapter;
 extern const char *psz_native_charset;
-extern const char *psz_dvb_charset;
 extern enum print_type_t i_print_type;
 extern bool b_print_enabled;
 extern FILE *print_fh;
@@ -262,7 +266,6 @@ extern void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid );
 
 void config_Init( output_config_t *p_config );
 void config_Free( output_config_t *p_config );
-bool config_ParseHost( output_config_t *p_config, char *psz_string );
 
 /* Connect/Disconnect from syslogd */
 void msg_Connect( const char *ident );
@@ -278,12 +281,18 @@ __attribute__ ((format(printf, 2, 3))) void msg_Raw( void *_unused, const char *
 /* */
 bool streq(char *a, char *b);
 char * xstrdup(char *str);
+
+void dvb_string_init(dvb_string_t *p_dvb_string);
+void dvb_string_clean(dvb_string_t *p_dvb_string);
+void dvb_string_copy(dvb_string_t *p_dst, const dvb_string_t *p_src);
+int dvb_string_cmp(const dvb_string_t *p_1, const dvb_string_t *p_2);
+
 mtime_t mdate( void );
 void msleep( mtime_t delay );
 void hexDump( uint8_t *p_data, uint32_t i_len );
 struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
                                    uint16_t i_default_port );
-char *config_stropt( char *psz_string );
+char *config_stropt( const char *psz_string );
 void config_ReadFile(void);
 
 uint8_t *psi_pack_section( uint8_t *p_sections, unsigned int *pi_size );

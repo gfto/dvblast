@@ -746,9 +746,12 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     bool b_pid_change = false, b_tsid_change = false;
     bool b_dvb_change = !!((p_output->config.i_config ^ p_config->i_config)
                              & OUTPUT_DVB);
+    bool b_network_change =
+        (dvb_string_cmp(&p_output->config.network_name, &p_config->network_name) ||
+         p_output->config.i_network_id != p_config->i_network_id);
     bool b_service_name_change =
-        (!streq(p_output->config.psz_service_name, p_config->psz_service_name) ||
-         !streq(p_output->config.psz_service_provider, p_config->psz_service_provider));
+        (dvb_string_cmp(&p_output->config.service_name, &p_config->service_name) ||
+         dvb_string_cmp(&p_output->config.provider_name, &p_config->provider_name));
     bool b_remap_change = p_output->config.i_new_sid != p_config->i_new_sid ||
         p_output->config.b_do_remap != p_config->b_do_remap ||
         p_output->config.pi_confpids[I_PMTPID] != p_config->pi_confpids[I_PMTPID] ||
@@ -758,16 +761,22 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     int i;
 
     p_output->config.i_config = p_config->i_config;
+    p_output->config.i_network_id = p_config->i_network_id;
     p_output->config.i_new_sid = p_config->i_new_sid;
     p_output->config.b_do_remap = p_config->b_do_remap;
     memcpy(p_output->config.pi_confpids, p_config->pi_confpids,
            sizeof(uint16_t) * N_MAP_PIDS);
 
-    /* Change output settings related to service_name and service_provider . */
-    free( p_output->config.psz_service_name );
-    free( p_output->config.psz_service_provider );
-    p_output->config.psz_service_name = xstrdup( p_config->psz_service_name );
-    p_output->config.psz_service_provider = xstrdup( p_config->psz_service_provider );
+    /* Change output settings related to names. */
+    dvb_string_clean( &p_output->config.network_name );
+    dvb_string_clean( &p_output->config.service_name );
+    dvb_string_clean( &p_output->config.provider_name );
+    dvb_string_copy( &p_output->config.network_name,
+                     &p_config->network_name );
+    dvb_string_copy( &p_output->config.service_name,
+                     &p_config->service_name );
+    dvb_string_copy( &p_output->config.provider_name,
+                     &p_config->provider_name );
 
     if ( p_config->i_tsid != -1 && p_output->config.i_tsid != p_config->i_tsid )
     {
@@ -895,12 +904,14 @@ out_change:
             NewNIT( p_output );
             NewPAT( p_output );
         }
+        else if ( b_network_change )
+            NewNIT( p_output );
+
+        if ( !b_tsid_change && b_service_name_change )
+            NewSDT( p_output );
 
         if ( b_pid_change )
             NewPMT( p_output );
-
-        if ( !b_sid_change && b_service_name_change )
-            NewSDT( p_output );
     }
 }
 
@@ -1594,13 +1605,13 @@ static void NewNIT( output_t *p_output )
     p = p_output->p_nit_section = psi_allocate();
     nit_init( p, true );
     nit_set_length( p, PSI_MAX_SIZE );
-    nit_set_nid( p, i_network_id );
+    nit_set_nid( p, p_output->config.i_network_id );
     psi_set_version( p, p_output->i_nit_version );
     psi_set_current( p );
     psi_set_section( p, 0 );
     psi_set_lastsection( p, 0 );
 
-    if ( p_network_name != NULL )
+    if ( p_output->config.network_name.i )
     {
         uint8_t *p_descs;
         uint8_t *p_desc;
@@ -1608,7 +1619,8 @@ static void NewNIT( output_t *p_output )
         p_descs = nit_get_descs( p );
         p_desc = descs_get_desc( p_descs, 0 );
         desc40_init( p_desc );
-        desc40_set_networkname( p_desc, p_network_name, i_network_name_size );
+        desc40_set_networkname( p_desc, p_output->config.network_name.p,
+                                p_output->config.network_name.i );
         p_desc = descs_get_desc( p_descs, 1 );
         descs_set_length( p_descs, p_desc - p_descs - DESCS_HEADER_SIZE );
     }
@@ -1622,7 +1634,7 @@ static void NewNIT( output_t *p_output )
     p_ts = nit_get_ts( p, 0 );
     nitn_init( p_ts );
     nitn_set_tsid( p_ts, p_output->i_tsid );
-    nitn_set_onid( p_ts, i_network_id );
+    nitn_set_onid( p_ts, p_output->config.i_network_id );
     nitn_set_desclength( p_ts, 0 );
 
     p_ts = nit_get_ts( p, 1 );
@@ -1702,10 +1714,8 @@ static void NewSDT( output_t *p_output )
     /* Do not set free_ca */
     sdtn_set_desclength( p_service, sdtn_get_desclength(p_current_service) );
 
-    char *p_new_provider = p_output->config.psz_service_provider;
-    char *p_new_service  = p_output->config.psz_service_name;
-
-    if ( !p_new_provider && !p_new_service ) {
+    if ( !p_output->config.provider_name.i &&
+         !p_output->config.service_name.i ) {
         /* Copy all descriptors unchanged */
         memcpy( descs_get_desc( sdtn_get_descs(p_service), 0 ),
                 descs_get_desc( sdtn_get_descs(p_current_service), 0 ),
@@ -1721,29 +1731,34 @@ static void NewSDT( output_t *p_output )
             {
                 uint8_t i_old_provider_len, i_old_service_len;
                 uint8_t i_new_desc_len = 3; /* 1 byte - type, 1 byte provider_len, 1 byte service_len */
-                char *p_new_provider = p_output->config.psz_service_provider;
-                char *p_new_service  = p_output->config.psz_service_name;
                 const uint8_t *p_old_provider = desc48_get_provider( p_desc, &i_old_provider_len );
                 const uint8_t *p_old_service = desc48_get_service( p_desc, &i_old_service_len );
 
                 desc48_init( p_new_desc );
                 desc48_set_type( p_new_desc, desc48_get_type( p_desc ) );
 
-                if ( p_new_provider ) {
-                    desc48_set_provider( p_new_desc, (uint8_t *)p_new_provider, strlen( p_new_provider ) );
-                    i_new_desc_len += strlen( p_new_provider );
+                if ( p_output->config.provider_name.i ) {
+                    desc48_set_provider( p_new_desc,
+                            p_output->config.provider_name.p,
+                            p_output->config.provider_name.i );
+                    i_new_desc_len += p_output->config.provider_name.i;
                 } else {
-                    desc48_set_provider( p_new_desc, p_old_provider, i_old_provider_len );
+                    desc48_set_provider( p_new_desc, p_old_provider,
+                            i_old_provider_len );
                     i_new_desc_len += i_old_provider_len;
                 }
 
-                if ( p_new_service ) {
-                    desc48_set_service( p_new_desc, (uint8_t *)p_new_service, strlen( p_new_service ) );
-                    i_new_desc_len += strlen( p_new_service );
+                if ( p_output->config.service_name.i ) {
+                    desc48_set_service( p_new_desc,
+                            p_output->config.service_name.p,
+                            p_output->config.service_name.i );
+                    i_new_desc_len += p_output->config.service_name.i;
                 } else {
-                    desc48_set_service( p_new_desc, p_old_service, i_old_service_len );
+                    desc48_set_service( p_new_desc, p_old_service,
+                            i_old_service_len );
                     i_new_desc_len += i_old_service_len;
                 }
+
                 desc_set_length( p_new_desc, i_new_desc_len );
                 i_total_desc_len += DESC_HEADER_SIZE + i_new_desc_len;
                 p_new_desc += DESC_HEADER_SIZE + i_new_desc_len;
