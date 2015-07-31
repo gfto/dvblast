@@ -694,7 +694,6 @@ int main( int i_argc, char **pp_argv )
     struct ev_signal sigint_watcher, sigterm_watcher, sighup_watcher;
     struct ev_timer quit_watcher;
 
-    event_loop = EV_DEFAULT;
     print_fh = stdout;
 
     if ( i_argc == 1 )
@@ -1157,6 +1156,12 @@ int main( int i_argc, char **pp_argv )
     {
         msg_Dbg( NULL, "turning on DVB compliance, required by EPG information" );
         b_dvb_global = true;
+    }
+
+    if ((event_loop = ev_default_loop(0)) == NULL)
+    {
+        msg_Err( NULL, "unable to initialize libev" );
+        exit(EXIT_FAILURE);
     }
 
     memset( &output_dup, 0, sizeof(output_dup) );
