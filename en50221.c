@@ -1949,6 +1949,9 @@ static void ResetSlotCb(struct ev_loop *loop, struct ev_timer *w, int revents)
     ci_slot_t *p_slot = container_of(w, ci_slot_t, init_watcher);
     int i_slot = p_slot - &p_slots[0];
 
+    if ( p_slot->b_active || !p_slot->b_expect_answer )
+        return;
+
     msg_Warn( NULL, "no answer from CAM, resetting slot %d",
               i_slot );
     switch (i_print_type) {
