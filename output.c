@@ -547,7 +547,8 @@ static void outputs_Send(struct ev_loop *loop, struct ev_timer *w, int revents)
                 output_Flush( &output_dup );
 
             if ( output_dup.p_packets != NULL )
-                i_next_send = output_dup.p_packets->i_dts;
+                i_next_send = output_dup.p_packets->i_dts
+                                + output_dup.config.i_output_latency;
         }
 
         for ( i = 0; i < i_nb_outputs; i++ )
