@@ -16,6 +16,7 @@ Changes between 2.2 and 3.0:
   * Added options to periodically print status of bitrate, errors and PIDs
   * Added output options to set network ID and network name
   * Switch default string charset to UTF-8
+  * Do not remove padding with ASI
 
 Changes between 2.1 and 2.2:
 ----------------------------

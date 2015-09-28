@@ -171,7 +171,6 @@ void asi_Open( void )
     memset( p_pid_filter, 0x0, sizeof(p_pid_filter) );
 #else
     memset( p_pid_filter, 0xff, sizeof(p_pid_filter) );
-    p_pid_filter[8191 / 8] &= ~(0x01 << (8191 % 8)); /* padding */
 #endif
     if ( ioctl( i_handle, ASI_IOC_RXSETPF, p_pid_filter ) < 0 )
     {
