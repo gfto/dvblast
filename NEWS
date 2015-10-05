@@ -3,24 +3,23 @@ Changes between 2.2 and 3.0:
 ----------------------------
   * Rewrite core to use libev event loop
   * Optimize allocations with a buffer pool
-  * Added support for building DVBlast on OS X
-  * Added support for uncommitted diseqc switches
-  * Fixed ECM pid selection
-  * Added CA device addressing
-  * Added support for remapping ES pids to fixed values
-    globally and per output
-  * Added support for multi-delivery system frontends
-  * Added support for multistream that appeared in Linux 3.6
-  * Added support for Deltacast ASI cards
-  * Added support for stream pass-through from the config file
-  * Added options to periodically print status of bitrate, errors and PIDs
-  * Added output options to set network ID and network name
+  * Add support for building DVBlast on OS X
+  * Add support for uncommitted diseqc switches
+  * Fix ECM pid selection
+  * Add CA device addressing
+  * Add support for remapping ES pids to fixed values globally and per output
+  * Add support for multi-delivery system frontends
+  * Add support for multistream that appeared in Linux 3.6
+  * Add support for Deltacast ASI cards
+  * Add support for stream pass-through from the config file
+  * Add options to periodically print status of bitrate, errors and PIDs
+  * Add output options to set network ID and network name
   * Switch default string charset to UTF-8
   * Do not remove padding with ASI
 
 Changes between 2.1 and 2.2:
 ----------------------------
-  * Fixed a regression that prevented ECM pass-through (-Y) from working.
+  * Fix a regression that prevented ECM pass-through (-Y) from working.
   * Handle ECM pids that are described in PMT ES descriptor loop.
 
 Changes between 2.0 and 2.1:
