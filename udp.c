@@ -49,6 +49,7 @@
  * Local declarations
  *****************************************************************************/
 #define UDP_LOCK_TIMEOUT 5000000 /* 5 s */
+#define PRINT_REFRACTORY_PERIOD 1000000 /* 1 s */
 
 static int i_handle;
 static struct ev_io udp_watcher;
@@ -58,6 +59,8 @@ static int i_block_cnt;
 static uint8_t pi_ssrc[4] = { 0, 0, 0, 0 };
 static uint16_t i_seqnum = 0;
 static bool b_sync = false;
+static mtime_t i_last_print = 0;
+static struct sockaddr_storage last_addr;
 
 /*****************************************************************************
  * Local prototypes
@@ -276,6 +279,7 @@ void udp_Open( void )
 
     ev_timer_init(&mute_watcher, udp_MuteCb,
                   UDP_LOCK_TIMEOUT / 1000000., UDP_LOCK_TIMEOUT / 1000000.);
+    memset(&last_addr, 0, sizeof(last_addr));
 }
 
 /*****************************************************************************
@@ -283,6 +287,47 @@ void udp_Open( void )
  *****************************************************************************/
 static void udp_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 {
+    i_wallclock = mdate();
+    if ( i_last_print + PRINT_REFRACTORY_PERIOD < i_wallclock )
+    {
+        i_last_print = i_wallclock;
+
+        struct sockaddr_storage addr;
+        struct msghdr mh = {
+            .msg_name = &addr,
+            .msg_namelen = sizeof(addr),
+            .msg_iov = NULL,
+            .msg_iovlen = 0,
+            .msg_control = NULL,
+            .msg_controllen = 0,
+            .msg_flags = 0
+        };
+        if ( recvmsg( i_handle, &mh, MSG_DONTWAIT | MSG_PEEK ) != -1 &&
+             mh.msg_namelen >= sizeof(struct sockaddr) )
+        {
+            char psz_addr[256], psz_port[42];
+            if ( memcmp( &addr, &last_addr, mh.msg_namelen ) &&
+                 getnameinfo( (const struct sockaddr *)&addr, mh.msg_namelen,
+                     psz_addr, sizeof(psz_addr), psz_port, sizeof(psz_port),
+                     NI_DGRAM | NI_NUMERICHOST | NI_NUMERICSERV ) == 0 )
+            {
+                memcpy( &last_addr, &addr, mh.msg_namelen );
+
+                msg_Info( NULL, "source: %s:%s", psz_addr, psz_port );
+                switch (i_print_type) {
+                case PRINT_XML:
+                    fprintf(print_fh, "<STATUS type=\"source\" address=\"%s\" port=\"%s\"/>\n", psz_addr, psz_port);
+                    break;
+                case PRINT_TEXT:
+                    fprintf(print_fh, "source status: %s:%s\n", psz_addr, psz_port);
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+    }
+
     struct iovec p_iov[i_block_cnt + 1];
     block_t *p_ts, **pp_current = &p_ts;
     int i_iov, i_block;
