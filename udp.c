@@ -383,11 +383,11 @@ static void udp_Read(struct ev_loop *loop, struct ev_io *w, int revents)
             switch (i_print_type) {
             case PRINT_XML:
                 fprintf(print_fh,
-                        "<STATUS type=\"source\" source=\"%s\"/>\n",
+                        "<STATUS type=\"rtpsource\" source=\"%s\"/>\n",
                         inet_ntoa( addr ));
                 break;
             case PRINT_TEXT:
-                fprintf(print_fh, "source: %s\n", inet_ntoa( addr ) );
+                fprintf(print_fh, "rtpsource: %s\n", inet_ntoa( addr ) );
                 break;
             default:
                 break;
