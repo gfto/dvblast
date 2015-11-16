@@ -608,7 +608,7 @@ void usage()
 #endif
 #ifdef HAVE_DVB_SUPPORT
     msg_Raw( NULL, "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
-    msg_Raw( NULL, "  -b --bandwidth        frontend bandwith" );
+    msg_Raw( NULL, "  -b --bandwidth        frontend bandwidth" );
 #endif
     msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
 #ifdef HAVE_DVB_SUPPORT
