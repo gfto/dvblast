@@ -55,11 +55,11 @@ all: dvblast dvblastctl
 
 dvblast: $(OBJ_DVBLAST)
 	@echo "LINK    $@"
-	$(Q)$(CROSS)$(CC) -o $@ $(OBJ_DVBLAST) $(LDLIBS_DVBLAST) $(LDLIBS)
+	$(Q)$(CROSS)$(CC) $(LDFLAGS) -o $@ $(OBJ_DVBLAST) $(LDLIBS_DVBLAST) $(LDLIBS)
 
 dvblastctl: $(OBJ_DVBLASTCTL)
 	@echo "LINK    $@"
-	$(Q)$(CROSS)$(CC) -o $@ $(OBJ_DVBLASTCTL) $(LDLIBS)
+	$(Q)$(CROSS)$(CC) $(LDFLAGS) -o $@ $(OBJ_DVBLASTCTL) $(LDLIBS)
 
 clean:
 	@echo "CLEAN   $(CLEAN_OBJS)"
