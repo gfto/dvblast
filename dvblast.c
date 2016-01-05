@@ -67,6 +67,7 @@ int i_fenum = 0;
 int i_canum = 0;
 char *psz_delsys = NULL;
 int i_frequency = 0;
+int dvb_plp_id = 0;
 int i_inversion = -1;
 int i_srate = 27500000;
 int i_fec = 999;
@@ -598,7 +599,7 @@ void usage()
         "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-3] "
         "[-z] [-C [-e] [-M <network name>] [-N <network ID>]] [-T] [-j <system charset>] "
         "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] [-B <provider_name>] "
-        "[-1 <mis_id>] [-2 <size>] [-5 <DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC>] -y <ca_dev_number> "
+        "[-1 <mis_id>] [-2 <size>] [-5 <DVBS|DVBS2|DVBC_ANNEX_A|DVBT|DVBT2|ATSC>] -y <ca_dev_number> "
         "[-J <DVB charset>] [-Q <quit timeout>] [-0 pid_mapping] [-x <text|xml>]"
         "[-6 <print period>] [-7 <ES timeout>]" );
 
@@ -615,6 +616,7 @@ void usage()
     msg_Raw( NULL, "  -5 --delsys           delivery system" );
     msg_Raw( NULL, "    DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC (default guessed)");
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
+		msg_Raw( NULL, "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (for Russia special)" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
     msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
     msg_Raw( NULL, "  -I --inversion        Inversion (-1 auto, 0 off, 1 on)" );
@@ -713,6 +715,7 @@ int main( int i_argc, char **pp_argv )
         { "adapter",         required_argument, NULL, 'a' },
         { "frontend-number", required_argument, NULL, 'n' },
         { "delsys",          required_argument, NULL, '5' },
+				{ "dvb-plp-id",      required_argument, NULL, '9' },
         { "frequency",       required_argument, NULL, 'f' },
         { "fec-inner",       required_argument, NULL, 'F' },
         { "rolloff",         required_argument, NULL, 'R' },
@@ -767,7 +770,7 @@ int main( int i_argc, char **pp_argv )
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:3D:A:lg:zCWYeM:N:j:J:B:x:Q:6:7:hVZ:y:0:1:2:", long_options, NULL)) != -1 )
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:3D:A:lg:zCWYeM:N:j:J:B:x:Q:6:7:hVZ:y:0:1:2:9:", long_options, NULL)) != -1 )
     {
         switch ( c )
         {
@@ -840,7 +843,9 @@ int main( int i_argc, char **pp_argv )
         case '5':
             psz_delsys = optarg;
             break;
-
+				case '9':
+           dvb_plp_id = strtol( optarg, NULL, 0 );
+           break;
         case 'f':
             if (optarg && optarg[0] != '-')
                 i_frequency = strtol( optarg, NULL, 0 );

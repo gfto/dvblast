@@ -940,6 +940,27 @@ static struct dtv_property dvbt_cmdargs[] = {
     { .cmd = DTV_HIERARCHY,       .u.data = HIERARCHY_AUTO },
     { .cmd = DTV_TUNE },
 };
+
+static struct dtv_property dvbt2_cmdargs[] = {
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBT2 },
+    { .cmd = DTV_FREQUENCY,       .u.data = 0 },
+    { .cmd = DTV_MODULATION,      .u.data = QAM_AUTO },
+    { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
+    { .cmd = DTV_BANDWIDTH_HZ,    .u.data = 8000000 },
+    { .cmd = DTV_CODE_RATE_HP,    .u.data = FEC_AUTO },
+    { .cmd = DTV_CODE_RATE_LP,    .u.data = FEC_AUTO },
+    { .cmd = DTV_GUARD_INTERVAL,  .u.data = GUARD_INTERVAL_AUTO },
+    { .cmd = DTV_TRANSMISSION_MODE,.u.data = TRANSMISSION_MODE_AUTO },
+    { .cmd = DTV_HIERARCHY,       .u.data = HIERARCHY_AUTO },
+    { .cmd = DTV_STREAM_ID,      .u.data = 0 },
+    { .cmd = DTV_TUNE },
+};
+
+static struct dtv_properties dvbt2_cmdseq = {
+    .num = sizeof(dvbt2_cmdargs)/sizeof(struct dtv_property),
+    .props = dvbt2_cmdargs
+};
+
 static struct dtv_properties dvbt_cmdseq = {
     .num = sizeof(dvbt_cmdargs)/sizeof(struct dtv_property),
     .props = dvbt_cmdargs
@@ -972,6 +993,7 @@ static struct dtv_properties atsc_cmdseq = {
 #define ROLLOFF 8
 #define MIS 9
 #define HIERARCHY 9
+#define PLP_ID 10
 
 struct dtv_property pclear[] = {
     { .cmd = DTV_CLEAR },
@@ -1001,6 +1023,8 @@ FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
             return SYS_DVBC_ANNEX_B;
         if ( !strcasecmp( psz_delsys, "DVBT" ) )
             return SYS_DVBT;
+				if ( !strcasecmp( psz_delsys, "DVBT2" ) )
+           return SYS_DVBT2;
         if ( !strcasecmp( psz_delsys, "ATSC" ) )
             return SYS_ATSC;
         msg_Err( NULL, "unknown delivery system %s", psz_delsys );
@@ -1036,6 +1060,10 @@ FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
                 if ( i_frequency > 50000000 )
                     return SYS_DVBT;
                 break;
+						 case SYS_DVBT2:
+               if ( i_frequency > 50000000 && (dvb_plp_id) )
+                  return SYS_DVBT2;
+               break;
             default:
                 break;
         }
@@ -1151,7 +1179,27 @@ static void FrontendSet( bool b_init )
                  psz_modulation == NULL ? "qam_auto" : psz_modulation,
                  i_guard, i_transmission );
         break;
+		case SYS_DVBT2:
+        p = &dvbt2_cmdseq;
+       p->props[DELSYS].u.data = system;
+        p->props[FREQUENCY].u.data = i_frequency;
+        p->props[INVERSION].u.data = GetInversion();
+        if ( psz_modulation != NULL )
+            p->props[MODULATION].u.data = GetModulation();
+        p->props[BANDWIDTH].u.data = i_bandwidth * 1000000;
+        p->props[FEC_INNER].u.data = GetFECInner(info.caps);
+        p->props[FEC_LP].u.data = GetFECLP(info.caps);
+        p->props[GUARD].u.data = GetGuard();
+        p->props[TRANSMISSION].u.data = GetTransmission();
+        p->props[HIERARCHY].u.data = GetHierarchy();
+        p->props[PLP_ID].u.data = dvb_plp_id;
 
+        msg_Dbg( NULL, "tuning DVB-T2 frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d PLP_ID=%d ",
+									i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
+                 i_hierarchy,
+                 psz_modulation == NULL ? "qam_auto" : psz_modulation,
+                 i_guard, i_transmission, p->props[PLP_ID].u.data );
+        break;
 #if DVBAPI_VERSION >= 505
     case SYS_DVBC_ANNEX_A:
 #else

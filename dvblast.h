@@ -238,6 +238,7 @@ extern int b_budget_mode;
 extern int b_any_type;
 extern int b_select_pmts;
 extern int b_random_tsid;
+extern int dvb_plp_id;
 extern bool b_enable_emm;
 extern bool b_enable_ecm;
 extern mtime_t i_wallclock;
