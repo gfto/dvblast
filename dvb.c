@@ -1023,7 +1023,7 @@ FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
             return SYS_DVBC_ANNEX_B;
         if ( !strcasecmp( psz_delsys, "DVBT" ) )
             return SYS_DVBT;
-				if ( !strcasecmp( psz_delsys, "DVBT2" ) )
+        if ( !strcasecmp( psz_delsys, "DVBT2" ) )
            return SYS_DVBT2;
         if ( !strcasecmp( psz_delsys, "ATSC" ) )
             return SYS_ATSC;
@@ -1060,7 +1060,7 @@ FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
                 if ( i_frequency > 50000000 )
                     return SYS_DVBT;
                 break;
-						 case SYS_DVBT2:
+            case SYS_DVBT2:
                if ( i_frequency > 50000000 && (dvb_plp_id) )
                   return SYS_DVBT2;
                break;
@@ -1179,9 +1179,9 @@ static void FrontendSet( bool b_init )
                  psz_modulation == NULL ? "qam_auto" : psz_modulation,
                  i_guard, i_transmission );
         break;
-		case SYS_DVBT2:
+    case SYS_DVBT2:
         p = &dvbt2_cmdseq;
-       p->props[DELSYS].u.data = system;
+        p->props[DELSYS].u.data = system;
         p->props[FREQUENCY].u.data = i_frequency;
         p->props[INVERSION].u.data = GetInversion();
         if ( psz_modulation != NULL )
@@ -1195,7 +1195,7 @@ static void FrontendSet( bool b_init )
         p->props[PLP_ID].u.data = dvb_plp_id;
 
         msg_Dbg( NULL, "tuning DVB-T2 frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d PLP_ID=%d ",
-									i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
+                 i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
                  i_hierarchy,
                  psz_modulation == NULL ? "qam_auto" : psz_modulation,
                  i_guard, i_transmission, p->props[PLP_ID].u.data );

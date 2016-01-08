@@ -616,7 +616,7 @@ void usage()
     msg_Raw( NULL, "  -5 --delsys           delivery system" );
     msg_Raw( NULL, "    DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC (default guessed)");
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
-		msg_Raw( NULL, "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (for Russia special)" );
+    msg_Raw( NULL, "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (for Russia special)" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
     msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
     msg_Raw( NULL, "  -I --inversion        Inversion (-1 auto, 0 off, 1 on)" );
@@ -702,7 +702,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: 489
+     * The only short options left are: 48
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -715,7 +715,7 @@ int main( int i_argc, char **pp_argv )
         { "adapter",         required_argument, NULL, 'a' },
         { "frontend-number", required_argument, NULL, 'n' },
         { "delsys",          required_argument, NULL, '5' },
-				{ "dvb-plp-id",      required_argument, NULL, '9' },
+        { "dvb-plp-id",      required_argument, NULL, '9' },
         { "frequency",       required_argument, NULL, 'f' },
         { "fec-inner",       required_argument, NULL, 'F' },
         { "rolloff",         required_argument, NULL, 'R' },
@@ -843,9 +843,9 @@ int main( int i_argc, char **pp_argv )
         case '5':
             psz_delsys = optarg;
             break;
-				case '9':
-           dvb_plp_id = strtol( optarg, NULL, 0 );
-           break;
+        case '9':
+            dvb_plp_id = strtol( optarg, NULL, 0 );
+            break;
         case 'f':
             if (optarg && optarg[0] != '-')
                 i_frequency = strtol( optarg, NULL, 0 );
@@ -1112,7 +1112,7 @@ int main( int i_argc, char **pp_argv )
         case '2':
             i_dvr_buffer_size = strtol( optarg, NULL, 0 );
             if (!i_dvr_buffer_size)
-                usage();	// it exits
+                usage();  // it exits
             /* roundup to packet size */
             i_dvr_buffer_size += TS_SIZE - 1;
             i_dvr_buffer_size /= TS_SIZE;
