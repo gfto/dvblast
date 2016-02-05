@@ -753,6 +753,7 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
         (dvb_string_cmp(&p_output->config.service_name, &p_config->service_name) ||
          dvb_string_cmp(&p_output->config.provider_name, &p_config->provider_name));
     bool b_remap_change = p_output->config.i_new_sid != p_config->i_new_sid ||
+        p_output->config.i_onid != p_config->i_onid ||
         p_output->config.b_do_remap != p_config->b_do_remap ||
         p_output->config.pi_confpids[I_PMTPID] != p_config->pi_confpids[I_PMTPID] ||
         p_output->config.pi_confpids[I_APID] != p_config->pi_confpids[I_APID] ||
@@ -763,6 +764,7 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     p_output->config.i_config = p_config->i_config;
     p_output->config.i_network_id = p_config->i_network_id;
     p_output->config.i_new_sid = p_config->i_new_sid;
+    p_output->config.i_onid = p_config->i_onid;
     p_output->config.b_do_remap = p_config->b_do_remap;
     memcpy(p_output->config.pi_confpids, p_config->pi_confpids,
            sizeof(uint16_t) * N_MAP_PIDS);
