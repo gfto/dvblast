@@ -313,6 +313,8 @@ static bool config_ParseHost( output_config_t *p_config, char *psz_string )
             p_config->i_if_index_v6 = strtol( ARG_OPTION("ifindex="), NULL, 0 );
         else if ( IS_OPTION("networkid=") )
             p_config->i_network_id = strtol( ARG_OPTION("networkid="), NULL, 0 );
+        else if ( IS_OPTION("onid=") )
+            p_config->i_onid = strtol( ARG_OPTION("onid="), NULL, 0 );
         else if ( IS_OPTION("networkname=")  )
         {
             config_strdvb( &p_config->network_name, ARG_OPTION("networkname=") );

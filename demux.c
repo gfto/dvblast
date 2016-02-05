@@ -1634,7 +1634,10 @@ static void NewNIT( output_t *p_output )
     p_ts = nit_get_ts( p, 0 );
     nitn_init( p_ts );
     nitn_set_tsid( p_ts, p_output->i_tsid );
-    nitn_set_onid( p_ts, p_output->config.i_network_id );
+    if ( p_output->config.i_onid )
+        nitn_set_onid( p_ts, p_output->config.i_onid );
+    else
+        nitn_set_onid( p_ts, p_output->config.i_network_id );
     nitn_set_desclength( p_ts, 0 );
 
     p_ts = nit_get_ts( p, 1 );
@@ -1685,8 +1688,11 @@ static void NewSDT( output_t *p_output )
     psi_set_current( p );
     psi_set_section( p, 0 );
     psi_set_lastsection( p, 0 );
-    sdt_set_onid( p,
-        sdt_get_onid( psi_table_get_section( pp_current_sdt_sections, 0 ) ) );
+    if ( p_output->config.i_onid )
+        sdt_set_onid( p, p_output->config.i_onid );
+    else
+        sdt_set_onid( p,
+            sdt_get_onid( psi_table_get_section( pp_current_sdt_sections, 0 ) ) );
 
     p_service = sdt_get_service( p, 0 );
     sdtn_init( p_service );

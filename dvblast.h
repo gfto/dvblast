@@ -148,6 +148,7 @@ typedef struct output_config_t
     uint16_t *pi_pids;
     int i_nb_pids;
     uint16_t i_new_sid;
+    uint16_t i_onid;
     bool b_passthrough;
 
     /* for pidmap from config file */
