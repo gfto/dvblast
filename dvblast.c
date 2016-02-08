@@ -616,7 +616,7 @@ void usage()
     msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
 #ifdef HAVE_DVB_SUPPORT
     msg_Raw( NULL, "  -5 --delsys           delivery system" );
-    msg_Raw( NULL, "    DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC (default guessed)");
+    msg_Raw( NULL, "    DVBS|DVBS2|DVBC_ANNEX_A|DVBT|DVBT2|ATSC (default guessed)");
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
     msg_Raw( NULL, "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (for Russia special)" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
