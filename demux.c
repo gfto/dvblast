@@ -1104,6 +1104,7 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
     uint16_t i_pmt_pid, i_pcr_pid;
     uint8_t *p_es;
     uint8_t j;
+    const uint8_t *p_desc;
 
     if ( i_nb_pids || i_sid == 0 )
     {
@@ -1138,9 +1139,22 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
                                   (*pi_nb_wanted_pids + 1) * sizeof(uint16_t) );
             (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] = pmtn_get_pid( p_es );
         }
+
+        if ( b_enable_ecm )
+        {
+            uint8_t k = 0;
+
+            while ((p_desc = descs_get_desc( pmtn_get_descs( p_es ), k++ )) != NULL)
+            {
+                if ( desc_get_tag( p_desc ) != 0x09 || !desc09_validate( p_desc ) )
+                    continue;
+                *ppi_wanted_pids = realloc( *ppi_wanted_pids,
+                                      (*pi_nb_wanted_pids + 1) * sizeof(uint16_t) );
+                (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] =  desc09_get_pid( p_desc );
+            }
+        }
     }
 
-    const uint8_t *p_desc;
 
     if ( b_enable_ecm )
     {
