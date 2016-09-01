@@ -165,7 +165,7 @@ static uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
     switch ( i_stream_type )
     {
         case 0x03: /* audio MPEG-1 */
-        case 0x04: /* audio */
+        case 0x04: /* audio MPEG-2 */
         case 0x0f: /* audio AAC ADTS */
         case 0x11: /* audio AAC LATM */
         case 0x81: /* ATSC AC-3 */
@@ -176,9 +176,11 @@ static uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
                 i_newpid = p_output->config.pi_confpids[I_APID];
             break;
         case 0x01: /* video MPEG-1 */
-        case 0x02: /* video */
+        case 0x02: /* video MPEG-2 */
         case 0x10: /* video MPEG-4 */
         case 0x1b: /* video H264 */
+        case 0x24: /* video H265 */
+        case 0x42: /* video AVS */
             if ( b_do_remap )
                 i_newpid = pi_newpids[I_VPID];
             else
