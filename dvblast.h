@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvblast.h
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011, 2015 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2015-2016 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -181,6 +181,8 @@ typedef struct output_t
     block_t *p_eit_ts_buffer;
     uint8_t i_eit_ts_buffer_offset, i_eit_cc;
     uint16_t i_tsid;
+    /* incomplete PID (only PCR packets) */
+    uint16_t i_pcr_pid;
     // Arrays used for mapping pids.
     // newpids is indexed using the original pid
     uint16_t pi_newpids[MAX_PIDS];

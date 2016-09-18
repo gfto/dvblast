@@ -1,7 +1,7 @@
 /*****************************************************************************
  * output.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2010, 2015 VideoLAN
+ * Copyright (C) 2004, 2008-2010, 2015-2016 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -259,6 +259,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     p_output->p_eit_ts_buffer = NULL;
     if ( b_random_tsid )
         p_output->i_tsid = rand() & 0xffff;
+    p_output->i_pcr_pid = 0;
 
     /* Init the mapped pids to unused */
     init_pid_mapping( p_output );

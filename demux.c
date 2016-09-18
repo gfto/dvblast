@@ -1,7 +1,7 @@
 /*****************************************************************************
  * demux.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011, 2015 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2015-2016 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -127,12 +127,12 @@ static void SetPID_EMM( uint16_t i_pid );
 static void UnsetPID( uint16_t i_pid );
 static void StartPID( output_t *p_output, uint16_t i_pid );
 static void StopPID( output_t *p_output, uint16_t i_pid );
-static void SelectPID( uint16_t i_sid, uint16_t i_pid );
+static void SelectPID( uint16_t i_sid, uint16_t i_pid, bool b_pcr );
 static void UnselectPID( uint16_t i_sid, uint16_t i_pid );
 static void SelectPMT( uint16_t i_sid, uint16_t i_pid );
 static void UnselectPMT( uint16_t i_sid, uint16_t i_pid );
 static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
-                     uint16_t i_sid,
+                     uint16_t *pi_pcr_pid, uint16_t i_sid,
                      const uint16_t *pi_pids, int i_nb_pids );
 static bool SIDIsSelected( uint16_t i_sid );
 static bool PIDWouldBeSelected( uint8_t *p_es );
@@ -693,7 +693,11 @@ static void demux_Handle( block_t *p_ts )
                 }
             }
 
-            output_Put( p_output, p_ts );
+            if ( p_output->i_pcr_pid != i_pid
+                  || (ts_has_adaptation(p_ts->p_ts)
+                       && ts_get_adaptation(p_ts->p_ts)
+                       && tsaf_has_pcr(p_ts->p_ts)) )
+                output_Put( p_output, p_ts );
 
             if ( p_output->p_eit_ts_buffer != NULL
                   && p_ts->i_dts > p_output->p_eit_ts_buffer->i_dts
@@ -724,7 +728,7 @@ static void demux_Handle( block_t *p_ts )
 /*****************************************************************************
  * demux_Change : called from main thread
  *****************************************************************************/
-static int IsIn( uint16_t *pi_pids, int i_nb_pids, uint16_t i_pid )
+static bool IsIn( const uint16_t *pi_pids, int i_nb_pids, uint16_t i_pid )
 {
     int i;
     for ( i = 0; i < i_nb_pids; i++ )
@@ -736,6 +740,7 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
 {
     uint16_t *pi_wanted_pids, *pi_current_pids;
     int i_nb_wanted_pids, i_nb_current_pids;
+    uint16_t i_wanted_pcr_pid, i_current_pcr_pid;
 
     uint16_t i_old_sid = p_output->config.i_sid;
     uint16_t i_sid = p_config->i_sid;
@@ -804,9 +809,10 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
                    p_config->i_nb_pids * sizeof(uint16_t) )) )
         goto out_change;
 
-    GetPIDS( &pi_wanted_pids, &i_nb_wanted_pids, i_sid, pi_pids, i_nb_pids );
-    GetPIDS( &pi_current_pids, &i_nb_current_pids, i_old_sid, pi_old_pids,
-             i_old_nb_pids );
+    GetPIDS( &pi_wanted_pids, &i_nb_wanted_pids, &i_wanted_pcr_pid,
+             i_sid, pi_pids, i_nb_pids );
+    GetPIDS( &pi_current_pids, &i_nb_current_pids, &i_current_pcr_pid,
+             i_old_sid, pi_old_pids, i_old_nb_pids );
 
     if ( b_sid_change && i_old_sid )
     {
@@ -854,6 +860,7 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
 
     free( pi_wanted_pids );
     free( pi_current_pids );
+    p_output->i_pcr_pid = i_wanted_pcr_pid;
 
     if ( b_sid_change && i_sid )
     {
@@ -1037,15 +1044,27 @@ static void StopPID( output_t *p_output, uint16_t i_pid )
 /*****************************************************************************
  * SelectPID/UnselectPID
  *****************************************************************************/
-static void SelectPID( uint16_t i_sid, uint16_t i_pid )
+static void SelectPID( uint16_t i_sid, uint16_t i_pid, bool b_pcr )
 {
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
+    {
         if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
-              && pp_outputs[i]->config.i_sid == i_sid
-              && !pp_outputs[i]->config.i_nb_pids )
+              && pp_outputs[i]->config.i_sid == i_sid )
+        {
+            if ( pp_outputs[i]->config.i_nb_pids &&
+                !IsIn( pp_outputs[i]->config.pi_pids,
+                       pp_outputs[i]->config.i_nb_pids, i_pid ) )
+            {
+                if ( b_pcr )
+                    pp_outputs[i]->i_pcr_pid = i_pid;
+                else
+                    continue;
+            }
             StartPID( pp_outputs[i], i_pid );
+        }
+    }
 }
 
 static void UnselectPID( uint16_t i_sid, uint16_t i_pid )
@@ -1098,7 +1117,7 @@ static void UnselectPMT( uint16_t i_sid, uint16_t i_pid )
  * GetPIDS
  *****************************************************************************/
 static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
-                     uint16_t i_sid,
+                     uint16_t *pi_wanted_pcr_pid, uint16_t i_sid,
                      const uint16_t *pi_pids, int i_nb_pids )
 {
     sid_t *p_sid;
@@ -1108,16 +1127,21 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
     uint8_t j;
     const uint8_t *p_desc;
 
+    *pi_wanted_pcr_pid = 0;
+
     if ( i_nb_pids || i_sid == 0 )
     {
         *pi_nb_wanted_pids = i_nb_pids;
         *ppi_wanted_pids = malloc( sizeof(uint16_t) * i_nb_pids );
         memcpy( *ppi_wanted_pids, pi_pids, sizeof(uint16_t) * i_nb_pids );
-        return;
+        if ( i_sid == 0 )
+            return;
     }
-
-    *pi_nb_wanted_pids = 0;
-    *ppi_wanted_pids = NULL;
+    else
+    {
+        *pi_nb_wanted_pids = 0;
+        *ppi_wanted_pids = NULL;
+    }
 
     p_sid = FindSID( i_sid );
     if ( p_sid == NULL )
@@ -1135,14 +1159,23 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
     while ( (p_es = pmt_get_es( p_pmt, j )) != NULL )
     {
         j++;
-        if ( PIDWouldBeSelected( p_es ) )
+
+        uint16_t i_pid = pmtn_get_pid( p_es );
+        bool b_select;
+        if ( i_nb_pids )
+            b_select = IsIn( pi_pids, i_nb_pids, i_pid );
+        else
         {
-            *ppi_wanted_pids = realloc( *ppi_wanted_pids,
-                                  (*pi_nb_wanted_pids + 1) * sizeof(uint16_t) );
-            (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] = pmtn_get_pid( p_es );
+            b_select = PIDWouldBeSelected( p_es );
+            if ( b_select )
+            {
+                *ppi_wanted_pids = realloc( *ppi_wanted_pids,
+                        (*pi_nb_wanted_pids + 1) * sizeof(uint16_t) );
+                (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] = i_pid;
+            }
         }
 
-        if ( b_enable_ecm )
+        if ( b_select && b_enable_ecm )
         {
             uint8_t k = 0;
 
@@ -1179,6 +1212,9 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
         *ppi_wanted_pids = realloc( *ppi_wanted_pids,
                               (*pi_nb_wanted_pids + 1) * sizeof(uint16_t) );
         (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] = i_pcr_pid;
+        /* We only need the PCR packets of this stream (incomplete) */
+        *pi_wanted_pcr_pid = i_pcr_pid;
+        msg_Dbg( NULL, "Requesting partial PCR PID %"PRIu16, i_pcr_pid );
     }
 }
 
@@ -2645,6 +2681,13 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
     mark_pmt_pids( p_pmt, pid_map, 0x01 );
 
+    uint16_t i_pcr_pid = pmt_get_pcrpid( p_pmt );
+    int i;
+    for ( i = 0; i < i_nb_outputs; i++ )
+        if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
+              && pp_outputs[i]->config.i_sid == i_sid )
+            pp_outputs[i]->i_pcr_pid = 0;
+
     /* Start to stream PIDs */
     int pid;
     for ( pid = 0; pid < MAX_PIDS; pid++ )
@@ -2660,7 +2703,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
             UnselectPID( i_sid, pid );
             break;
         case 0x01: /* The pid exists in new PMT. Select it. */
-            SelectPID( i_sid, pid );
+            SelectPID( i_sid, pid, pid == i_pcr_pid );
             break;
         }
     }
