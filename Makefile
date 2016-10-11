@@ -5,8 +5,8 @@ GIT_VER = $(shell git describe --tags --dirty --always 2>/dev/null)
 uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 deltacast_inc := $(shell sh -c 'test -f /usr/include/StreamMaster.h && echo -n Y')
 
-CFLAGS += -Wall -Wformat-security -Wno-strict-aliasing -O3 -fomit-frame-pointer
-CFLAGS += -g
+CFLAGS ?= -O3 -fomit-frame-pointer -g
+CFLAGS += -Wall -Wformat-security -Wno-strict-aliasing
 CFLAGS += -DVERSION=\"$(VERSION_MAJOR).$(VERSION_MINOR)\"
 CFLAGS += -DVERSION_MAJOR=$(VERSION_MAJOR)
 CFLAGS += -DVERSION_MINOR=$(VERSION_MINOR)
