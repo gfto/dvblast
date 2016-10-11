@@ -24,6 +24,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/udp.h>
+#include <netinet/in.h>
 #include <netinet/ip.h>
 
 #include "config.h"
