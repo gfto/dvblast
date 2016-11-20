@@ -548,12 +548,10 @@ static int FrontendDoDiseqc(void)
                           | (fe_voltage == SEC_VOLTAGE_13 ? 0 : 2)
                           | (fe_tone == SEC_TONE_ON ? 1 : 0);
 
-        if ( i_uncommitted > 0 && i_uncommitted < 5 )
+        if ( i_uncommitted > 0 && i_uncommitted < 17 )
         {
            uncmd.msg[3] = 0xf0 /* reset bits */
-                             | ((i_uncommitted - 1) << 2)
-                             | (fe_voltage == SEC_VOLTAGE_13 ? 0 : 2)
-                             | (fe_tone == SEC_TONE_ON ? 1 : 0);
+                             | (i_uncommitted - 1);
            if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &uncmd ) < 0 )
            {
                msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",

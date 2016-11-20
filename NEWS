@@ -5,6 +5,7 @@ Changes between 3.0 and 3.1:
   * Add HEVC support
   * Add ONID remapping
   * Add PCR even when PCR PID is not selected, but drop non-PCR packets
+  * Extend support for uncommitted DiSEqC switches with up to 16 ports
 
 Changes between 2.2 and 3.0:
 ----------------------------

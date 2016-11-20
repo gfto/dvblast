@@ -639,7 +639,7 @@ void usage()
     msg_Raw( NULL, "  -X --transmission     DVB-T transmission (2, 4, 8 or -1 auto, default)" );
     msg_Raw( NULL, "  -s --symbol-rate" );
     msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
-    msg_Raw( NULL, "  -k --uncommitted      port number for uncommitted diseqc (0: no uncommitted diseqc, 1-4)" );
+    msg_Raw( NULL, "  -k --uncommitted      port number for uncommitted DiSEqC switch (0: no uncommitted DiSEqC switch, 1-16)" );
     msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
     msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
     msg_Raw( NULL, "  -w --select-pmts      set a PID filter on all PMTs (auto on, when config file is used)" );
@@ -881,7 +881,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'k':
-            i_uncommitted = strtol( optarg, NULL, 16 );
+            i_uncommitted = strtol( optarg, NULL, 10 );
             break;
 
         case 'v':
