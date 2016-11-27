@@ -601,7 +601,7 @@ void usage()
         "[-u] [-w] [-U] [-L <latency>] [-E <retention>] [-d <dest IP>[<:port>][/<opts>]*] [-3] "
         "[-z] [-C [-e] [-M <network name>] [-N <network ID>]] [-T] [-j <system charset>] "
         "[-W] [-Y] [-l] [-g <logger ident>] [-Z <mrtg file>] [-V] [-h] [-B <provider_name>] "
-        "[-1 <mis_id>] [-2 <size>] [-5 <DVBS|DVBS2|DVBC_ANNEX_A|DVBT|DVBT2|ATSC>] -y <ca_dev_number> "
+        "[-1 <mis_id>] [-2 <size>] [-5 <DVBS|DVBS2|DVBC_ANNEX_A|DVBC_ANNEX_B|DVBT|DVBT2|ATSC>] -y <ca_dev_number> "
         "[-J <DVB charset>] [-Q <quit timeout>] [-0 pid_mapping] [-x <text|xml>]"
         "[-6 <print period>] [-7 <ES timeout>]" );
 
