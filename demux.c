@@ -86,6 +86,7 @@ typedef struct sid_t
 {
     uint16_t i_sid, i_pmt_pid;
     uint8_t *p_current_pmt;
+    PSI_TABLE_DECLARE(pp_eit_sections);
 } sid_t;
 
 mtime_t i_wallclock = 0;
@@ -460,6 +461,7 @@ void demux_Close( void )
     for ( i = 0; i < i_nb_sids; i++ )
     {
         sid_t *p_sid = pp_sids[i];
+        psi_table_free(p_sid->pp_eit_sections);
         free( p_sid->p_current_pmt );
         free( p_sid );
     }
@@ -2160,6 +2162,8 @@ static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
     }
     p_sid->i_sid = 0;
     p_sid->i_pmt_pid = 0;
+    psi_table_free(p_sid->pp_eit_sections);
+    psi_table_init(p_sid->pp_eit_sections);
 }
 
 /*****************************************************************************
@@ -2334,6 +2338,7 @@ static void HandlePAT( mtime_t i_dts )
                 {
                     p_sid = malloc( sizeof(sid_t) );
                     p_sid->p_current_pmt = NULL;
+                    psi_table_init(p_sid->pp_eit_sections);
                     i_nb_sids++;
                     pp_sids = realloc( pp_sids, sizeof(sid_t *) * i_nb_sids );
                     pp_sids[i_nb_sids - 1] = p_sid;
@@ -2965,6 +2970,7 @@ static void HandleSDTSection( uint16_t i_pid, uint8_t *p_section,
  *****************************************************************************/
 static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
 {
+    uint8_t i_table_id = psi_get_tableid( p_eit );
     uint16_t i_sid = eit_get_sid( p_eit );
     sid_t *p_sid;
 
@@ -2995,8 +3001,35 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
         return;
     }
 
+    /* We do not use psi_table_* primitives as the spec allows for holes in
+     * section numbering, and there is no sure way to know whether you have
+     * gathered all sections. */
+    uint8_t i_section = psi_get_section(p_eit);
+    if (p_sid->pp_eit_sections[i_section] != NULL &&
+        psi_compare(p_sid->pp_eit_sections[i_section], p_eit)) {
+        /* Identical section. Shortcut. */
+        free(p_sid->pp_eit_sections[i_section]);
+        p_sid->pp_eit_sections[i_section] = p_eit;
+        goto out_eit;
+    }
+
+    free(p_sid->pp_eit_sections[i_section]);
+    p_sid->pp_eit_sections[i_section] = p_eit;
+
+    if ( i_table_id == EIT_TABLE_ID_PF_ACTUAL )
+    {
+        eit_print( p_eit, msg_Dbg, NULL, demux_Iconv, NULL, PRINT_TEXT );
+        if ( b_print_enabled )
+        {
+            eit_print( p_eit, demux_Print, NULL,
+                       demux_Iconv, NULL, i_print_type );
+            if ( i_print_type == PRINT_XML )
+                fprintf(print_fh, "\n");
+        }
+    }
+
+out_eit:
     SendEIT( p_sid, i_dts, p_eit );
-    free( p_eit );
 }
 
 /*****************************************************************************
