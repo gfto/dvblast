@@ -789,11 +789,12 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
 
     if ( p_config->i_tsid != -1 && p_output->config.i_tsid != p_config->i_tsid )
     {
-        p_output->i_tsid = p_config->i_tsid;
+        p_output->i_tsid = p_output->config.i_tsid = p_config->i_tsid;
         b_tsid_change = true;
     }
     if ( p_config->i_tsid == -1 && p_output->config.i_tsid != -1 )
     {
+        p_output->config.i_tsid = p_config->i_tsid;
         if ( psi_table_validate(pp_current_pat_sections) && !b_random_tsid )
             p_output->i_tsid =
                 psi_table_get_tableidext(pp_current_pat_sections);
@@ -895,6 +896,19 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     p_output->config.i_nb_pids = i_nb_pids;
 
 out_change:
+    if ( b_sid_change || b_pid_change || b_tsid_change || b_dvb_change ||
+         b_network_change || b_service_name_change || b_remap_change )
+    {
+        msg_Dbg( NULL, "change %s%s%s%s%s%s%s",
+                 b_sid_change ? "sid " : "",
+                 b_pid_change ? "pid " : "",
+                 b_tsid_change ? "tsid " : "",
+                 b_dvb_change ? "dvb " : "",
+                 b_network_change ? "network " : "",
+                 b_service_name_change ? "service_name " : "",
+                 b_remap_change ? "remap " : "" );
+    }
+
     if ( b_sid_change || b_remap_change )
     {
         NewSDT( p_output );

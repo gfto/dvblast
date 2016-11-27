@@ -6,6 +6,7 @@ Changes between 3.0 and 3.1:
   * Add ONID remapping
   * Add PCR even when PCR PID is not selected, but drop non-PCR packets
   * Extend support for uncommitted DiSEqC switches with up to 16 ports
+  * Fix reload of configuration with tsid=-1
 
 Changes between 2.2 and 3.0:
 ----------------------------
