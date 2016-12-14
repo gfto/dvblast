@@ -977,6 +977,31 @@ static struct dtv_properties atsc_cmdseq = {
     .props = atsc_cmdargs
 };
 
+static struct dtv_property isdbt_cmdargs[] = {
+    { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_ISDBT },
+    { .cmd = DTV_FREQUENCY,       .u.data = 0 },
+    { .cmd = DTV_BANDWIDTH_HZ,    .u.data = 6000000 },
+    { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
+    { .cmd = DTV_ISDBT_LAYERA_FEC,    .u.data = FEC_AUTO },
+    { .cmd = DTV_ISDBT_LAYERA_MODULATION,    .u.data = QAM_AUTO },
+    { .cmd = DTV_ISDBT_LAYERA_SEGMENT_COUNT,  .u.data = 0 },
+    { .cmd = DTV_ISDBT_LAYERA_TIME_INTERLEAVING,.u.data = 0 },
+    { .cmd = DTV_ISDBT_LAYERB_FEC,    .u.data = FEC_AUTO },
+    { .cmd = DTV_ISDBT_LAYERB_MODULATION,    .u.data = QAM_AUTO },
+    { .cmd = DTV_ISDBT_LAYERB_SEGMENT_COUNT,  .u.data = 0 },
+    { .cmd = DTV_ISDBT_LAYERB_TIME_INTERLEAVING,.u.data = 0 },
+    { .cmd = DTV_ISDBT_LAYERC_FEC,    .u.data = FEC_AUTO },
+    { .cmd = DTV_ISDBT_LAYERC_MODULATION,    .u.data = QAM_AUTO },
+    { .cmd = DTV_ISDBT_LAYERC_SEGMENT_COUNT,  .u.data = 0 },
+    { .cmd = DTV_ISDBT_LAYERC_TIME_INTERLEAVING,.u.data = 0 },
+    { .cmd = DTV_TUNE },
+};
+
+static struct dtv_properties isdbt_cmdseq = {
+    .num = sizeof(isdbt_cmdargs)/sizeof(struct dtv_property),
+    .props = isdbt_cmdargs
+};
+
 #define DELSYS 0
 #define FREQUENCY 1
 #define MODULATION 2
@@ -992,6 +1017,21 @@ static struct dtv_properties atsc_cmdseq = {
 #define MIS 9
 #define HIERARCHY 9
 #define PLP_ID 10
+
+//ISDBT
+#define ISDBT_BANDWIDTH 2
+#define ISDBT_LAYERA_FEC 4
+#define ISDBT_LAYERA_MODULATION 5
+#define ISDBT_LAYERA_SEGMENT_COUNT 6
+#define ISDBT_LAYERA_TIME_INTERLEAVING 7
+#define ISDBT_LAYERB_FEC 8
+#define ISDBT_LAYERB_MODULATION 9
+#define ISDBT_LAYERB_SEGMENT_COUNT 10
+#define ISDBT_LAYERB_TIME_INTERLEAVING 11
+#define ISDBT_LAYERC_FEC 12
+#define ISDBT_LAYERC_MODULATION 13
+#define ISDBT_LAYERC_SEGMENT_COUNT 14
+#define ISDBT_LAYERC_TIME_INTERLEAVING 15
 
 struct dtv_property pclear[] = {
     { .cmd = DTV_CLEAR },
@@ -1025,6 +1065,8 @@ FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
            return SYS_DVBT2;
         if ( !strcasecmp( psz_delsys, "ATSC" ) )
             return SYS_ATSC;
+        if ( !strcasecmp( psz_delsys, "ISDBT" ) )
+            return SYS_ISDBT;
         msg_Err( NULL, "unknown delivery system %s", psz_delsys );
         exit(1);
     }
@@ -1262,6 +1304,28 @@ static void FrontendSet( bool b_init )
         msg_Dbg( NULL, "tuning ATSC frontend to f=%d inversion=%d modulation=%s",
                  i_frequency, i_inversion,
                  psz_modulation == NULL ? "qam_auto" : psz_modulation );
+        break;
+     case SYS_ISDBT:
+        p = &isdbt_cmdseq;
+        p->props[DELSYS].u.data = system;
+        p->props[FREQUENCY].u.data = i_frequency;
+        p->props[ISDBT_BANDWIDTH].u.data = i_bandwidth * 1000000;
+        p->props[INVERSION].u.data = GetInversion();
+        p->props[ISDBT_LAYERA_FEC].u.data = FEC_AUTO;
+        p->props[ISDBT_LAYERA_MODULATION].u.data = QAM_AUTO;
+        p->props[ISDBT_LAYERA_SEGMENT_COUNT].u.data = 0;
+        p->props[ISDBT_LAYERA_TIME_INTERLEAVING].u.data = 0;
+        p->props[ISDBT_LAYERB_FEC].u.data = FEC_AUTO;
+        p->props[ISDBT_LAYERB_MODULATION].u.data = QAM_AUTO;
+        p->props[ISDBT_LAYERB_SEGMENT_COUNT].u.data = 0;
+        p->props[ISDBT_LAYERB_TIME_INTERLEAVING].u.data = 0;
+        p->props[ISDBT_LAYERC_FEC].u.data = FEC_AUTO;
+        p->props[ISDBT_LAYERC_MODULATION].u.data = QAM_AUTO;
+        p->props[ISDBT_LAYERC_SEGMENT_COUNT].u.data = 0;
+        p->props[ISDBT_LAYERC_TIME_INTERLEAVING].u.data = 0;
+
+        msg_Dbg( NULL, "tuning ISDB-T frontend to f=%d bandwidth=%d ",
+                 i_frequency, i_bandwidth);
         break;
 
     default:
