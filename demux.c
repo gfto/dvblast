@@ -3001,6 +3001,9 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
         return;
     }
 
+    if ( i_table_id != EIT_TABLE_ID_PF_ACTUAL )
+        goto out_eit;
+
     /* We do not use psi_table_* primitives as the spec allows for holes in
      * section numbering, and there is no sure way to know whether you have
      * gathered all sections. */
@@ -3016,16 +3019,13 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
     free(p_sid->pp_eit_sections[i_section]);
     p_sid->pp_eit_sections[i_section] = p_eit;
 
-    if ( i_table_id == EIT_TABLE_ID_PF_ACTUAL )
+    eit_print( p_eit, msg_Dbg, NULL, demux_Iconv, NULL, PRINT_TEXT );
+    if ( b_print_enabled )
     {
-        eit_print( p_eit, msg_Dbg, NULL, demux_Iconv, NULL, PRINT_TEXT );
-        if ( b_print_enabled )
-        {
-            eit_print( p_eit, demux_Print, NULL,
-                       demux_Iconv, NULL, i_print_type );
-            if ( i_print_type == PRINT_XML )
-                fprintf(print_fh, "\n");
-        }
+        eit_print( p_eit, demux_Print, NULL,
+                   demux_Iconv, NULL, i_print_type );
+        if ( i_print_type == PRINT_XML )
+            fprintf(print_fh, "\n");
     }
 
 out_eit:
