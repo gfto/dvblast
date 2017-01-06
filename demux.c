@@ -3030,6 +3030,8 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
 
 out_eit:
     SendEIT( p_sid, i_dts, p_eit );
+    if ( i_table_id != EIT_TABLE_ID_PF_ACTUAL )
+        free( p_eit );
 }
 
 /*****************************************************************************
