@@ -2,7 +2,8 @@ Changes between 3.0 and 3.1:
 ----------------------------
   * Print source address in UDP input
   * Print actual EITp/f
-  * Add DVB-T2 support
+  * Add DVB-T2 support with multi PLP
+  * Add ISDB-T support
   * Add HEVC support
   * Add ONID remapping
   * Add PCR even when PCR PID is not selected, but drop non-PCR packets
