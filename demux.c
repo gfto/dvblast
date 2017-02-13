@@ -1962,6 +1962,7 @@ static bool PIDWouldBeSelected( uint8_t *p_es )
     case 0x10: /* video MPEG-4 */
     case 0x11: /* audio AAC LATM */
     case 0x1b: /* video H264 */
+    case 0x24: /* video H265 */
     case 0x81: /* ATSC A/52 */
     case 0x87: /* ATSC Enhanced A/52 */
         return true;
@@ -2015,6 +2016,7 @@ static bool PIDCarriesPES( const uint8_t *p_es )
     case 0x10: /* video MPEG-4 */
     case 0x11: /* audio AAC LATM */
     case 0x1b: /* video H264 */
+    case 0x24: /* video H265 */
     case 0x81: /* ATSC A/52 */
     case 0x87: /* ATSC Enhanced A/52 */
         return true;
@@ -3181,6 +3183,7 @@ static const char *h222_stream_type_desc(uint8_t i_stream_type) {
         case 0x19: return "Metadata in 13818-6 Synchronized Download Protocol";
         case 0x1A: return "13818-11 MPEG-2 IPMP stream";
         case 0x1B: return "H.264/14496-10 video (MPEG-4/AVC)";
+        case 0x24: return "H.265/23008-2 video (HEVC)";
         case 0x42: return "AVS Video";
         case 0x7F: return "IPMP stream";
         default  : return "Unknown stream";
