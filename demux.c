@@ -1222,6 +1222,23 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
         }
     }
 
+    const uint8_t *p_desc;
+
+    if ( b_enable_ecm )
+    {
+        j = 0;
+
+        while ((p_desc = descs_get_desc( pmt_get_descs( p_pmt ), j++ )) != NULL)
+        {
+            if ( desc_get_tag( p_desc ) != 0x09 ||
+                 !desc09_validate( p_desc ) )
+                continue;
+            *ppi_wanted_pids = realloc( *ppi_wanted_pids,
+                                  (*pi_nb_wanted_pids + 1) * sizeof(uint16_t) );
+            (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] = desc09_get_pid( p_desc );
+        }
+    }
+
     if ( i_pcr_pid != PADDING_PID && i_pcr_pid != i_pmt_pid
           && !IsIn( *ppi_wanted_pids, *pi_nb_wanted_pids, i_pcr_pid ) )
     {
