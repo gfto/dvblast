@@ -23,6 +23,7 @@
 
 #include <netdb.h>
 #include <sys/socket.h>
+#include <sys/types.h> /* u_int16_t */
 #include <netinet/udp.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
