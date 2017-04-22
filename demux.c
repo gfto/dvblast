@@ -1417,6 +1417,7 @@ static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
     uint8_t i_table_id = psi_get_tableid( p_eit );
     bool b_epg = i_table_id >= EIT_TABLE_ID_SCHED_ACTUAL_FIRST &&
                  i_table_id <= EIT_TABLE_ID_SCHED_ACTUAL_LAST;
+    uint16_t i_onid = eit_get_onid(p_eit);
     int i;
 
     for ( i = 0; i < i_nb_outputs; i++ )
@@ -1436,11 +1437,17 @@ static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
             else
                 eit_set_sid( p_eit, p_output->config.i_sid );
 
+            if ( p_output->config.i_onid )
+                eit_set_onid( p_eit, p_output->config.i_onid );
+
             psi_set_crc( p_eit );
 
             OutputPSISection( p_output, p_eit, EIT_PID, &p_output->i_eit_cc,
                               i_dts, &p_output->p_eit_ts_buffer,
                               &p_output->i_eit_ts_buffer_offset );
+
+            if ( p_output->config.i_onid )
+                eit_set_onid( p_eit, i_onid );
         }
     }
 }

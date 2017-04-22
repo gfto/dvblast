@@ -1,3 +1,9 @@
+Changes between 3.1 and 3.2:
+----------------------------
+  * Fix HEVC support
+  * Fix memory leak on loading the configuration
+  * Also remap ONID in EIT
+
 Changes between 3.0 and 3.1:
 ----------------------------
   * Print source address in UDP input
