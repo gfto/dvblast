@@ -252,6 +252,7 @@ static void config_strdvb( dvb_string_t *p_dvb_string, const char *psz_string )
     dvb_string_clean(p_dvb_string);
     p_dvb_string->p = dvb_string_set((uint8_t *)psz_iconv, strlen(psz_iconv),
                                      psz_dvb_charset, &p_dvb_string->i);
+    free(psz_iconv);
 }
 
 static bool config_ParseHost( output_config_t *p_config, char *psz_string )
@@ -688,7 +689,7 @@ void usage()
 
 int main( int i_argc, char **pp_argv )
 {
-    const char *psz_network_name = "DVBlast - http://www.videolan.org/projects/dvblast.html";
+    const char *psz_network_name = "DVBlast - videolan.org";
     const char *psz_provider_name = NULL;
     char *psz_dup_config = NULL;
     struct sched_param param;
@@ -1253,6 +1254,7 @@ int main( int i_argc, char **pp_argv )
 
     comm_Close();
     block_Vacuum();
+    ev_loop_destroy(event_loop);
 
     return EXIT_SUCCESS;
 }
