@@ -205,54 +205,70 @@ char *config_stropt( const char *psz_string )
     return ret;
 }
 
-static char *config_striconv( const char *psz_string )
+static uint8_t *config_striconv( const char *psz_string,
+                                 const char *psz_charset, size_t *pi_length )
 {
     char *psz_input = config_stropt(psz_string);
+    *pi_length = strlen(psz_input);
 
-    if ( !strcasecmp( psz_native_charset, psz_dvb_charset ) )
-        return psz_input;
+    /* do not convert ASCII strings */
+    const char *c = psz_string;
+    while (*c)
+        if (!isascii(*c++))
+            break;
+    if (!*c)
+        return (uint8_t *)psz_input;
+
+    if ( !strcasecmp( psz_native_charset, psz_charset ) )
+        return (uint8_t *)psz_input;
 
 #ifdef HAVE_ICONV
     if ( conf_iconv == (iconv_t)-1 )
     {
-        conf_iconv = iconv_open( psz_dvb_charset, psz_native_charset );
+        conf_iconv = iconv_open( psz_charset, psz_native_charset );
         if ( conf_iconv == (iconv_t)-1 )
-            return psz_input;
+            return (uint8_t *)psz_input;
     }
 
-    size_t i_input = strlen( psz_input );
+    char *psz_tmp = psz_input;
+    size_t i_input = *pi_length;
     size_t i_output = i_input * 6;
-    char *psz_output = malloc( i_output );
-    char *p = psz_output;
-    if ( iconv( conf_iconv, &psz_input, &i_input, &p, &i_output ) == -1 )
+    size_t i_available = i_output;
+    char *p_output = malloc( i_output );
+    char *p = p_output;
+    if ( iconv( conf_iconv, &psz_tmp, &i_input, &p, &i_available ) == -1 )
     {
-        free( psz_output );
-        return psz_input;
+        free( p_output );
+
+        return (uint8_t *)psz_input;
     }
 
     free(psz_input);
-    return psz_output;
+    *pi_length = i_output - i_available;
+    return (uint8_t *)p_output;
 #else
     msg_Warn( NULL,
               "unable to convert from %s to %s (iconv is not available)",
-              psz_native_charset, psz_dvb_charset );
-    return psz_input;
+              psz_native_charset, psz_charset );
+    return (uint8_t *)psz_input;
 #endif
 }
 
-static void config_strdvb( dvb_string_t *p_dvb_string, const char *psz_string )
+static void config_strdvb( dvb_string_t *p_dvb_string, const char *psz_string,
+                           const char *psz_charset )
 {
     if (psz_string == NULL)
     {
         dvb_string_init(p_dvb_string);
         return;
     }
-
-    char *psz_iconv = config_striconv(psz_string);
     dvb_string_clean(p_dvb_string);
-    p_dvb_string->p = dvb_string_set((uint8_t *)psz_iconv, strlen(psz_iconv),
-                                     psz_dvb_charset, &p_dvb_string->i);
-    free(psz_iconv);
+
+    size_t i_iconv;
+    uint8_t *p_iconv = config_striconv(psz_string, psz_charset, &i_iconv);
+    p_dvb_string->p = dvb_string_set(p_iconv, i_iconv, psz_charset,
+                                     &p_dvb_string->i);
+    free(p_iconv);
 }
 
 static bool config_ParseHost( output_config_t *p_config, char *psz_string )
@@ -282,6 +298,11 @@ static bool config_ParseHost( output_config_t *p_config, char *psz_string )
             memcpy( &p_config->bind_addr, p_ai->ai_addr, p_ai->ai_addrlen );
         freeaddrinfo( p_ai );
     }
+
+    const char *psz_charset = psz_dvb_charset;
+    const char *psz_network_name = NULL;
+    const char *psz_service_name = NULL;
+    const char *psz_provider_name = NULL;
 
     while ( (psz_string = strchr( psz_string, '/' )) != NULL )
     {
@@ -316,18 +337,14 @@ static bool config_ParseHost( output_config_t *p_config, char *psz_string )
             p_config->i_network_id = strtol( ARG_OPTION("networkid="), NULL, 0 );
         else if ( IS_OPTION("onid=") )
             p_config->i_onid = strtol( ARG_OPTION("onid="), NULL, 0 );
+        else if ( IS_OPTION("charset=")  )
+            psz_charset = ARG_OPTION("charset=");
         else if ( IS_OPTION("networkname=")  )
-        {
-            config_strdvb( &p_config->network_name, ARG_OPTION("networkname=") );
-        }
+            psz_network_name = ARG_OPTION("networkname=");
         else if ( IS_OPTION("srvname=")  )
-        {
-            config_strdvb( &p_config->service_name, ARG_OPTION("srvname=") );
-        }
+            psz_service_name = ARG_OPTION("srvname=");
         else if ( IS_OPTION("srvprovider=") )
-        {
-            config_strdvb( &p_config->provider_name, ARG_OPTION("srvprovider=") );
-        }
+            psz_provider_name = ARG_OPTION("srvprovider=");
         else if ( IS_OPTION("srcaddr=") )
         {
             if ( p_config->i_family != AF_INET ) {
@@ -369,6 +386,14 @@ static bool config_ParseHost( output_config_t *p_config, char *psz_string )
 #undef IS_OPTION
 #undef ARG_OPTION
     }
+
+    if (psz_network_name != NULL)
+        config_strdvb( &p_config->network_name, psz_network_name, psz_charset );
+    if (psz_service_name != NULL)
+        config_strdvb( &p_config->service_name, psz_service_name, psz_charset );
+    if (psz_provider_name != NULL)
+        config_strdvb( &p_config->provider_name, psz_provider_name,
+                       psz_charset );
 
 end:
     i_mtu = p_config->i_family == AF_INET6 ? DEFAULT_IPV6_MTU :
@@ -1189,8 +1214,8 @@ int main( int i_argc, char **pp_argv )
         config_Free( &config );
     }
 
-    config_strdvb( &network_name, psz_network_name );
-    config_strdvb( &provider_name, psz_provider_name );
+    config_strdvb( &network_name, psz_network_name, psz_dvb_charset );
+    config_strdvb( &provider_name, psz_provider_name, psz_dvb_charset );
 
     /* Set signal handlers */
     signal_watcher_init(&sigint_watcher, event_loop, sighandler, SIGINT);
