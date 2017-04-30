@@ -6,6 +6,7 @@ Changes between 3.1 and 3.2:
   * Fix segmentation fault when using output charset different from native
   * Use default charset ISO 6937 for ASCII strings
   * Add /charset= output option
+  * Fix EIT schedule signaling in SDT
 
 Changes between 3.0 and 3.1:
 ----------------------------

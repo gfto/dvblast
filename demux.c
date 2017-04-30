@@ -1,7 +1,7 @@
 /*****************************************************************************
  * demux.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011, 2015-2016 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2015-2017 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -755,6 +755,8 @@ void demux_Change( output_t *p_output, const output_config_t *p_config )
     bool b_pid_change = false, b_tsid_change = false;
     bool b_dvb_change = !!((p_output->config.i_config ^ p_config->i_config)
                              & OUTPUT_DVB);
+    bool b_epg_change = !!((p_output->config.i_config ^ p_config->i_config)
+                             & OUTPUT_EPG);
     bool b_network_change =
         (dvb_string_cmp(&p_output->config.network_name, &p_config->network_name) ||
          p_output->config.i_network_id != p_config->i_network_id);
@@ -934,7 +936,7 @@ out_change:
         else if ( b_network_change )
             NewNIT( p_output );
 
-        if ( !b_tsid_change && b_service_name_change )
+        if ( !b_tsid_change && (b_service_name_change || b_epg_change) )
             NewSDT( p_output );
 
         if ( b_pid_change )
@@ -1799,16 +1801,13 @@ static void NewSDT( output_t *p_output )
     else
         sdtn_set_sid( p_service, p_output->config.i_sid );
 
-    if ( (p_output->config.i_config & OUTPUT_EPG) == OUTPUT_EPG )
-    {
-        sdtn_set_eitschedule(p_service);
+    /* We always forward EITp/f */
+    if ( sdtn_get_eitpresent(p_current_service) )
         sdtn_set_eitpresent(p_service);
-    } else {
-        if ( sdtn_get_eitschedule(p_current_service) )
-            sdtn_set_eitschedule(p_service);
-        if ( sdtn_get_eitpresent(p_current_service) )
-            sdtn_set_eitpresent(p_service);
-    }
+
+    if ( (p_output->config.i_config & OUTPUT_EPG) == OUTPUT_EPG &&
+         sdtn_get_eitschedule(p_current_service) )
+        sdtn_set_eitschedule(p_service);
 
     sdtn_set_running( p_service, sdtn_get_running(p_current_service) );
     /* Do not set free_ca */
