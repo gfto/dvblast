@@ -82,11 +82,19 @@ typedef struct ts_pid_t
     struct ev_timer timeout_watcher;
 } ts_pid_t;
 
+struct eit_sections {
+    PSI_TABLE_DECLARE(data);
+};
+
+/* EIT is carried in several separate tables, we need to track each table
+   separately, otherwise one table overwrites sections of another table */
+#define MAX_EIT_TABLES ( EIT_TABLE_ID_SCHED_ACTUAL_LAST - EIT_TABLE_ID_PF_ACTUAL )
+
 typedef struct sid_t
 {
     uint16_t i_sid, i_pmt_pid;
     uint8_t *p_current_pmt;
-    PSI_TABLE_DECLARE(pp_eit_sections);
+    struct eit_sections eit_table[MAX_EIT_TABLES];
 } sid_t;
 
 mtime_t i_wallclock = 0;
@@ -440,7 +448,7 @@ void demux_Open( void )
  *****************************************************************************/
 void demux_Close( void )
 {
-    int i;
+    int i, r;
 
     psi_table_free( pp_current_pat_sections );
     psi_table_free( pp_next_pat_sections );
@@ -461,7 +469,9 @@ void demux_Close( void )
     for ( i = 0; i < i_nb_sids; i++ )
     {
         sid_t *p_sid = pp_sids[i];
-        psi_table_free(p_sid->pp_eit_sections);
+        for ( r = 0; r < MAX_EIT_TABLES; r++ ) {
+            psi_table_free( p_sid->eit_table[r].data );
+        }
         free( p_sid->p_current_pmt );
         free( p_sid );
     }
@@ -1414,11 +1424,17 @@ static void SendSDT( mtime_t i_dts )
 /*****************************************************************************
  * SendEIT
  *****************************************************************************/
+static bool handle_epg( int i_table_id )
+{
+    return (i_table_id == EIT_TABLE_ID_PF_ACTUAL ||
+       (i_table_id >= EIT_TABLE_ID_SCHED_ACTUAL_FIRST &&
+        i_table_id <= EIT_TABLE_ID_SCHED_ACTUAL_LAST));
+}
+
 static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
 {
     uint8_t i_table_id = psi_get_tableid( p_eit );
-    bool b_epg = i_table_id >= EIT_TABLE_ID_SCHED_ACTUAL_FIRST &&
-                 i_table_id <= EIT_TABLE_ID_SCHED_ACTUAL_LAST;
+    bool b_epg = handle_epg( i_table_id );
     uint16_t i_onid = eit_get_onid(p_eit);
     int i;
 
@@ -2170,8 +2186,13 @@ static void DeleteProgram( uint16_t i_sid, uint16_t i_pid )
     }
     p_sid->i_sid = 0;
     p_sid->i_pmt_pid = 0;
-    psi_table_free(p_sid->pp_eit_sections);
-    psi_table_init(p_sid->pp_eit_sections);
+
+    uint8_t r;
+    for ( r = 0; r < MAX_EIT_TABLES; r++ ) {
+        psi_table_free( p_sid->eit_table[r].data );
+        psi_table_init( p_sid->eit_table[r].data );
+    }
+
 }
 
 /*****************************************************************************
@@ -2262,7 +2283,7 @@ static void HandlePAT( mtime_t i_dts )
     bool b_change = false;
     PSI_TABLE_DECLARE( pp_old_pat_sections );
     uint8_t i_last_section = psi_table_get_lastsection( pp_next_pat_sections );
-    uint8_t i;
+    uint8_t i, r;
 
     if ( psi_table_validate( pp_current_pat_sections ) &&
          psi_table_compare( pp_current_pat_sections, pp_next_pat_sections ) )
@@ -2346,7 +2367,9 @@ static void HandlePAT( mtime_t i_dts )
                 {
                     p_sid = malloc( sizeof(sid_t) );
                     p_sid->p_current_pmt = NULL;
-                    psi_table_init(p_sid->pp_eit_sections);
+                    for ( r = 0; r < MAX_EIT_TABLES; r++ ) {
+                        psi_table_init( p_sid->eit_table[r].data );
+                    }
                     i_nb_sids++;
                     pp_sids = realloc( pp_sids, sizeof(sid_t *) * i_nb_sids );
                     pp_sids[i_nb_sids - 1] = p_sid;
@@ -3009,23 +3032,27 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
         return;
     }
 
-    if ( i_table_id != EIT_TABLE_ID_PF_ACTUAL )
+    bool b_epg = handle_epg( i_table_id );
+    if ( ! b_epg )
         goto out_eit;
 
     /* We do not use psi_table_* primitives as the spec allows for holes in
      * section numbering, and there is no sure way to know whether you have
      * gathered all sections. */
     uint8_t i_section = psi_get_section(p_eit);
-    if (p_sid->pp_eit_sections[i_section] != NULL &&
-        psi_compare(p_sid->pp_eit_sections[i_section], p_eit)) {
+    uint8_t eit_table_id = i_table_id - EIT_TABLE_ID_PF_ACTUAL;
+    if (eit_table_id >= MAX_EIT_TABLES)
+        goto out_eit;
+    if (p_sid->eit_table[eit_table_id].data[i_section] != NULL &&
+        psi_compare(p_sid->eit_table[eit_table_id].data[i_section], p_eit)) {
         /* Identical section. Shortcut. */
-        free(p_sid->pp_eit_sections[i_section]);
-        p_sid->pp_eit_sections[i_section] = p_eit;
+        free(p_sid->eit_table[eit_table_id].data[i_section]);
+        p_sid->eit_table[eit_table_id].data[i_section] = p_eit;
         goto out_eit;
     }
 
-    free(p_sid->pp_eit_sections[i_section]);
-    p_sid->pp_eit_sections[i_section] = p_eit;
+    free(p_sid->eit_table[eit_table_id].data[i_section]);
+    p_sid->eit_table[eit_table_id].data[i_section] = p_eit;
 
     if ( b_print_enabled )
     {
@@ -3037,7 +3064,7 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
 
 out_eit:
     SendEIT( p_sid, i_dts, p_eit );
-    if ( i_table_id != EIT_TABLE_ID_PF_ACTUAL )
+    if ( ! b_epg )
         free( p_eit );
 }
 
@@ -3096,9 +3123,7 @@ static void HandleSection( uint16_t i_pid, uint8_t *p_section, mtime_t i_dts )
         break;
 
     default:
-        if ( i_table_id == EIT_TABLE_ID_PF_ACTUAL ||
-             (i_table_id >= EIT_TABLE_ID_SCHED_ACTUAL_FIRST &&
-              i_table_id <= EIT_TABLE_ID_SCHED_ACTUAL_LAST) )
+        if ( handle_epg( i_table_id ) )
         {
             HandleEIT( i_pid, p_section, i_dts );
             break;
