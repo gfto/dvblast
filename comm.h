@@ -23,7 +23,7 @@
 #include <bitstream/mpeg/psi.h>
 
 #define COMM_HEADER_SIZE 8
-#define COMM_BUFFER_SIZE (COMM_HEADER_SIZE + ((PSI_PRIVATE_MAX_SIZE + PSI_HEADER_SIZE) * (PSI_TABLE_MAX_SECTIONS / 2)))
+#define COMM_BUFFER_SIZE (COMM_HEADER_SIZE + ((PSI_PRIVATE_MAX_SIZE + PSI_HEADER_SIZE) * PSI_TABLE_MAX_SECTIONS))
 #define COMM_HEADER_MAGIC 0x49
 
 #define COMM_MAX_MSG_CHUNK 4096
@@ -47,6 +47,8 @@ typedef enum {
     CMD_GET_PID             = 16, /* arg: pid (uint16_t) */
     CMD_MMI_SEND_TEXT       = 17, /* arg: slot, en50221_mmi_object_t */
     CMD_MMI_SEND_CHOICE     = 18, /* arg: slot, en50221_mmi_object_t */
+    CMD_GET_EIT_PF          = 19, /* arg: service_id (uint16_t) */
+    CMD_GET_EIT_SCHEDULE    = 20, /* arg: service_id (uint16_t) */
 } ctl_cmd_t;
 
 typedef enum {
@@ -65,6 +67,8 @@ typedef enum {
     RET_PMT                 = 12,
     RET_PIDS                = 13,
     RET_PID                 = 14,
+    RET_EIT_PF              = 15,
+    RET_EIT_SCHEDULE        = 16,
     RET_HUH                 = 255,
 } ctl_cmd_answer_t;
 

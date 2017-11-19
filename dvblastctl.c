@@ -210,6 +210,114 @@ void print_pids( uint8_t *p_data )
     print_pids_footer();
 }
 
+void print_eit_events(uint8_t *p_eit, f_print pf_print, void *print_opaque, f_iconv pf_iconv, void *iconv_opaque, print_type_t i_print_type)
+{
+    uint8_t *p_event;
+    uint8_t j = 0;
+    while ((p_event = eit_get_event(p_eit, j)) != NULL) {
+        j++;
+        char start_str[24], duration_str[10];
+        int duration, hour, min, sec;
+        time_t start_ts;
+
+        start_ts = dvb_time_format_UTC(eitn_get_start_time(p_event), NULL, start_str);
+
+        dvb_time_decode_bcd(eitn_get_duration_bcd(p_event), &duration, &hour, &min, &sec);
+        sprintf(duration_str, "%02d:%02d:%02d", hour, min, sec);
+
+        switch (i_print_type) {
+        case PRINT_XML:
+            pf_print(print_opaque, "<EVENT id=\"%u\" start_time=\"%ld\" start_time_dec=\"%s\""
+                                   " duration=\"%u\" duration_dec=\"%s\""
+                                   " running=\"%d\" free_CA=\"%d\">",
+                     eitn_get_event_id(p_event),
+                     start_ts, start_str,
+                     duration, duration_str,
+                     eitn_get_running(p_event),
+                     eitn_get_ca(p_event)
+                    );
+            break;
+        default:
+            pf_print(print_opaque, "  * EVENT id=%u start_time=%ld start_time_dec=\"%s\" duration=%u duration_dec=%s running=%d free_CA=%d",
+                     eitn_get_event_id(p_event),
+                     start_ts, start_str,
+                     duration, duration_str,
+                     eitn_get_running(p_event),
+                     eitn_get_ca(p_event)
+                    );
+        }
+
+        descs_print(eitn_get_descs(p_event), pf_print, print_opaque,
+                    pf_iconv, iconv_opaque, i_print_type);
+
+        switch (i_print_type) {
+        case PRINT_XML:
+            pf_print(print_opaque, "</EVENT>");
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+void print_eit(uint8_t *p_eit, unsigned int i_eit_size, f_print pf_print, void *print_opaque, f_iconv pf_iconv, void *iconv_opaque, print_type_t i_print_type)
+{
+    uint8_t *p_eit_end = p_eit + i_eit_size;
+    uint8_t i_tid = psi_get_tableid(p_eit);
+    const char *psz_tid = "unknown";
+
+    if (i_tid == EIT_TABLE_ID_PF_ACTUAL)
+        psz_tid = "actual_pf";
+    else if (i_tid == EIT_TABLE_ID_PF_OTHER)
+        psz_tid = "other_pf";
+    else if (i_tid >= EIT_TABLE_ID_SCHED_ACTUAL_FIRST && i_tid <= EIT_TABLE_ID_SCHED_ACTUAL_LAST)
+        psz_tid = "actual_schedule";
+    else if (i_tid >= EIT_TABLE_ID_SCHED_OTHER_FIRST && i_tid <= EIT_TABLE_ID_SCHED_OTHER_LAST)
+        psz_tid = "other_schedule";
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        pf_print(print_opaque,
+                "<EIT tableid=\"0x%02x\" type=\"%s\" service_id=\"%u\""
+                " version=\"%u\""
+                " current_next=\"%u\""
+                " tsid=\"%u\" onid=\"%u\">",
+                 i_tid, psz_tid,
+                 eit_get_sid(p_eit),
+                 psi_get_version(p_eit),
+                 !psi_get_current(p_eit) ? 0 : 1,
+                 eit_get_tsid(p_eit),
+                 eit_get_onid(p_eit)
+                );
+        break;
+    default:
+        pf_print(print_opaque,
+                 "new EIT tableid=0x%02x type=%s service_id=%u version=%u%s"
+                 " tsid=%u"
+                 " onid=%u",
+                 i_tid, psz_tid,
+                 eit_get_sid(p_eit),
+                 psi_get_version(p_eit),
+                 !psi_get_current(p_eit) ? " (next)" : "",
+                 eit_get_tsid(p_eit),
+                 eit_get_onid(p_eit)
+                );
+    }
+
+    while (p_eit < p_eit_end) {
+        print_eit_events(p_eit, pf_print, print_opaque, pf_iconv, iconv_opaque, i_print_type);
+        p_eit += psi_get_length( p_eit ) + PSI_HEADER_SIZE;
+    }
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        pf_print(print_opaque, "</EIT>");
+        break;
+    default:
+        pf_print(print_opaque, "end EIT");
+    }
+}
+
 struct dvblastctl_option {
     char *      opt;
     int         nparams;
@@ -235,6 +343,8 @@ static const struct dvblastctl_option options[] =
     { "get_cat",            0, CMD_GET_CAT },
     { "get_nit",            0, CMD_GET_NIT },
     { "get_sdt",            0, CMD_GET_SDT },
+    { "get_eit_pf",         1, CMD_GET_EIT_PF }, /* arg: service_id (uint16_t) */
+    { "get_eit_schedule",   1, CMD_GET_EIT_SCHEDULE }, /* arg: service_id (uint16_t) */
     { "get_pmt",            1, CMD_GET_PMT }, /* arg: service_id (uint16_t) */
     { "get_pids",           0, CMD_GET_PIDS },
     { "get_pid",            1, CMD_GET_PID },  /* arg: pid (uint16_t) */
@@ -269,6 +379,8 @@ void usage()
     printf("  get_cat                         Return last CAT table.\n");
     printf("  get_nit                         Return last NIT table.\n");
     printf("  get_sdt                         Return last SDT table.\n");
+    printf("  get_eit_pf <service_id>         Return last EIT present/following data.\n");
+    printf("  get_eit_schedule <service_id>   Return last EIT schedule data.\n");
     printf("  get_pmt <service_id>            Return last PMT table.\n");
     printf("  get_pids                        Return info about all pids.\n");
     printf("  get_pid <pid>                   Return info for chosen pid only.\n");
@@ -417,6 +529,8 @@ int main( int i_argc, char **ppsz_argv )
     case CMD_GET_PIDS:
         /* These commands need no special handling because they have no parameters */
         break;
+    case CMD_GET_EIT_PF:
+    case CMD_GET_EIT_SCHEDULE:
     case CMD_GET_PMT:
     {
         uint16_t i_sid = atoi(p_arg1);
@@ -564,6 +678,15 @@ int main( int i_argc, char **ppsz_argv )
 
         psi_table_free( pp_sections );
         free( pp_sections );
+        break;
+    }
+
+    case RET_EIT_PF:
+    case RET_EIT_SCHEDULE:
+    {
+        uint8_t *p_eit_data = p_buffer + COMM_HEADER_SIZE;
+        unsigned int i_eit_data_size = i_received - COMM_HEADER_SIZE;
+        print_eit( p_eit_data, i_eit_data_size, psi_print, NULL, psi_iconv, NULL, i_print_type );
         break;
     }
 

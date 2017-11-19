@@ -3361,6 +3361,61 @@ uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size ) {
     return psi_pack_sections( pp_current_sdt_sections, pi_pack_size );
 }
 
+uint8_t *demux_get_packed_EIT( uint16_t i_sid, uint8_t start_table, uint8_t end_table, unsigned int *eit_size ) {
+    unsigned int i, r;
+
+    *eit_size = 0;
+    sid_t *p_sid = FindSID( i_sid );
+    if ( p_sid == NULL )
+        return NULL;
+
+    /* Calculate eit table size (sum of all sections in all tables between start_start and end_table) */
+    for ( i = start_table; i <= end_table; i++ ) {
+        uint8_t eit_table_idx = i - EIT_TABLE_ID_PF_ACTUAL;
+        if ( eit_table_idx >= MAX_EIT_TABLES )
+            continue;
+        uint8_t **eit_sections = p_sid->eit_table[eit_table_idx].data;
+        for ( r = 0; r < PSI_TABLE_MAX_SECTIONS; r++ ) {
+            uint8_t *p_eit = eit_sections[r];
+            if ( !p_eit )
+                continue;
+            uint16_t psi_length = psi_get_length( p_eit ) + PSI_HEADER_SIZE;
+            *eit_size += psi_length;
+        }
+    }
+
+    uint8_t *p_flat_section = malloc( *eit_size );
+    if ( !p_flat_section )
+        return NULL;
+
+    /* Copy sections */
+    unsigned int i_pos = 0;
+    for ( i = start_table; i <= end_table; i++ ) {
+        uint8_t eit_table_idx = i - EIT_TABLE_ID_PF_ACTUAL;
+        if ( eit_table_idx >= MAX_EIT_TABLES )
+            continue;
+        uint8_t **eit_sections = p_sid->eit_table[eit_table_idx].data;
+        for ( r = 0; r < PSI_TABLE_MAX_SECTIONS; r++ ) {
+            uint8_t *p_eit = eit_sections[r];
+            if ( !p_eit )
+                continue;
+            uint16_t psi_length = psi_get_length( p_eit ) + PSI_HEADER_SIZE;
+            memcpy( p_flat_section + i_pos, p_eit, psi_length );
+            i_pos += psi_length;
+            /* eit_print( p_eit, msg_Dbg, NULL, demux_Iconv, NULL, PRINT_TEXT ); */
+        }
+    }
+    return p_flat_section;
+}
+
+uint8_t *demux_get_packed_EIT_pf( uint16_t service_id, unsigned int *pi_pack_size ) {
+    return demux_get_packed_EIT( service_id, EIT_TABLE_ID_PF_ACTUAL, EIT_TABLE_ID_PF_ACTUAL, pi_pack_size );
+}
+
+uint8_t *demux_get_packed_EIT_schedule( uint16_t service_id, unsigned int *pi_pack_size ) {
+    return demux_get_packed_EIT( service_id, EIT_TABLE_ID_SCHED_ACTUAL_FIRST, EIT_TABLE_ID_SCHED_ACTUAL_LAST, pi_pack_size );
+}
+
 uint8_t *demux_get_packed_PMT( uint16_t i_sid, unsigned int *pi_pack_size ) {
     sid_t *p_sid = FindSID( i_sid );
     if ( p_sid != NULL && p_sid->p_current_pmt && pmt_validate( p_sid->p_current_pmt ) )

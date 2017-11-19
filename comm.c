@@ -224,6 +224,8 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
         break;
     }
 
+    case CMD_GET_EIT_PF:
+    case CMD_GET_EIT_SCHEDULE:
     case CMD_GET_PMT:
     {
         if ( i_size < COMM_HEADER_SIZE + 2 )
@@ -233,11 +235,19 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
         }
 
         uint16_t i_sid = (uint16_t)((p_input[0] << 8) | p_input[1]);
-        p_packed_section = demux_get_packed_PMT(i_sid, &i_packed_section_size);
+        if ( i_command == CMD_GET_EIT_PF ) {
+            i_answer = RET_EIT_PF;
+            p_packed_section = demux_get_packed_EIT_pf( i_sid, &i_packed_section_size );
+        } else if ( i_command == CMD_GET_EIT_SCHEDULE ) {
+            i_answer = RET_EIT_SCHEDULE;
+            p_packed_section = demux_get_packed_EIT_schedule( i_sid, &i_packed_section_size );
+        } else {
+            i_answer = RET_PMT;
+            p_packed_section = demux_get_packed_PMT(i_sid, &i_packed_section_size);
+        }
 
         if ( p_packed_section && i_packed_section_size )
         {
-            i_answer = RET_PMT;
             i_answer_size = i_packed_section_size;
             memcpy( p_answer + COMM_HEADER_SIZE, p_packed_section, i_packed_section_size );
             free( p_packed_section );
