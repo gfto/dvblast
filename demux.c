@@ -3027,7 +3027,6 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
     free(p_sid->pp_eit_sections[i_section]);
     p_sid->pp_eit_sections[i_section] = p_eit;
 
-    eit_print( p_eit, msg_Dbg, NULL, demux_Iconv, NULL, PRINT_TEXT );
     if ( b_print_enabled )
     {
         eit_print( p_eit, demux_Print, NULL,
