@@ -52,6 +52,7 @@
 #if DVBAPI_VERSION < 508
   #define DTV_STREAM_ID        42
   #define FE_CAN_MULTISTREAM   0x4000000
+  #define FE_CAN_TURBO_FEC     0x8000000
 #endif
 
 #define MAX_DELIVERY_SYSTEMS 20
@@ -809,6 +810,7 @@ static void FrontendInfo( struct dvb_frontend_info *info, uint32_t version,
     FRONTEND_INFO( info->caps, FE_CAN_2G_MODULATION, "2G_MODULATION" )
 #endif
     FRONTEND_INFO( info->caps, FE_CAN_MULTISTREAM, "MULTISTREAM" )
+    FRONTEND_INFO( info->caps, FE_CAN_TURBO_FEC, "TURBO_FEC" )
     FRONTEND_INFO( info->caps, FE_NEEDS_BENDING, "NEEDS_BENDING" )
     FRONTEND_INFO( info->caps, FE_CAN_RECOVER, "FE_CAN_RECOVER" )
     FRONTEND_INFO( info->caps, FE_CAN_MUTE_TS, "FE_CAN_MUTE_TS" )
