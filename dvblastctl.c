@@ -116,7 +116,7 @@ static char *iconv_append_null(const char *p_string, size_t i_length)
     return psz_string;
 }
 
-const char *psz_native_charset = "UTF-8";
+const char *psz_native_charset = "UTF-8//IGNORE";
 
 char *psi_iconv(void *_unused, const char *psz_encoding,
                   char *p_string, size_t i_length)

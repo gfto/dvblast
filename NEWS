@@ -2,6 +2,7 @@ Changes between 3.2 and -next
 -----------------------------
   * Add support for getting EIT present/following for chosen service in dvblastctl
   * Add support for getting EIT schedule for chosen service in dvblastctl
+  * Switch default string charset to UTF-8//IGNORE
 
 Changes between 3.1 and 3.2:
 ----------------------------

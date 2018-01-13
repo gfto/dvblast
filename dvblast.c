@@ -92,7 +92,7 @@ int b_select_pmts = 0;
 int b_random_tsid = 0;
 char *psz_udp_src = NULL;
 int i_asi_adapter = 0;
-const char *psz_native_charset = "UTF-8";
+const char *psz_native_charset = "UTF-8//IGNORE";
 print_type_t i_print_type = PRINT_TEXT;
 bool b_print_enabled = false;
 FILE *print_fh;
@@ -114,7 +114,7 @@ static mtime_t i_latency_global = DEFAULT_OUTPUT_LATENCY;
 static mtime_t i_retention_global = DEFAULT_MAX_RETENTION;
 static int i_ttl_global = 64;
 
-static const char *psz_dvb_charset = "UTF-8";
+static const char *psz_dvb_charset = "UTF-8//IGNORE";
 static iconv_t conf_iconv = (iconv_t)-1;
 static uint16_t i_network_id = 0xffff;
 static dvb_string_t network_name;
@@ -697,8 +697,8 @@ void usage()
     msg_Raw( NULL, "Misc:" );
     msg_Raw( NULL, "  -h --help             display this full help" );
     msg_Raw( NULL, "  -i --priority <RT priority>" );
-    msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8)" );
-    msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default UTF-8)" );
+    msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8//IGNORE)" );
+    msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default UTF-8//IGNORE)" );
     msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
     msg_Raw( NULL, "  -g --logger-ident     program name that will be used in syslog messages" );
     msg_Raw( NULL, "  -x --print            print interesting events on stdout in a given format" );
