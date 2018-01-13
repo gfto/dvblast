@@ -67,6 +67,7 @@ int i_fenum = 0;
 int i_canum = 0;
 char *psz_delsys = NULL;
 int i_frequency = 0;
+char *psz_lnb_type = "universal";
 int dvb_plp_id = 0;
 int i_inversion = -1;
 int i_srate = 27500000;
@@ -644,6 +645,8 @@ void usage()
     msg_Raw( NULL, "  -5 --delsys           delivery system" );
     msg_Raw( NULL, "    DVBS|DVBS2|DVBC_ANNEX_A|DVBT|DVBT2|ATSC|ISDBT|DVBC_ANNEX_B(ATSC-C/QAMB) (default guessed)");
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
+    msg_Raw( NULL, "  -8 --lnb-type <type>  Set LNB type')" );
+    msg_Raw( NULL, "        universal old-sky (default: universal)");
     msg_Raw( NULL, "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (for Russia special)" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
     msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
@@ -730,7 +733,7 @@ int main( int i_argc, char **pp_argv )
         usage();
 
     /*
-     * The only short options left are: 48
+     * The only short options left are: 4
      * Use them wisely.
      */
     static const struct option long_options[] =
@@ -745,6 +748,7 @@ int main( int i_argc, char **pp_argv )
         { "delsys",          required_argument, NULL, '5' },
         { "dvb-plp-id",      required_argument, NULL, '9' },
         { "frequency",       required_argument, NULL, 'f' },
+        { "lnb-type",        required_argument, NULL, '8' },
         { "fec-inner",       required_argument, NULL, 'F' },
         { "rolloff",         required_argument, NULL, 'R' },
         { "symbol-rate",     required_argument, NULL, 's' },
@@ -888,6 +892,10 @@ int main( int i_argc, char **pp_argv )
             msg_Err( NULL, "DVBlast is compiled without DVB support.");
             exit(1);
 #endif
+            break;
+
+        case '8':
+            psz_lnb_type = optarg;
             break;
 
         case 'F':

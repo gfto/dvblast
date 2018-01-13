@@ -221,6 +221,7 @@ extern int i_canum;
 extern char *psz_delsys;
 extern int i_dvr_buffer_size;
 extern int i_frequency;
+extern char *psz_lnb_type;
 extern int i_srate;
 extern int i_satnum;
 extern int i_uncommitted;

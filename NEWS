@@ -5,6 +5,7 @@ Changes between 3.2 and -next
   * Switch default string charset to UTF-8//IGNORE
   * Add --system-charset/-j option to dvblastctl
   * Add --timeout/-t option to dvblastctl and set default to 15 seconds
+  * Add --lnb-type universal|old-sky option to dvblast
 
 Changes between 3.1 and 3.2:
 ----------------------------

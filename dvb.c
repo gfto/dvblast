@@ -470,44 +470,69 @@ static int FrontendDoDiseqc(void)
 
     fe_tone = b_tone ? SEC_TONE_ON : SEC_TONE_OFF;
 
-    /* Automatic mode. */
-    if ( i_frequency >= 950000 && i_frequency <= 2150000 )
+    if ( strcmp( psz_lnb_type, "universal" ) == 0 )
     {
-        msg_Dbg( NULL, "frequency %d is in IF-band", i_frequency );
-        bis_frequency = i_frequency;
+        /* Automatic mode. */
+        if ( i_frequency >= 950000 && i_frequency <= 2150000 )
+        {
+            msg_Dbg( NULL, "frequency %d is in IF-band", i_frequency );
+            bis_frequency = i_frequency;
+        }
+        else if ( i_frequency >= 2500000 && i_frequency <= 2700000 )
+        {
+            msg_Dbg( NULL, "frequency %d is in S-band", i_frequency );
+            bis_frequency = 3650000 - i_frequency;
+        }
+        else if ( i_frequency >= 3400000 && i_frequency <= 4200000 )
+        {
+            msg_Dbg( NULL, "frequency %d is in C-band (lower)", i_frequency );
+            bis_frequency = 5150000 - i_frequency;
+        }
+        else if ( i_frequency >= 4500000 && i_frequency <= 4800000 )
+        {
+            msg_Dbg( NULL, "frequency %d is in C-band (higher)", i_frequency );
+            bis_frequency = 5950000 - i_frequency;
+        }
+        else if ( i_frequency >= 10700000 && i_frequency < 11700000 )
+        {
+            msg_Dbg( NULL, "frequency %d is in Ku-band (lower)",
+                     i_frequency );
+            bis_frequency = i_frequency - 9750000;
+        }
+        else if ( i_frequency >= 11700000 && i_frequency <= 13250000 )
+        {
+            msg_Dbg( NULL, "frequency %d is in Ku-band (higher)",
+                     i_frequency );
+            bis_frequency = i_frequency - 10600000;
+            fe_tone = SEC_TONE_ON;
+        }
+        else
+        {
+            msg_Err( NULL, "frequency %d is out of any known band",
+                     i_frequency );
+            exit(1);
+        }
     }
-    else if ( i_frequency >= 2500000 && i_frequency <= 2700000 )
+    else if ( strcmp( psz_lnb_type, "old-sky" ) == 0 )
     {
-        msg_Dbg( NULL, "frequency %d is in S-band", i_frequency );
-        bis_frequency = 3650000 - i_frequency;
-    }
-    else if ( i_frequency >= 3400000 && i_frequency <= 4200000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in C-band (lower)", i_frequency );
-        bis_frequency = 5150000 - i_frequency;
-    }
-    else if ( i_frequency >= 4500000 && i_frequency <= 4800000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in C-band (higher)", i_frequency );
-        bis_frequency = 5950000 - i_frequency;
-    }
-    else if ( i_frequency >= 10700000 && i_frequency < 11700000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in Ku-band (lower)",
-                 i_frequency );
-        bis_frequency = i_frequency - 9750000;
-    }
-    else if ( i_frequency >= 11700000 && i_frequency <= 13250000 )
-    {
-        msg_Dbg( NULL, "frequency %d is in Ku-band (higher)",
-                 i_frequency );
-        bis_frequency = i_frequency - 10600000;
-        fe_tone = SEC_TONE_ON;
+         if ( i_frequency >= 11700000 && i_frequency <= 13250000 )
+        {
+            msg_Dbg( NULL, "frequency %d is in Ku-band (higher)",
+                     i_frequency );
+            bis_frequency = i_frequency - 11300000;
+            fe_tone = SEC_TONE_ON;
+        }
+        else
+        {
+            msg_Err( NULL, "frequency %d is out of any known band",
+                     i_frequency );
+            exit(1);
+        }
     }
     else
     {
-        msg_Err( NULL, "frequency %d is out of any known band",
-                 i_frequency );
+        msg_Err( NULL, "lnb-type '%s' is not known. Valid type: universal old-sky",
+                 psz_lnb_type );
         exit(1);
     }
 
@@ -608,8 +633,8 @@ static int FrontendDoDiseqc(void)
 
     msleep(100000); /* ... */
 
-    msg_Dbg( NULL, "configuring LNB to v=%d p=%d satnum=%x uncommitted=%x",
-             i_voltage, b_tone, i_satnum, i_uncommitted );
+    msg_Dbg( NULL, "configuring LNB to v=%d p=%d satnum=%x uncommitted=%x lnb-type=%s bis_frequency=%d",
+             i_voltage, b_tone, i_satnum, i_uncommitted, psz_lnb_type, bis_frequency );
     return bis_frequency;
 }
 
