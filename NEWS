@@ -4,6 +4,7 @@ Changes between 3.2 and -next
   * Add support for getting EIT schedule for chosen service in dvblastctl
   * Switch default string charset to UTF-8//IGNORE
   * Add --system-charset/-j option to dvblastctl
+  * Add --timeout/-t option to dvblastctl and set default to 15 seconds
 
 Changes between 3.1 and 3.2:
 ----------------------------

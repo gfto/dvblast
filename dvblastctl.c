@@ -51,6 +51,7 @@
 
 int i_verbose = 3;
 int i_syslog = 0;
+unsigned int i_timeout_seconds = 15;
 
 print_type_t i_print_type = PRINT_TEXT;
 mtime_t now;
@@ -358,6 +359,7 @@ void usage()
     printf("Usage: dvblastctl -r <remote socket> [-x <text|xml>] [cmd]\n");
     printf("Options:\n");
     printf("  -r --remote-socket <name>       Set socket name to <name>.\n" );
+    printf("  -t --timeout <seconds>          Set socket read/write timeout in seconds (default 15).\n" );
     printf("  -j --system-charset <name>      Character set used for output (default UTF-8//IGNORE)\n" );
     printf("  -x --print <text|xml>           Choose output format for info commands.\n" );
     printf("Control commands:\n");
@@ -409,19 +411,24 @@ int main( int i_argc, char **ppsz_argv )
         static const struct option long_options[] =
         {
             {"remote-socket", required_argument, NULL, 'r'},
+            {"timeout", required_argument, NULL, 't'},
             {"system-charset", required_argument, NULL, 'j'},
             {"print", required_argument, NULL, 'x'},
             {"help", no_argument, NULL, 'h'},
             {0, 0, 0, 0}
         };
 
-        if ( (c = getopt_long(i_argc, ppsz_argv, "r:x:j:h", long_options, NULL)) == -1 )
+        if ( (c = getopt_long(i_argc, ppsz_argv, "r:t:x:j:h", long_options, NULL)) == -1 )
             break;
 
         switch ( c )
         {
         case 'r':
             psz_srv_socket = optarg;
+            break;
+
+        case 't':
+            i_timeout_seconds = (unsigned int)strtoul(optarg, NULL, 10);
             break;
 
         case 'j':
@@ -604,6 +611,18 @@ int main( int i_argc, char **ppsz_argv )
     default:
         /* This should not happen */
         return_error( "Unhandled option (%d)", opt.cmd );
+    }
+
+    if ( i_timeout_seconds > 0 ) {
+        struct timeval tv_timeout = {
+            .tv_sec  = i_timeout_seconds,
+            .tv_usec = 0,
+        };
+        if ( setsockopt( i_fd, SOL_SOCKET, SO_SNDTIMEO, &tv_timeout, sizeof( tv_timeout ) ) != 0 )
+            return_error( "Cannot set SO_SNDTIMEO (%s)", strerror(errno) );
+
+        if ( setsockopt( i_fd, SOL_SOCKET, SO_RCVTIMEO, &tv_timeout, sizeof( tv_timeout ) ) != 0 )
+            return_error( "Cannot set SO_RCVTIMEO (%s)", strerror(errno) );
     }
 
     /* Send command and receive answer */
