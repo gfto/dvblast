@@ -358,6 +358,7 @@ void usage()
     printf("Usage: dvblastctl -r <remote socket> [-x <text|xml>] [cmd]\n");
     printf("Options:\n");
     printf("  -r --remote-socket <name>       Set socket name to <name>.\n" );
+    printf("  -j --system-charset <name>      Character set used for output (default UTF-8//IGNORE)\n" );
     printf("  -x --print <text|xml>           Choose output format for info commands.\n" );
     printf("Control commands:\n");
     printf("  reload                          Reload configuration.\n");
@@ -408,18 +409,23 @@ int main( int i_argc, char **ppsz_argv )
         static const struct option long_options[] =
         {
             {"remote-socket", required_argument, NULL, 'r'},
+            {"system-charset", required_argument, NULL, 'j'},
             {"print", required_argument, NULL, 'x'},
             {"help", no_argument, NULL, 'h'},
             {0, 0, 0, 0}
         };
 
-        if ( (c = getopt_long(i_argc, ppsz_argv, "r:x:h", long_options, NULL)) == -1 )
+        if ( (c = getopt_long(i_argc, ppsz_argv, "r:x:j:h", long_options, NULL)) == -1 )
             break;
 
         switch ( c )
         {
         case 'r':
             psz_srv_socket = optarg;
+            break;
+
+        case 'j':
+            psz_native_charset = optarg;
             break;
 
         case 'x':
