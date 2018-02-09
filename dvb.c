@@ -916,6 +916,12 @@ static struct dtv_properties dvbs_cmdseq = {
     .props = dvbs_cmdargs
 };
 
+#define IDX_DVBS2_PILOT     6
+#define IDX_DVBS2_ROLLOFF   7
+#define IDX_DVBS2_STREAM_ID 8
+
+/* Commands 0..5 are the same as dvbs_cmdargs */
+/* Commands 6..8 are special for DVB-S2 */
 static struct dtv_property dvbs2_cmdargs[] = {
     { .cmd = DTV_DELIVERY_SYSTEM, .u.data = SYS_DVBS2 },
     { .cmd = DTV_FREQUENCY,       .u.data = 0 },
@@ -923,9 +929,9 @@ static struct dtv_property dvbs2_cmdargs[] = {
     { .cmd = DTV_INVERSION,       .u.data = INVERSION_AUTO },
     { .cmd = DTV_SYMBOL_RATE,     .u.data = 27500000 },
     { .cmd = DTV_INNER_FEC,       .u.data = FEC_AUTO },
-    { .cmd = DTV_PILOT,           .u.data = PILOT_AUTO },
-    { .cmd = DTV_ROLLOFF,         .u.data = ROLLOFF_AUTO },
-    { .cmd = DTV_STREAM_ID,       .u.data = 0 },
+    { .cmd = DTV_PILOT,           .u.data = PILOT_AUTO },   /* idx: 6 */
+    { .cmd = DTV_ROLLOFF,         .u.data = ROLLOFF_AUTO }, /* idx: 7 */
+    { .cmd = DTV_STREAM_ID,       .u.data = 0 },            /* idx: 8 */
     { .cmd = DTV_TUNE },
 };
 static struct dtv_properties dvbs2_cmdseq = {
@@ -1036,10 +1042,8 @@ static struct dtv_properties isdbt_cmdseq = {
 #define FEC_INNER 5
 #define FEC_LP 6
 #define GUARD 7
-#define PILOT 7
 #define TRANSMISSION 8
-#define ROLLOFF 8
-#define MIS 9
+
 #define HIERARCHY 9
 #define PLP_ID 10
 
@@ -1301,9 +1305,9 @@ static void FrontendSet( bool b_init )
         {
             p = &dvbs2_cmdseq;
             p->props[MODULATION].u.data = GetModulation();
-            p->props[PILOT].u.data = GetPilot();
-            p->props[ROLLOFF].u.data = GetRollOff();
-            p->props[MIS].u.data = i_mis;
+            p->props[IDX_DVBS2_PILOT].u.data = GetPilot();
+            p->props[IDX_DVBS2_ROLLOFF].u.data = GetRollOff();
+            p->props[IDX_DVBS2_STREAM_ID].u.data = i_mis;
         }
         else
             p = &dvbs_cmdseq;
