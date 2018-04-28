@@ -74,7 +74,7 @@ int i_dvr_buffer_size = DVR_BUFFER_SIZE;
 
 static int i_frontend, i_dvr;
 static struct ev_io frontend_watcher, dvr_watcher;
-static struct ev_timer lock_watcher, mute_watcher, print_watcher;
+static struct ev_timer lock_watcher, lock_watcher2, mute_watcher, print_watcher;
 static fe_status_t i_last_status;
 static block_t *p_freelist = NULL;
 
@@ -86,6 +86,40 @@ static void DVRMuteCb(struct ev_loop *loop, struct ev_timer *w, int revents);
 static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents);
 static void FrontendLockCb(struct ev_loop *loop, struct ev_timer *w, int revents);
 static void FrontendSet( bool b_reset );
+
+static int have_lock = 0;
+
+static void __FrontendLockCb(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+	if ( i_frontend == -1 )
+		return;
+
+	if ( have_lock == 0 ) {
+		i_mis_pls_code++;
+		msg_Err( NULL, "=== no lock, tuning again with new pls_code=%d ===", i_mis_pls_code );
+		i_mis = calc_multistream_id( i_mis_pls_mode, i_mis_pls_code, i_mis_is_id );
+/*
+		ev_io_stop(event_loop, &frontend_watcher);
+		ev_io_stop(event_loop, &dvr_watcher);
+		ev_timer_stop(event_loop, &mute_watcher);
+		ev_timer_stop(event_loop, &lock_watcher);
+		ev_timer_stop(event_loop, &lock_watcher2);
+//		ev_break (event_loop, EVBREAK_ONE);
+		close( i_frontend );
+		close( i_dvr );
+		reinit = 1;
+		dvb_Open();
+		reinit = 0;
+*/
+		FrontendSet(true);
+	} else {
+        msg_Dbg( NULL, "HAVE_LOCK: f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d mis=%d /pls-mode: %s (%d) pls-code: %d is-id: %d /",
+                 i_frequency, i_srate, i_inversion, i_fec, i_rolloff,
+                 psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot,
+                 i_mis, psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id );
+	}
+}
+
 
 /*****************************************************************************
  * dvb_Open
@@ -112,6 +146,9 @@ void dvb_Open( void )
     {
         i_frontend = -1;
     }
+
+    ev_timer_init(&lock_watcher2, __FrontendLockCb, 2, 2);
+    ev_timer_start(event_loop, &lock_watcher2);
 
     sprintf( psz_tmp, "/dev/dvb/adapter%d/dvr%d", i_adapter, i_fenum );
 
@@ -361,6 +398,7 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
 
             IF_UP( FE_HAS_LOCK )
             {
+have_lock = 1;
                 int32_t i_value = 0;
                 msg_Info( NULL, "frontend has acquired lock" );
                 switch (i_print_type) {
@@ -395,6 +433,7 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
             }
             else
             {
+have_lock = 0;
                 msg_Dbg( NULL, "frontend has lost lock" );
                 switch (i_print_type) {
                 case PRINT_XML:
