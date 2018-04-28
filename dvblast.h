@@ -233,7 +233,15 @@ extern int i_bandwidth;
 extern int i_inversion;
 extern char *psz_modulation;
 extern int i_pilot;
-extern int i_mis;
+
+/* Multistream settings */
+extern int i_mis;          /* Calculated from the three settings bellow, if they are set */
+extern char *psz_mis_pls_mode; /* ROOT, GOLD, COMBO */
+extern int i_mis_pls_mode; /* ROOT - 0, GOLD - 1, COMBO - 2 */
+extern int i_mis_pls_code; /* 0 .. 262143 */
+extern int i_mis_is_id;    /* 0 .. 255 */
+#define calc_multistream_id( pls_mode, pls_code, is_id ) ( pls_mode << 26 | pls_code << 8 | is_id )
+
 extern int i_fec_lp;
 extern int i_guard;
 extern int i_transmission;

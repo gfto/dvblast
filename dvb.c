@@ -1317,10 +1317,10 @@ static void FrontendSet( bool b_init )
         p->props[FEC_INNER].u.data = GetFECInner(info.caps);
         p->props[FREQUENCY].u.data = FrontendDoDiseqc();
 
-        msg_Dbg( NULL, "tuning DVB-S frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d mis=%d",
+        msg_Dbg( NULL, "tuning DVB-S frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d mis=%d /pls-mode: %s (%d) pls-code: %d is-id: %d /",
                  i_frequency, i_srate, i_inversion, i_fec, i_rolloff,
                  psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot,
-                 i_mis );
+                 i_mis, psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id );
         break;
 
     case SYS_ATSC:

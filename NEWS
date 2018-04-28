@@ -6,6 +6,8 @@ Changes between 3.2 and -next
   * Add --system-charset/-j option to dvblastctl
   * Add --timeout/-t option to dvblastctl and set default to 15 seconds
   * Add --lnb-type universal|old-sky option to dvblast
+  * Add support for multistream-id calculation using --multistream-id-pls-mode,
+    --multistream-id-pls-code and --multistream-id-is-id options
 
 Changes between 3.1 and 3.2:
 ----------------------------

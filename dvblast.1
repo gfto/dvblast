@@ -110,11 +110,23 @@ Port number for uncommitted DiSEqC switch (0: no uncommitted DiSEqC swtich, 1\-1
 \fB\-K\fR, \fB\-\-fec-lp\fR
 DVB-T low priority FEC (default auto)
 .TP
-\fB\-1\fR, \fB\-\-delsys\fR <delivery_system>
+\fB\-5\fR, \fB\-\-delsys\fR <delivery_system>
 Select delivery system. Possible values: DVBS|DVBS2|DVBC_ANNEX_A|DVBT|ATSC (default guessed)
 .TP
-\fB\-5\fR, \fB\-\-multistream\-id\fR <stream_id>
-Set stream ID for multistream capable transponders. Value: 0-255 (default: 0)
+\fB\-1\fR, \fB\-\-multistream\-id\fR <stream_id>
+Set stream ID for multistream capable transponders. Value: 0-2147483648 (default: 0)
+.TP
+\fB\-\-multistream\-id\-pls\-mode\fR <ROOT|GOLD|COMBO>
+Set PLS mode used in multistream-id calculation. Possible values are: ROOT GOLD and COMBO (default: ROOT).
+If this option is set multistream-id option is overwritten.
+.TP
+\fB\-\-multistream\-id\-pls\-code\fR <0-262143>
+Set PLS code used in multistream-id calculation. Possible values are in range 0..262143 (default: 0).
+If this option is set multistream-id option is overwritten.
+.TP
+\fB\-\-multistream\-id\-is\-id\fR <0-255>
+Set IS id used in multistream-id calculation. Possible values are in range 0..255 (default: 0).
+If this option is set multistream-id option is overwritten.
 .TP
 \fB\-l\fR, \fB\-\-logger\fR
 Send messages to syslog instead of stderr

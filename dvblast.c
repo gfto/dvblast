@@ -81,6 +81,10 @@ int i_bandwidth = 8;
 char *psz_modulation = NULL;
 int i_pilot = -1;
 int i_mis = 0;
+char *psz_mis_pls_mode = "ROOT";
+int i_mis_pls_mode = 0;
+int i_mis_pls_code = 0;
+int i_mis_is_id = 0;
 int i_fec_lp = 999;
 int i_guard = -1;
 int i_transmission = -1;
@@ -660,7 +664,10 @@ void usage()
     msg_Raw( NULL, "  -P --pilot            DVB-S2 Pilot (-1 auto, 0 off, 1 on)" );
     msg_Raw( NULL, "  -R --rolloff          DVB-S2 Rolloff value" );
     msg_Raw( NULL, "    DVB-S2 35=0.35|25=0.25|20=0.20|0=AUTO (default: 35)" );
-    msg_Raw( NULL, "  -1 --multistream-id   Set stream ID (0-255, default: 0)" );
+    msg_Raw( NULL, "  -1 --multistream-id   Set stream ID (0-2147483648, default: 0)." );
+    msg_Raw( NULL, "     --multistream-id-pls-mode   Set multistream PLS mode (ROOT, GOLD, COMBO, default: ROOT)" );
+    msg_Raw( NULL, "     --multistream-id-pls-code   Set multistream PLS code (0-262143, default: 0)" );
+    msg_Raw( NULL, "     --multistream-id-is-id      Set multistream IS id (0-255, default: 0)" );
     msg_Raw( NULL, "  -K --fec-lp           DVB-T low priority FEC (default auto)" );
     msg_Raw( NULL, "  -G --guard            DVB-T guard interval" );
     msg_Raw( NULL, "    DVB-T  32 (1/32)|16 (1/16)|8 (1/8)|4 (1/4)|-1 (auto, default)" );
@@ -761,6 +768,9 @@ int main( int i_argc, char **pp_argv )
         { "modulation",      required_argument, NULL, 'm' },
         { "pilot",           required_argument, NULL, 'P' },
         { "multistream-id",  required_argument, NULL, '1' },
+        { "multistream-id-pls-mode",  required_argument, NULL, 0x100001 },
+        { "multistream-id-pls-code",  required_argument, NULL, 0x100002 },
+        { "multistream-id-is-id"   ,  required_argument, NULL, 0x100003 },
         { "fec-lp",          required_argument, NULL, 'K' },
         { "guard",           required_argument, NULL, 'G' },
         { "hierarchy",       required_argument, NULL, 'H' },
@@ -944,6 +954,36 @@ int main( int i_argc, char **pp_argv )
 
         case '1':
             i_mis = strtol( optarg, NULL, 0 );
+            break;
+
+        case 0x100001: // --multistream-id-pls-mode
+            psz_mis_pls_mode = optarg;
+            if        ( streq( psz_mis_pls_mode, "ROOT" ) ) {
+                i_mis_pls_mode = 0;
+            } else if ( streq( psz_mis_pls_mode, "GOLD" ) ) {
+                i_mis_pls_mode = 1;
+            } else if ( streq( psz_mis_pls_mode, "COMBO" ) ) {
+                i_mis_pls_mode = 2;
+            } else {
+                msg_Err(NULL, "Invalid --multistream-id-pls-mode '%s', valid options are: ROOT GOLD COMBO", optarg);
+                exit(1);
+            }
+            break;
+
+        case 0x100002: // --multistream-id-pls-code
+            i_mis_pls_code = strtol( optarg, NULL, 0 );
+            if ( i_mis_pls_code < 0 || i_mis_pls_code > 262143 ) {
+                msg_Err(NULL, "ERROR: Invalid --multistream-id-pls-code '%s', valid options are: 0-262143", optarg);
+                exit(1);
+            }
+            break;
+
+        case 0x100003: // --multistream-id-is-id
+            i_mis_is_id = strtol( optarg, NULL, 0 );
+            if ( i_mis_is_id < 0 || i_mis_is_id > 255 ) {
+                msg_Err(NULL, "ERROR: Invalid --multistream-id-is-id '%s', valid options are: 0-255", optarg);
+                exit(1);
+            }
             break;
 
         case 'K':
@@ -1231,6 +1271,26 @@ int main( int i_argc, char **pp_argv )
     signal_watcher_init(&sighup_watcher, event_loop, sighandler, SIGHUP);
 
     srand( time(NULL) * getpid() );
+
+    if ( i_mis_pls_mode || i_mis_pls_code || i_mis_is_id )
+    {
+        i_mis = calc_multistream_id( i_mis_pls_mode, i_mis_pls_code, i_mis_is_id );
+        msg_Info( NULL, "Calculating multistream-id using pls-mode: %s (%d) pls-code: %d is-id: %d. Resulting multistream-id: %d (0x%x)",
+            psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id, i_mis, i_mis );
+    }
+    else if ( i_mis )
+    {
+        i_mis_pls_mode = (i_mis >> 26) & 0x03;
+        i_mis_pls_code = (i_mis >> 8) & 0x3ffff;
+        i_mis_is_id    = i_mis & 0xff;
+        psz_mis_pls_mode =
+            i_mis_pls_mode == 0 ? "ROOT" :
+            i_mis_pls_mode == 1 ? "GOLD" :
+            i_mis_pls_mode == 2 ? "COMBO" : "UNKNOWN";
+
+        msg_Info( NULL, "Calculated multistream pls-mode: %s (%d) pls-code: %d is-id: %d from multistream-id: %d (0x%x)",
+            psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id, i_mis, i_mis );
+    }
 
     demux_Open();
 
