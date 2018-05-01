@@ -3054,7 +3054,7 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
     free(p_sid->eit_table[eit_table_id].data[i_section]);
     p_sid->eit_table[eit_table_id].data[i_section] = p_eit;
 
-    if ( b_print_enabled )
+    if ( 0 && b_print_enabled ) /* Printing is disabled because it's a lot of data */
     {
         eit_print( p_eit, demux_Print, NULL,
                    demux_Iconv, NULL, i_print_type );
