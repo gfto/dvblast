@@ -1,3 +1,8 @@
+Changes between 3.2 and -next
+-----------------------------
+  * Add support for getting EIT present/following for chosen service in dvblastctl
+  * Add support for getting EIT schedule for chosen service in dvblastctl
+
 Changes between 3.1 and 3.2:
 ----------------------------
   * Fix HEVC support
