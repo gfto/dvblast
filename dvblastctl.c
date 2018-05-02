@@ -51,6 +51,7 @@
 
 int i_verbose = 3;
 int i_syslog = 0;
+unsigned int i_timeout_seconds = 15;
 
 print_type_t i_print_type = PRINT_TEXT;
 mtime_t now;
@@ -116,7 +117,7 @@ static char *iconv_append_null(const char *p_string, size_t i_length)
     return psz_string;
 }
 
-const char *psz_native_charset = "UTF-8";
+const char *psz_native_charset = "UTF-8//IGNORE";
 
 char *psi_iconv(void *_unused, const char *psz_encoding,
                   char *p_string, size_t i_length)
@@ -210,6 +211,114 @@ void print_pids( uint8_t *p_data )
     print_pids_footer();
 }
 
+void print_eit_events(uint8_t *p_eit, f_print pf_print, void *print_opaque, f_iconv pf_iconv, void *iconv_opaque, print_type_t i_print_type)
+{
+    uint8_t *p_event;
+    uint8_t j = 0;
+    while ((p_event = eit_get_event(p_eit, j)) != NULL) {
+        j++;
+        char start_str[24], duration_str[10];
+        int duration, hour, min, sec;
+        time_t start_ts;
+
+        start_ts = dvb_time_format_UTC(eitn_get_start_time(p_event), NULL, start_str);
+
+        dvb_time_decode_bcd(eitn_get_duration_bcd(p_event), &duration, &hour, &min, &sec);
+        sprintf(duration_str, "%02d:%02d:%02d", hour, min, sec);
+
+        switch (i_print_type) {
+        case PRINT_XML:
+            pf_print(print_opaque, "<EVENT id=\"%u\" start_time=\"%ld\" start_time_dec=\"%s\""
+                                   " duration=\"%u\" duration_dec=\"%s\""
+                                   " running=\"%d\" free_CA=\"%d\">",
+                     eitn_get_event_id(p_event),
+                     start_ts, start_str,
+                     duration, duration_str,
+                     eitn_get_running(p_event),
+                     eitn_get_ca(p_event)
+                    );
+            break;
+        default:
+            pf_print(print_opaque, "  * EVENT id=%u start_time=%ld start_time_dec=\"%s\" duration=%u duration_dec=%s running=%d free_CA=%d",
+                     eitn_get_event_id(p_event),
+                     start_ts, start_str,
+                     duration, duration_str,
+                     eitn_get_running(p_event),
+                     eitn_get_ca(p_event)
+                    );
+        }
+
+        descs_print(eitn_get_descs(p_event), pf_print, print_opaque,
+                    pf_iconv, iconv_opaque, i_print_type);
+
+        switch (i_print_type) {
+        case PRINT_XML:
+            pf_print(print_opaque, "</EVENT>");
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+void print_eit(uint8_t *p_eit, unsigned int i_eit_size, f_print pf_print, void *print_opaque, f_iconv pf_iconv, void *iconv_opaque, print_type_t i_print_type)
+{
+    uint8_t *p_eit_end = p_eit + i_eit_size;
+    uint8_t i_tid = psi_get_tableid(p_eit);
+    const char *psz_tid = "unknown";
+
+    if (i_tid == EIT_TABLE_ID_PF_ACTUAL)
+        psz_tid = "actual_pf";
+    else if (i_tid == EIT_TABLE_ID_PF_OTHER)
+        psz_tid = "other_pf";
+    else if (i_tid >= EIT_TABLE_ID_SCHED_ACTUAL_FIRST && i_tid <= EIT_TABLE_ID_SCHED_ACTUAL_LAST)
+        psz_tid = "actual_schedule";
+    else if (i_tid >= EIT_TABLE_ID_SCHED_OTHER_FIRST && i_tid <= EIT_TABLE_ID_SCHED_OTHER_LAST)
+        psz_tid = "other_schedule";
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        pf_print(print_opaque,
+                "<EIT tableid=\"0x%02x\" type=\"%s\" service_id=\"%u\""
+                " version=\"%u\""
+                " current_next=\"%u\""
+                " tsid=\"%u\" onid=\"%u\">",
+                 i_tid, psz_tid,
+                 eit_get_sid(p_eit),
+                 psi_get_version(p_eit),
+                 !psi_get_current(p_eit) ? 0 : 1,
+                 eit_get_tsid(p_eit),
+                 eit_get_onid(p_eit)
+                );
+        break;
+    default:
+        pf_print(print_opaque,
+                 "new EIT tableid=0x%02x type=%s service_id=%u version=%u%s"
+                 " tsid=%u"
+                 " onid=%u",
+                 i_tid, psz_tid,
+                 eit_get_sid(p_eit),
+                 psi_get_version(p_eit),
+                 !psi_get_current(p_eit) ? " (next)" : "",
+                 eit_get_tsid(p_eit),
+                 eit_get_onid(p_eit)
+                );
+    }
+
+    while (p_eit < p_eit_end) {
+        print_eit_events(p_eit, pf_print, print_opaque, pf_iconv, iconv_opaque, i_print_type);
+        p_eit += psi_get_length( p_eit ) + PSI_HEADER_SIZE;
+    }
+
+    switch (i_print_type) {
+    case PRINT_XML:
+        pf_print(print_opaque, "</EIT>");
+        break;
+    default:
+        pf_print(print_opaque, "end EIT");
+    }
+}
+
 struct dvblastctl_option {
     char *      opt;
     int         nparams;
@@ -235,6 +344,8 @@ static const struct dvblastctl_option options[] =
     { "get_cat",            0, CMD_GET_CAT },
     { "get_nit",            0, CMD_GET_NIT },
     { "get_sdt",            0, CMD_GET_SDT },
+    { "get_eit_pf",         1, CMD_GET_EIT_PF }, /* arg: service_id (uint16_t) */
+    { "get_eit_schedule",   1, CMD_GET_EIT_SCHEDULE }, /* arg: service_id (uint16_t) */
     { "get_pmt",            1, CMD_GET_PMT }, /* arg: service_id (uint16_t) */
     { "get_pids",           0, CMD_GET_PIDS },
     { "get_pid",            1, CMD_GET_PID },  /* arg: pid (uint16_t) */
@@ -248,6 +359,8 @@ void usage()
     printf("Usage: dvblastctl -r <remote socket> [-x <text|xml>] [cmd]\n");
     printf("Options:\n");
     printf("  -r --remote-socket <name>       Set socket name to <name>.\n" );
+    printf("  -t --timeout <seconds>          Set socket read/write timeout in seconds (default 15).\n" );
+    printf("  -j --system-charset <name>      Character set used for output (default UTF-8//IGNORE)\n" );
     printf("  -x --print <text|xml>           Choose output format for info commands.\n" );
     printf("Control commands:\n");
     printf("  reload                          Reload configuration.\n");
@@ -269,6 +382,8 @@ void usage()
     printf("  get_cat                         Return last CAT table.\n");
     printf("  get_nit                         Return last NIT table.\n");
     printf("  get_sdt                         Return last SDT table.\n");
+    printf("  get_eit_pf <service_id>         Return last EIT present/following data.\n");
+    printf("  get_eit_schedule <service_id>   Return last EIT schedule data.\n");
     printf("  get_pmt <service_id>            Return last PMT table.\n");
     printf("  get_pids                        Return info about all pids.\n");
     printf("  get_pid <pid>                   Return info for chosen pid only.\n");
@@ -296,18 +411,28 @@ int main( int i_argc, char **ppsz_argv )
         static const struct option long_options[] =
         {
             {"remote-socket", required_argument, NULL, 'r'},
+            {"timeout", required_argument, NULL, 't'},
+            {"system-charset", required_argument, NULL, 'j'},
             {"print", required_argument, NULL, 'x'},
             {"help", no_argument, NULL, 'h'},
             {0, 0, 0, 0}
         };
 
-        if ( (c = getopt_long(i_argc, ppsz_argv, "r:x:h", long_options, NULL)) == -1 )
+        if ( (c = getopt_long(i_argc, ppsz_argv, "r:t:x:j:h", long_options, NULL)) == -1 )
             break;
 
         switch ( c )
         {
         case 'r':
             psz_srv_socket = optarg;
+            break;
+
+        case 't':
+            i_timeout_seconds = (unsigned int)strtoul(optarg, NULL, 10);
+            break;
+
+        case 'j':
+            psz_native_charset = optarg;
             break;
 
         case 'x':
@@ -417,6 +542,8 @@ int main( int i_argc, char **ppsz_argv )
     case CMD_GET_PIDS:
         /* These commands need no special handling because they have no parameters */
         break;
+    case CMD_GET_EIT_PF:
+    case CMD_GET_EIT_SCHEDULE:
     case CMD_GET_PMT:
     {
         uint16_t i_sid = atoi(p_arg1);
@@ -484,6 +611,18 @@ int main( int i_argc, char **ppsz_argv )
     default:
         /* This should not happen */
         return_error( "Unhandled option (%d)", opt.cmd );
+    }
+
+    if ( i_timeout_seconds > 0 ) {
+        struct timeval tv_timeout = {
+            .tv_sec  = i_timeout_seconds,
+            .tv_usec = 0,
+        };
+        if ( setsockopt( i_fd, SOL_SOCKET, SO_SNDTIMEO, &tv_timeout, sizeof( tv_timeout ) ) != 0 )
+            return_error( "Cannot set SO_SNDTIMEO (%s)", strerror(errno) );
+
+        if ( setsockopt( i_fd, SOL_SOCKET, SO_RCVTIMEO, &tv_timeout, sizeof( tv_timeout ) ) != 0 )
+            return_error( "Cannot set SO_RCVTIMEO (%s)", strerror(errno) );
     }
 
     /* Send command and receive answer */
@@ -564,6 +703,15 @@ int main( int i_argc, char **ppsz_argv )
 
         psi_table_free( pp_sections );
         free( pp_sections );
+        break;
+    }
+
+    case RET_EIT_PF:
+    case RET_EIT_SCHEDULE:
+    {
+        uint8_t *p_eit_data = p_buffer + COMM_HEADER_SIZE;
+        unsigned int i_eit_data_size = i_received - COMM_HEADER_SIZE;
+        print_eit( p_eit_data, i_eit_data_size, psi_print, NULL, psi_iconv, NULL, i_print_type );
         break;
     }
 
