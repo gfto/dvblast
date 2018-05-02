@@ -221,6 +221,7 @@ extern int i_canum;
 extern char *psz_delsys;
 extern int i_dvr_buffer_size;
 extern int i_frequency;
+extern char *psz_lnb_type;
 extern int i_srate;
 extern int i_satnum;
 extern int i_uncommitted;
@@ -232,7 +233,15 @@ extern int i_bandwidth;
 extern int i_inversion;
 extern char *psz_modulation;
 extern int i_pilot;
-extern int i_mis;
+
+/* Multistream settings */
+extern int i_mis;          /* Calculated from the three settings bellow, if they are set */
+extern char *psz_mis_pls_mode; /* ROOT, GOLD, COMBO */
+extern int i_mis_pls_mode; /* ROOT - 0, GOLD - 1, COMBO - 2 */
+extern int i_mis_pls_code; /* 0 .. 262143 */
+extern int i_mis_is_id;    /* 0 .. 255 */
+#define calc_multistream_id( pls_mode, pls_code, is_id ) ( pls_mode << 26 | pls_code << 8 | is_id )
+
 extern int i_fec_lp;
 extern int i_guard;
 extern int i_transmission;
@@ -342,6 +351,8 @@ uint8_t *demux_get_current_packed_CAT( unsigned int *pi_pack_size );
 uint8_t *demux_get_current_packed_NIT( unsigned int *pi_pack_size );
 uint8_t *demux_get_current_packed_SDT( unsigned int *pi_pack_size );
 uint8_t *demux_get_packed_PMT( uint16_t service_id, unsigned int *pi_pack_size );
+uint8_t *demux_get_packed_EIT_pf( uint16_t service_id, unsigned int *pi_pack_size );
+uint8_t *demux_get_packed_EIT_schedule( uint16_t service_id, unsigned int *pi_pack_size );
 void demux_get_PID_info( uint16_t i_pid, uint8_t *p_data );
 void demux_get_PIDS_info( uint8_t *p_data );
 
