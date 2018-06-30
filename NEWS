@@ -8,6 +8,7 @@ Changes between 3.2 and -next
   * Add --lnb-type universal|old-sky option to dvblast
   * Add support for multistream-id calculation using --multistream-id-pls-mode,
     --multistream-id-pls-code and --multistream-id-is-id options
+  * Add --passthrough (to stdout) option
 
 Changes between 3.1 and 3.2:
 ----------------------------

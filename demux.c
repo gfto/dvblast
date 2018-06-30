@@ -1,7 +1,7 @@
 /*****************************************************************************
  * demux.c
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011, 2015-2017 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2015-2018 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -731,6 +731,9 @@ static void demux_Handle( block_t *p_ts )
 
     if ( output_dup.config.i_config & OUTPUT_VALID )
         output_Put( &output_dup, p_ts );
+
+    if ( b_passthrough )
+        fwrite(p_ts->p_ts, TS_SIZE, 1, stdout);
 
     p_ts->i_refcount--;
     if ( !p_ts->i_refcount )
