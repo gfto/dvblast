@@ -651,7 +651,7 @@ void usage()
     msg_Raw( NULL, "  -f --frequency        frontend frequency" );
     msg_Raw( NULL, "  -8 --lnb-type <type>  Set LNB type')" );
     msg_Raw( NULL, "        universal old-sky (default: universal)");
-    msg_Raw( NULL, "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (for Russia special)" );
+    msg_Raw( NULL, "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (default: 0)" );
     msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
     msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
     msg_Raw( NULL, "  -I --inversion        Inversion (-1 auto, 0 off, 1 on)" );
