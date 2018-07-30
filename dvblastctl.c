@@ -647,8 +647,8 @@ int main( int i_argc, char **ppsz_argv )
     } while ( i_received < i_packet_size );
 
     clean_client_socket();
-    if ( i_size < COMM_HEADER_SIZE )
-        return_error( "Cannot recv from comm socket, size:%zd (%s)", i_size, strerror(errno) );
+    if ( i_packet_size < COMM_HEADER_SIZE )
+        return_error( "Cannot recv from comm socket, size:%"PRIu32" (%s)", i_packet_size, strerror(errno) );
 
     /* Process answer */
     if ( p_buffer[0] != COMM_HEADER_MAGIC )
@@ -684,7 +684,7 @@ int main( int i_argc, char **ppsz_argv )
     case RET_SDT:
     {
         uint8_t *p_flat_data = p_buffer + COMM_HEADER_SIZE;
-        unsigned int i_flat_data_size = i_size - COMM_HEADER_SIZE;
+        unsigned int i_flat_data_size = i_packet_size - COMM_HEADER_SIZE;
         uint8_t **pp_sections = psi_unpack_sections( p_flat_data, i_flat_data_size );
         if ( !pp_sections )
         {
@@ -741,7 +741,7 @@ int main( int i_argc, char **ppsz_argv )
         int ret = 1;
         struct ret_frontend_status *p_ret =
             (struct ret_frontend_status *)&p_buffer[COMM_HEADER_SIZE];
-        if ( i_size != COMM_HEADER_SIZE + sizeof(struct ret_frontend_status) )
+        if ( i_packet_size != COMM_HEADER_SIZE + sizeof(struct ret_frontend_status) )
             return_error( "Bad frontend status" );
 
         if ( i_print_type == PRINT_XML )
@@ -889,7 +889,7 @@ int main( int i_argc, char **ppsz_argv )
     {
         struct ret_mmi_status *p_ret =
             (struct ret_mmi_status *)&p_buffer[COMM_HEADER_SIZE];
-        if ( i_size != COMM_HEADER_SIZE + sizeof(struct ret_mmi_status) )
+        if ( i_packet_size != COMM_HEADER_SIZE + sizeof(struct ret_mmi_status) )
             return_error( "Bad MMI status" );
 
         printf("CA interface with %d %s, type:\n", p_ret->caps.slot_num,
@@ -923,7 +923,7 @@ int main( int i_argc, char **ppsz_argv )
     {
         struct ret_mmi_slot_status *p_ret =
             (struct ret_mmi_slot_status *)&p_buffer[COMM_HEADER_SIZE];
-        if ( i_size < COMM_HEADER_SIZE + sizeof(struct ret_mmi_slot_status) )
+        if ( i_packet_size < COMM_HEADER_SIZE + sizeof(struct ret_mmi_slot_status) )
             return_error( "Bad MMI slot status" );
 
         printf("CA slot #%u: ", p_ret->sinfo.num);
@@ -956,10 +956,10 @@ int main( int i_argc, char **ppsz_argv )
     {
         struct ret_mmi_recv *p_ret =
             (struct ret_mmi_recv *)&p_buffer[COMM_HEADER_SIZE];
-        if ( i_size < COMM_HEADER_SIZE + sizeof(struct ret_mmi_recv) )
+        if ( i_packet_size < COMM_HEADER_SIZE + sizeof(struct ret_mmi_recv) )
             return_error( "Bad MMI recv" );
 
-        en50221_UnserializeMMIObject( &p_ret->object, i_size
+        en50221_UnserializeMMIObject( &p_ret->object, i_packet_size
           - COMM_HEADER_SIZE - ((void *)&p_ret->object - (void *)p_ret) );
 
         switch ( p_ret->object.i_object_type )
