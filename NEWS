@@ -1,3 +1,8 @@
+Changes between 3.3 and 3.4:
+----------------------------
+  * Fix segfault with dvblastctl when getting large tables
+  * Fix wrong library version
+
 Changes between 3.2 and 3.3:
 ----------------------------
   * Add support for getting EIT present/following for chosen service in dvblastctl
