@@ -1391,8 +1391,13 @@ static void ConditionalAccessHandle( access_t * p_access, int i_session_id,
  *****************************************************************************/
 static void ConditionalAccessClose( access_t * p_access, int i_session_id )
 {
+    system_ids_t *p_ids =
+        (system_ids_t *)p_sessions[i_session_id - 1].p_sys;
 
     msg_Dbg( p_access, "closing ConditionalAccess session (%d)", i_session_id );
+
+    if ( p_ids->i_nb_system_ids )
+        free( p_ids->pi_system_ids );
 
     free( p_sessions[i_session_id - 1].p_sys );
 }
