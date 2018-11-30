@@ -1,0 +1,34 @@
+stages:
+    - build
+
+build-debian:
+    image: registry.videolan.org:5000/vlc-debian-unstable:20181128113529
+    stage: build
+    tags:
+        - debian
+        - amd64
+    script:
+        - wget http://dist.schmorp.de/libev/Attic/libev-4.24.tar.gz
+        - tar xf libev-4.24.tar.gz
+        - cd libev-4.24
+        - ./configure --prefix=`pwd`/../deps/
+        - make -j $(getconf _NPROCESSORS_ONLN)
+        - make install
+        - cd ..
+        - git clone https://code.videolan.org/videolan/bitstream
+        - CFLAGS="-Ideps/include -I./" LDFLAGS="-Ldeps/lib" make -j $(getconf _NPROCESSORS_ONLN)
+
+build-macos:
+    stage: build
+    tags:
+        - macos
+    script:
+        - curl -sS -O http://dist.schmorp.de/libev/Attic/libev-4.24.tar.gz
+        - tar xf libev-4.24.tar.gz
+        - cd libev-4.24
+        - ./configure --prefix=`pwd`/../deps/
+        - make -j $(getconf _NPROCESSORS_ONLN)
+        - make install
+        - cd ..
+        - git clone https://code.videolan.org/videolan/bitstream
+        - CFLAGS="-Ideps/include -I./" LDFLAGS="-Ldeps/lib" make -j $(getconf _NPROCESSORS_ONLN)
