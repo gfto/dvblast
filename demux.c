@@ -80,6 +80,9 @@ typedef struct ts_pid_t
 
     int i_pes_status; /* pes + unscrambled */
     struct ev_timer timeout_watcher;
+
+    /* last service selecting this pid, only used for statistics */
+    uint16_t i_sid;
 } ts_pid_t;
 
 struct eit_sections {
@@ -95,6 +98,7 @@ typedef struct sid_t
     uint16_t i_sid, i_pmt_pid;
     uint8_t *p_current_pmt;
     struct eit_sections eit_table[MAX_EIT_TABLES];
+    unsigned long i_packets_passed;
 } sid_t;
 
 mtime_t i_wallclock = 0;
@@ -269,12 +273,13 @@ static inline sid_t *FindSID( uint16_t i_sid )
  *****************************************************************************/
 static void PrintCb( struct ev_loop *loop, struct ev_timer *w, int revents )
 {
+    int i;
     uint64_t i_bitrate = i_nb_packets * TS_SIZE * 8 * 1000000 / i_print_period;
     switch (i_print_type)
     {
         case PRINT_XML:
             fprintf(print_fh,
-                    "<STATUS type=\"bitrate\" status=\"%d\" value=\"%"PRIu64"\" />\n",
+                    "<STATUS type=\"bitrate\" status=\"%d\" value=\"%"PRIu64"\">",
                     i_bitrate ? 1 : 0, i_bitrate);
             break;
         case PRINT_TEXT:
@@ -284,6 +289,36 @@ static void PrintCb( struct ev_loop *loop, struct ev_timer *w, int revents )
             break;
     }
     i_nb_packets = 0;
+
+    for ( i = 0; i < i_nb_sids; i++ )
+    {
+        sid_t *p_sid = pp_sids[i];
+        uint64_t i_bitrate = p_sid->i_packets_passed * TS_SIZE * 8 * 1000000 / i_print_period;
+        switch (i_print_type)
+        {
+            case PRINT_XML:
+                fprintf(print_fh,
+                        "<PROGRAM number=\"%u\" bitrate=\"%"PRIu64"\"/>",
+                        p_sid->i_sid, i_bitrate);
+                break;
+            case PRINT_TEXT:
+                fprintf(print_fh, " - program number %u bitrate: %"PRIu64"\n",
+                        p_sid->i_sid, i_bitrate);
+                break;
+            default:
+                break;
+        }
+        p_sid->i_packets_passed = 0;
+    }
+
+    switch (i_print_type)
+    {
+        case PRINT_XML:
+            fprintf(print_fh, "</STATUS>\n");
+            break;
+        default:
+            break;
+    }
 
     if ( i_nb_invalids )
     {
@@ -543,6 +578,13 @@ static void demux_Handle( block_t *p_ts )
 
     if ( p_pid->info.i_first_packet_ts == 0 )
         p_pid->info.i_first_packet_ts = i_wallclock;
+
+    if ( i_print_period && p_pid->i_sid > 0 )
+    {
+        sid_t *p_sid = FindSID( p_pid->i_sid );
+        if ( p_sid != NULL )
+            p_sid->i_packets_passed++;
+    }
 
     if ( i_pid != PADDING_PID && p_pid->i_last_cc != -1
           && !ts_check_duplicate( i_cc, p_pid->i_last_cc )
@@ -1079,6 +1121,8 @@ static void SelectPID( uint16_t i_sid, uint16_t i_pid, bool b_pcr )
 {
     int i;
 
+    p_pids[i_pid].i_sid = i_sid;
+
     for ( i = 0; i < i_nb_outputs; i++ )
     {
         if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
@@ -1102,6 +1146,8 @@ static void UnselectPID( uint16_t i_sid, uint16_t i_pid )
 {
     int i;
 
+    p_pids[i_pid].i_sid = 0;
+
     for ( i = 0; i < i_nb_outputs; i++ )
         if ( (pp_outputs[i]->config.i_config & OUTPUT_VALID)
               && pp_outputs[i]->config.i_sid == i_sid
@@ -1118,6 +1164,7 @@ static void SelectPMT( uint16_t i_sid, uint16_t i_pid )
 
     p_pids[i_pid].i_psi_refcount++;
     p_pids[i_pid].b_pes = false;
+    p_pids[i_pid].i_sid = i_sid;
 
     if ( b_select_pmts )
         SetPID( i_pid );
@@ -1130,6 +1177,8 @@ static void SelectPMT( uint16_t i_sid, uint16_t i_pid )
 static void UnselectPMT( uint16_t i_sid, uint16_t i_pid )
 {
     int i;
+
+    p_pids[i_pid].i_sid = 0;
 
     p_pids[i_pid].i_psi_refcount--;
     if ( !p_pids[i_pid].i_psi_refcount )
