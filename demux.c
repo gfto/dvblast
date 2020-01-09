@@ -1476,17 +1476,22 @@ static void SendSDT( mtime_t i_dts )
 /*****************************************************************************
  * SendEIT
  *****************************************************************************/
-static bool handle_epg( int i_table_id )
+static bool IsEITpf( int i_table_id )
 {
-    return (i_table_id == EIT_TABLE_ID_PF_ACTUAL ||
-       (i_table_id >= EIT_TABLE_ID_SCHED_ACTUAL_FIRST &&
-        i_table_id <= EIT_TABLE_ID_SCHED_ACTUAL_LAST));
+    return i_table_id == EIT_TABLE_ID_PF_ACTUAL;
+}
+
+static bool IsEPG( int i_table_id )
+{
+    /* We only handle EPG for the current (actual) TS, not others. */
+    return i_table_id >= EIT_TABLE_ID_SCHED_ACTUAL_FIRST &&
+           i_table_id <= EIT_TABLE_ID_SCHED_ACTUAL_LAST;
 }
 
 static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
 {
     uint8_t i_table_id = psi_get_tableid( p_eit );
-    bool b_epg = handle_epg( i_table_id );
+    bool b_epg = IsEPG( i_table_id );
     uint16_t i_onid = eit_get_onid(p_eit);
     int i;
 
@@ -3084,17 +3089,13 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
         return;
     }
 
-    bool b_epg = handle_epg( i_table_id );
-    if ( ! b_epg )
-        goto out_eit;
-
     /* We do not use psi_table_* primitives as the spec allows for holes in
      * section numbering, and there is no sure way to know whether you have
      * gathered all sections. */
     uint8_t i_section = psi_get_section(p_eit);
     uint8_t eit_table_id = i_table_id - EIT_TABLE_ID_PF_ACTUAL;
     if (eit_table_id >= MAX_EIT_TABLES)
-        goto out_eit;
+        goto out_eit; /* can't happen */
     if (p_sid->eit_table[eit_table_id].data[i_section] != NULL &&
         psi_compare(p_sid->eit_table[eit_table_id].data[i_section], p_eit)) {
         /* Identical section. Shortcut. */
@@ -3116,8 +3117,6 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
 
 out_eit:
     SendEIT( p_sid, i_dts, p_eit );
-    if ( ! b_epg )
-        free( p_eit );
 }
 
 /*****************************************************************************
@@ -3175,7 +3174,7 @@ static void HandleSection( uint16_t i_pid, uint8_t *p_section, mtime_t i_dts )
         break;
 
     default:
-        if ( handle_epg( i_table_id ) )
+        if ( IsEITpf( i_table_id ) || IsEPG( i_table_id ) )
         {
             HandleEIT( i_pid, p_section, i_dts );
             break;
