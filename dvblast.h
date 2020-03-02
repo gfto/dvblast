@@ -1,7 +1,7 @@
 /*****************************************************************************
  * dvblast.h
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011, 2015-2016 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2015-2016, 2020 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -264,6 +264,7 @@ extern bool b_print_enabled;
 extern FILE *print_fh;
 extern mtime_t i_print_period;
 extern mtime_t i_es_timeout;
+extern mtime_t i_udp_lock_timeout;
 
 /* pid mapping */
 extern bool b_do_remap;

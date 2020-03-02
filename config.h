@@ -1,7 +1,7 @@
 /*****************************************************************************
  * config.h
  *****************************************************************************
- * Copyright (C) 2004, 2008-2011 VideoLAN
+ * Copyright (C) 2004, 2008-2011, 2020 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *          Andy Gatward <a.j.gatward@reading.ac.uk>
@@ -50,6 +50,7 @@
 #define MAX_EIT_RETENTION 500000 /* 500 ms */
 #define DEFAULT_FRONTEND_TIMEOUT 30000000 /* 30 s */
 #define EXIT_STATUS_FRONTEND_TIMEOUT 100
+#define DEFAULT_UDP_LOCK_TIMEOUT 5000000 /* 5 s */
 
 // Compatability defines
 #if defined(__APPLE__)

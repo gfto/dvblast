@@ -1,7 +1,7 @@
 /*****************************************************************************
  * udp.c: UDP input for DVBlast
  *****************************************************************************
- * Copyright (C) 2009, 2015 VideoLAN
+ * Copyright (C) 2009, 2015, 2020 VideoLAN
  *
  * Authors: Christophe Massiot <massiot@via.ecp.fr>
  *
@@ -48,7 +48,6 @@
 /*****************************************************************************
  * Local declarations
  *****************************************************************************/
-#define UDP_LOCK_TIMEOUT 5000000 /* 5 s */
 #define PRINT_REFRACTORY_PERIOD 1000000 /* 1 s */
 
 static int i_handle;
@@ -278,7 +277,7 @@ void udp_Open( void )
     ev_io_start(event_loop, &udp_watcher);
 
     ev_timer_init(&mute_watcher, udp_MuteCb,
-                  UDP_LOCK_TIMEOUT / 1000000., UDP_LOCK_TIMEOUT / 1000000.);
+                  i_udp_lock_timeout / 1000000., i_udp_lock_timeout / 1000000.);
     memset(&last_addr, 0, sizeof(last_addr));
 }
 
