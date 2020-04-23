@@ -232,7 +232,7 @@ void print_eit_events(uint8_t *p_eit, f_print pf_print, void *print_opaque, f_ic
                                    " running=\"%d\" free_CA=\"%d\">",
                      eitn_get_event_id(p_event),
                      start_ts, start_str,
-                     duration, duration_str,
+                     duration, hour, min, sec,
                      eitn_get_running(p_event),
                      eitn_get_ca(p_event)
                     );
@@ -241,7 +241,7 @@ void print_eit_events(uint8_t *p_eit, f_print pf_print, void *print_opaque, f_ic
             pf_print(print_opaque, "  * EVENT id=%u start_time=%ld start_time_dec=\"%s\" duration=%u duration_dec=%u:%02u:%02u running=%d free_CA=%d",
                      eitn_get_event_id(p_event),
                      start_ts, start_str,
-                     duration, duration_str,
+                     duration, hour, min, sec,
                      eitn_get_running(p_event),
                      eitn_get_ca(p_event)
                     );
