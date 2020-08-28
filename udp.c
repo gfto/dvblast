@@ -449,6 +449,8 @@ static void udp_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
     default:
         break;
     }
+
+    b_sync = false;
 }
 
 /* From now on these are just stubs */
