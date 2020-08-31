@@ -217,32 +217,31 @@ void print_eit_events(uint8_t *p_eit, f_print pf_print, void *print_opaque, f_ic
     uint8_t j = 0;
     while ((p_event = eit_get_event(p_eit, j)) != NULL) {
         j++;
-        char start_str[24], duration_str[10];
+        char start_str[24];
         int duration, hour, min, sec;
         time_t start_ts;
 
         start_ts = dvb_time_format_UTC(eitn_get_start_time(p_event), NULL, start_str);
 
         dvb_time_decode_bcd(eitn_get_duration_bcd(p_event), &duration, &hour, &min, &sec);
-        sprintf(duration_str, "%02d:%02d:%02d", hour, min, sec);
 
         switch (i_print_type) {
         case PRINT_XML:
             pf_print(print_opaque, "<EVENT id=\"%u\" start_time=\"%ld\" start_time_dec=\"%s\""
-                                   " duration=\"%u\" duration_dec=\"%s\""
+                                   " duration=\"%u\" duration_dec=\"%u:%02u:%02u\""
                                    " running=\"%d\" free_CA=\"%d\">",
                      eitn_get_event_id(p_event),
                      start_ts, start_str,
-                     duration, duration_str,
+                     duration, hour, min, sec,
                      eitn_get_running(p_event),
                      eitn_get_ca(p_event)
                     );
             break;
         default:
-            pf_print(print_opaque, "  * EVENT id=%u start_time=%ld start_time_dec=\"%s\" duration=%u duration_dec=%s running=%d free_CA=%d",
+            pf_print(print_opaque, "  * EVENT id=%u start_time=%ld start_time_dec=\"%s\" duration=%u duration_dec=%u:%02u:%02u running=%d free_CA=%d",
                      eitn_get_event_id(p_event),
                      start_ts, start_str,
-                     duration, duration_str,
+                     duration, hour, min, sec,
                      eitn_get_running(p_event),
                      eitn_get_ca(p_event)
                     );
