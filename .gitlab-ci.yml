@@ -1,34 +1,35 @@
 stages:
     - build
 
-build-debian:
-    image: registry.videolan.org:5000/vlc-debian-unstable:20181128113529
+variables:
+    LIBEV_VERSION: "4.33"
+    LIBEV_SHA256SUM: "507eb7b8d1015fbec5b935f34ebed15bf346bed04a11ab82b8eee848c4205aea"
+
+.build-template:
     stage: build
+    script: |
+        curl -O http://dist.schmorp.de/libev/Attic/libev-${LIBEV_VERSION}.tar.gz
+        echo "$LIBEV_SHA256SUM  libev-${LIBEV_VERSION}.tar.gz" | shasum -a 256 -c -
+        tar xf libev-${LIBEV_VERSION}.tar.gz
+        cd libev-${LIBEV_VERSION}
+        ./configure --prefix=`pwd`/../deps/
+        make -j $(getconf _NPROCESSORS_ONLN)
+        make install
+        cd ..
+        git clone https://code.videolan.org/videolan/bitstream
+        CFLAGS="-Ideps/include -I./" LDFLAGS="-Ldeps/lib" make -j $(getconf _NPROCESSORS_ONLN)
+
+build-debian:
+    image: registry.videolan.org/vlc-debian-unstable:20200529132440
     tags:
         - debian
         - amd64
-    script:
-        - wget http://dist.schmorp.de/libev/Attic/libev-4.24.tar.gz
-        - tar xf libev-4.24.tar.gz
-        - cd libev-4.24
-        - ./configure --prefix=`pwd`/../deps/
-        - make -j $(getconf _NPROCESSORS_ONLN)
-        - make install
-        - cd ..
-        - git clone https://code.videolan.org/videolan/bitstream
-        - CFLAGS="-Ideps/include -I./" LDFLAGS="-Ldeps/lib" make -j $(getconf _NPROCESSORS_ONLN)
+    extends:
+        - .build-template
 
 build-macos:
-    stage: build
     tags:
-        - macos
-    script:
-        - curl -sS -O http://dist.schmorp.de/libev/Attic/libev-4.24.tar.gz
-        - tar xf libev-4.24.tar.gz
-        - cd libev-4.24
-        - ./configure --prefix=`pwd`/../deps/
-        - make -j $(getconf _NPROCESSORS_ONLN)
-        - make install
-        - cd ..
-        - git clone https://code.videolan.org/videolan/bitstream
-        - CFLAGS="-Ideps/include -I./" LDFLAGS="-Ldeps/lib" make -j $(getconf _NPROCESSORS_ONLN)
+        - amd64
+        - catalina
+    extends:
+        - .build-template
